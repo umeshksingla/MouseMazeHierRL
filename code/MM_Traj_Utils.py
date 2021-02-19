@@ -963,20 +963,21 @@ def PlotPathsToExit(tr,ma):
     
 def TimeInMaze(f,tf):
     '''
+    This function calculates the amount of time spent on the maze, i.e. it does not count the time the animal spent in the home cage.
     f = absolute time measured in video frames
     tf = trajectory
     returns the time in maze in seconds
     '''
-    n=len(tf.fr)
-    ti=0
+    n_bouts=len(tf.fr)
+    frame_count=0
     i=0
     while tf.fr[i,1]<f:
-        ti+=tf.fr[i,1]-tf.fr[i,0]
+        frame_count+=tf.fr[i,1]-tf.fr[i,0]  # end - start frames of each bout
         i+=1
-        if i==n:
+        if i==n_bouts:
             break
-    ti+=f-tf.fr[i,0]
-    return ti/30
+    frame_count+=f-tf.fr[i,0]
+    return frame_count/30  # 30 Hz is the frame rate
     
 def FrameInExpt(t,tf):
     '''
