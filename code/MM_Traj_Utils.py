@@ -15,11 +15,11 @@ Traj.__module__ = __name__ # for some reason this is needed for pickling the str
 def NewTraj(fr=None,ce=None,ke=None,no=None,re=None):
     '''
     Returns a Traj structure with the desired components
-    fr: start and end frame for each bout; (n,2) ndarray 
+    fr: start and end frame for each bout; (n_bout,2) ndarray 
     ce: cell number in each frame; list of ndarrays, one for each bout
-    ke: nose keypoint (x,y) in each frame; list of (n,2) ndarrays, one for each bout
-    no: node number and start frame within the bout; list of (n,2) ndarrays, one for each bout
-    re: start frame and end frame within the bout for each reward; list of (n,2) ndarrays, one for each bout
+    ke: nose keypoint (x,y) in each frame; list of (n,2) ndarrays, one ndarray for each bout
+    no: nodes numbers and start frames within the bout; list of (n_visited_nodes,2) ndarrays, one ndarray for each bout
+    re: start frame and end frame within the bout for each reward; list of (n_rwd_deliveries,2) ndarrays, one ndarray for each bout
     '''
     return Traj(fr,ce,ke,no,re)
 
@@ -914,17 +914,17 @@ def FindPathsToExit(tr,ma):
             ptn.append([i, b[k,0], j-k+1, b[k,1]+tr.fr[i,0]]) # bout, starting state, node distance, absolute frame
     return np.array(ptn) # bout, starting state, node distance, absolute frame
 
-def FindPathsToNode(n,tr,ma):
+def FindPathsToNode(n,tr,maze):
     '''
-    Finds all monotonic paths to an arbitrary node n in maze ma during trajectory tr
+    Finds all monotonic paths to an arbitrary node `n` in maze `maze` during trajectory `tr`
     Computes the node distance of those paths
     Returns nx4 array containing bout, frame in bout, node distance, absolute frame
     '''
-    wd=np.array([ma.di[r[-1],ma.ru[n][-1]] for r in ma.ru]) # cell distance to target for every node
+    wd=np.array([maze.di[r[-1],maze.ru[n][-1]] for r in maze.ru]) # cell distance to target for every node
     ptn=[]
-    for i,b in enumerate(tr.no):
-        if len(b)>1: # ignore bouts with just one state
-            d=wd[b[:-1,0]] # distance to target node excluding exit state
+    for i, node_in_bout in enumerate(tr.no):
+        if len(node_in_bout)>1: # ignore bouts with just one state
+            d=wd[node_in_bout[:-1,0]] # distance to target node excluding exit state
             js=np.where(d[1:]==0)[0]+1 # states at the target, ignore first state
             for j in js:
                 k = j-1
@@ -933,7 +933,7 @@ def FindPathsToNode(n,tr,ma):
                     if k==-1:
                         break
                 k+=1 # first state in this path    
-                ptn.append([i, k, j-k, b[k,1]+tr.fr[i,0]]) # bout, frame in bout, node distance, absolute frame
+                ptn.append([i, k, j-k, node_in_bout[k,1]+tr.fr[i,0]]) # bout, frame in bout, node distance, absolute frame
     return np.array(ptn,dtype=int) # bout, state in bout, node distance, absolute frame
 
 def PlotPathsToNode(n,tr,ma):
