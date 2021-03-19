@@ -1,5 +1,0 @@
-No treedepth issues:  False
-No energy issues:  False
-No divergence issues:  False
-No effective sample size issues:  True
-No R issues:  True
