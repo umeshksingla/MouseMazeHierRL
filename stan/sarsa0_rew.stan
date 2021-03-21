@@ -6,10 +6,10 @@ data{
     int A;                        // number of actions available at each state
     int RT;                       // reward magnitude at the reward port (node 116)
     real Q0[N,S+1,A];             // initial state-action values for each mouse
-    int Qnodemap[S+1,A];          // node labels corresponding to state-action values in the Q lookup table
+    int nodemap[S+1,A];          // node labels corresponding to state-action values in the Q lookup table
     int TrajS[N,B,BL];            // trajectories of all mice up until the first reward was sampled
     int TrajA[N,B,BL];            // corresponding actions taken at each point in TrajS to transition to the next state
-                                  // TrajA actions: 1,2,3 correspond to column positions on Qnodemap for each row position (states)
+                                  // TrajA actions: 1,2,3 correspond to column positions on nodemap for each row position (states)
     int UB[3];                    // upper bounds for each free parameter
 }
 transformed data {
@@ -26,14 +26,16 @@ parameters{
     // population parameters
     real alpha_mu;
     real <lower=0.001> alpha_sd;
-    real beta_mu;
-    real <lower = 0.001> beta_sd;
+    //real beta_mu;
+    //real <lower = 0.001> beta_sd;
+    real <lower=1> beta_u;
+    real <lower=1> beta_l;
     real gamma_mu;
     real <lower = 0.001> gamma_sd;
 
     // agent parameters
     real alpha_sub[N];
-    real beta_sub[N];
+    real <lower = 0.001, upper=0.999> beta_sub[N];
     real gamma_sub[N];
 }
 model{
@@ -49,8 +51,10 @@ model{
     // sampling population level parameters
     alpha_mu ~ normal(0, 1);
     alpha_sd ~ normal(0, 1);
-    beta_mu ~ normal(0, 1);
-    beta_sd ~ normal(0, 1);
+    //beta_mu ~ normal(0, 1);
+    //beta_sd ~ normal(0, 1);
+    beta_u ~ normal(1, 100);
+    beta_l ~ normal(1, 100);
     gamma_mu ~ normal(0, 1);
     gamma_sd ~ normal(0, 1);
 
@@ -65,8 +69,10 @@ model{
         // sampling agent parameters
         alpha_sub[n] ~ normal(alpha_mu, alpha_sd);
         alpha = Phi_approx(alpha_sub[n]);
-        beta_sub[n] ~ normal(beta_mu, beta_sd);
-        beta = beta_UB * Phi_approx(beta_sub[n]);
+        //beta_sub[n] ~ normal(beta_mu, beta_sd);
+        //beta = beta_UB * Phi_approx(beta_sub[n]);
+        beta_sub[n] ~ beta(beta_u, beta_l);
+        beta = beta_UB * beta_sub[n];
         gamma_sub[n] ~ normal(gamma_mu, gamma_sd);
         gamma = gamma_UB * Phi_approx(gamma_sub[n]);
 
@@ -74,13 +80,14 @@ model{
         s = 0;
 
         for (b in 1:B){
-            // Begin episode if the mouse enters the maze during this bout i.e. when the first node position is 0 and not 127
-            if (TrajS[n,b,1] == 0){
+            // Begin episode if the mouse enters the maze during this bout
+            // i.e. when the first node position is 0 and second node position is not 127
+            if (TrajS[n,b,1] == 0 && TrajS[n,b,2] != 127){
 
                 // Begin stepping through the episode
                 // Get a vector of 3 possible state-action values for the current starting state, s = 0
                 for (i in 1:A){
-                    sprime_values_beta[i] = Q[n, Qnodemap[1,i]+1, i] * beta;
+                    sprime_values_beta[i] = Q[n, nodemap[1,i]+1, i] * beta;
                 }
 
                 // Update the likelihood of choosing action, a from state s = 0
@@ -111,7 +118,7 @@ model{
                         else if (sprime == 127){
                             aprime = 2;
                         }
-                        else if (Qnodemap[sprime+1,2] == -1){
+                        else if (nodemap[sprime+1,2] == -1){
                             // Select action to take from sprime
                             aprime = TrajA[n,b,step];
                         }
@@ -119,7 +126,7 @@ model{
                             // Select an action
                             // Get a vector of 3 possible state-action values for the state, sprime
                             for (i in 1:A){
-                                sprime_values_beta[i] = Q[n,Qnodemap[sprime+1,i]+1,i] * beta;
+                                sprime_values_beta[i] = Q[n,nodemap[sprime+1,i]+1,i] * beta;
                             }
 
                             // Update the likelihood of choosing action, aprime from state sprime
@@ -152,7 +159,8 @@ model{
 }
 generated quantities{
     real alpha_mu_phi;
-    real beta_mu_phi;
+    //real beta_mu_phi;
+    real beta_hyper_mean;
     real gamma_mu_phi;
     real alpha_sub_phi[N];
     real beta_sub_phi[N];
@@ -161,10 +169,12 @@ generated quantities{
 
     // Preparing fitted parameters for output to file and model summary
     alpha_mu_phi = Phi_approx(alpha_mu);
-    beta_mu_phi = beta_UB * Phi_approx(beta_mu);
-    gamma_mu_phi = gamma_UB * Phi_approx(gamma_mu);
     alpha_sub_phi = Phi_approx(alpha_sub);
-    beta_sub_phi = Phi_approx(beta_sub);
+    //beta_mu_phi = beta_UB * Phi_approx(beta_mu);
+    //beta_sub_phi = Phi_approx(beta_sub);
+    beta_hyper_mean = (beta_u * beta_UB) / (beta_u + beta_l);
+    beta_sub_phi = beta_sub;
+    gamma_mu_phi = gamma_UB * Phi_approx(gamma_mu);
     gamma_sub_phi = Phi_approx(gamma_sub);
 
     for (n in 1:N){
@@ -194,12 +204,12 @@ generated quantities{
         for (b in 1:B){
             // Begin episode if the mouse enters the maze during this bout i.e. when the first node position is 0 and not 127
 
-            if (TrajS[n,b,1] == 0){
+            if (TrajS[n,b,1] == 0 && TrajS[n,b,2] != 127){
                 // Begin stepping through the episode
 
                 // Get a vector of 3 possible state-action values for the current starting state, s = 0
                 for (i in 1:A){
-                    sprime_values_beta[i] = Q[Qnodemap[1,i]+1,i] * beta_sub_phi[n];
+                    sprime_values_beta[i] = Q[nodemap[1,i]+1,i] * beta_sub_phi[n];
                 }
 
                 // Update the likelihood of choosing action, a from state s = 0
@@ -230,7 +240,7 @@ generated quantities{
                         else if (sprime == 127){
                             aprime = 2;
                         }
-                        else if (Qnodemap[sprime+1,2] == -1){
+                        else if (nodemap[sprime+1,2] == -1){
                             // Select action to take from sprime
                             aprime = TrajA[n,b,step];
                         }
@@ -238,7 +248,7 @@ generated quantities{
                             // Select an action
                             // Get a vector of 3 possible state-action values for the state, sprime
                             for (i in 1:A){
-                                sprime_values_beta[i] = Q[Qnodemap[sprime+1,i]+1,i] * beta_sub_phi[n];
+                                sprime_values_beta[i] = Q[nodemap[sprime+1,i]+1,i] * beta_sub_phi[n];
                             }
 
                             // Update the likelihood of choosing action, aprime from state sprime
