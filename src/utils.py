@@ -40,29 +40,36 @@ def create_list_waterport_visits_in_between_rwds(times_to_waterport_visits, time
     before any reward delivery.
     """
     # TODO: this function would probably have been more readable if I had done an external loop of the rwd visits instead of waterport visits.
-    #  Maybe change someday. But seems to be working now as it is. Good luck understanding it! ;)
+    #  Maybe change someday. But seems to be working now as it is. Good luck understanding it! :-|
     all_waterport_visits = []
     waterport_visits_in_between_rwds = []
     rwd_i = 0
     for wp_idx, waterport_visit_time in enumerate(times_to_waterport_visits):  # create list of all waterport visits in between rewards
-        # print('wp ', waterport_visit_time)
+        # print('  wp ', waterport_visit_time)
         if rwd_i < len(times_to_rwd):  # if there are still reward deliveries after current waterport visit
             if waterport_visit_time < times_to_rwd[rwd_i]:  # get waterport visits before each rwd delivery
                 waterport_visits_in_between_rwds.append(waterport_visit_time)
                 if wp_idx == len(times_to_waterport_visits) - 1:  # if it is the last item in the list
+                    # print("last wp visit")
                     # print('wp ', waterport_visits_in_between_rwds)
                     all_waterport_visits.append(waterport_visits_in_between_rwds)
             else:  # reached waterport visit that is already after currently considered rwd delivery
                 # print('rwd ', times_to_rwd[rwd_i])
-                # print('wp ', waterport_visits_in_between_rwds)
+                # print('wps ', waterport_visits_in_between_rwds)
                 rwd_i += 1
                 all_waterport_visits.append(waterport_visits_in_between_rwds)
                 waterport_visits_in_between_rwds = []
                 waterport_visits_in_between_rwds.append(waterport_visit_time)  # add current waterport visit to the list of visits after next rwd
+                if (include_wp_visits_after_last_rwd or waterport_visit_time < times_to_rwd[-1]) \
+                        and (wp_idx == len(times_to_waterport_visits) - 1):  # if it is the last item in the list
+                    # print("last wp visit")
+                    # print('wps ', waterport_visits_in_between_rwds)
+                    all_waterport_visits.append(waterport_visits_in_between_rwds)
         elif include_wp_visits_after_last_rwd:  # waterport visits after last reward visit
             waterport_visits_in_between_rwds.append(waterport_visit_time)  # add to the list of visits after the last rwd
             if wp_idx == len(times_to_waterport_visits)-1:  # if it is the last item in the list
-                # print('wp ', waterport_visits_in_between_rwds)
+                # print("last wp visit")
+                # print('wps ', waterport_visits_in_between_rwds)
                 all_waterport_visits.append(waterport_visits_in_between_rwds)
 
     return all_waterport_visits
