@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH -J cl_nonrp_real
+#SBATCH -o /sphere/mattar-lab/stan/logs/log_stanfit_cl_nonrp_real.out
+
+source /home/AD/kperera/dcm2bids/bin/activate
+export CLASSIC=1  # 0: use TD0 model where first visit to water port is rewarded, 1: use TD0 model where water port visit is rewarded after X visits
+export REPARAM=0  # 1: use the reparametrized TD0 formula, otherwise use 0
+export TRAJ_TYPE=real  # options: real or simulated
+export TRAJ_DATA=rewMICE_classic.p  # if using real trajectories, input file name
+export STAN_FILE=td0_cl_nonrp.stan  # stan file in "stan/test_models/"
+export DATA_DIR=real_traj  # directory with simulated or real trajectories in "stan/pre_reward_traj/"
+export LOG_DIR=null  # If fitting to simulated data, set log directory path in "stan/logs/"
+export LOG_FILE=log_progress_cl_real  # If fitting to real data, set log file path
+export RESULTS_DIR=TD0_cl_nonrp_real  # Set path to store stan results in, "stan/stan_results/"
+export INIT=ONES  # Set to ZERO for initial state values, V0 to all be zero. Set to RAND for random initial states values between 0 and 1
+                  # Set to ONES for state values to all begin optimistically at one
+export UA=1  # Set upper bound for alpha, beta and gamma
+export UB=10
+export UG=1
+export MAX_FITS=27  # If fitting to simulated data, input maximum number of datasets to fit to
+echo alpha, beta, gamma upper bounds: $UA $UB $UG
+echo terminate at first reward visit: $CLASSIC, $REPARAM, state initialization: $INIT
+echo $STAN_FILE $DATA_DIR $RESULTS_DIR $LOG_DIR
+if [ $TRAJ_TYPE == simulated ]
+then
+  if [ ! -d logs/$LOG_DIR ]
+  then
+    mkdir logs/$LOG_DIR
+  fi
+  for set in {0..${MAX_FITS}}
+  do
+    export SET=${set}
+    echo Starting python for set ${SET} using $1 as input
+    python -u $1 > /sphere/mattar-lab/stan/logs/${LOG_DIR}/log${SET}.out
+    exitcode=$?
+    echo $exitcode
+  done
+elif [ $TRAJ_TYPE == real ]
+then
+  echo Starting python for real trajectories using $1 as input
+  python -u $1 > /sphere/mattar-lab/stan/logs/${LOG_FILE}.out
+  exitcode=$?
+  echo $exitcode
+fi
+exit 0
