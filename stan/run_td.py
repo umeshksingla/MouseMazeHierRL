@@ -7,37 +7,31 @@ import shutil
 # Set directories for access
 main_dir = '/sphere/mattar-lab/stan/'
 stan_model_dir = main_dir + 'test_models/'
-traj_dir = main_dir + 'pre_reward_traj/'
+traj_dir = main_dir + 'traj_data/'
 main_log_dir = main_dir + 'logs/'
 
 # Load environment variables
 traj_type = os.getenv('TRAJ_TYPE')
-data_dir = traj_dir + os.getenv('DATA_DIR')+'/'
 results_dir = main_dir + 'stan_results/' + os.getenv('RESULTS_DIR') + '/'
 if traj_type == 'simulated':
+    data_dir = traj_dir + 'pred_traj/' + os.getenv('DATA_DIR') + '/'
     set = int(os.getenv('SET'))
     input_traj = 'set'+str(set)+'.p'
     log_dir = os.getenv('LOG_DIR')
     true_params = pickle.load(open(data_dir + 'true_param.p', 'rb'))
 elif traj_type == 'real':
+    data_dir = traj_dir + 'real_traj/' + os.getenv('DATA_DIR') + '/'
     input_traj = os.getenv('TRAJ_DATA')
     log_file = os.getenv('LOG_FILE')
-classic = int(os.getenv('CLASSIC'))  # 1 if real trajectories are rewarded on first visit to reward node. If not, set to 0
-reparam = int(os.getenv('REPARAM'))  # 0 if original TD0 equation, otherwise 1 for the reparametrized version
 stan_file = stan_model_dir + os.getenv('STAN_FILE')
-ua = float(os.getenv('UA'))
-ub = float(os.getenv('UB'))
-ug = float(os.getenv('UG'))
+free_params = os.getenv('PARAMS').split(',')
+upper_bounds = os.getenv('UPPER_BOUNDS')
+exec('upper_bounds='+upper_bounds)
 init = os.getenv('INIT')  # 'ZERO': for all state values to be zero, 'RAND1': for state values to be randomly assigned [0,1]
-
-model_type = 'state'  # 'state' to use V values or 'state-action' to use Q values
-if not classic and reparam:
-    nonRew_RVisits = pickle.load(open(traj_dir + 'nonRew_RVisits.p', 'rb'))
 
 if not os.path.exists(results_dir):
     os.mkdir(results_dir)
 
-free_params = ['alpha', 'beta', 'gamma']
 print('Free params: ', free_params)
 nodemap = pickle.load(open('nodemap.p', 'rb'))  # retrieving a list of next states for every node in the maze
 
@@ -72,8 +66,11 @@ if os.path.isfile(data_dir + sim_data_file):
     BL = np.shape(TrajS)[2]         # setting the maximum bout length until the first reward was sampled
     S = 128                         # number of states/nodes in the maze
     A = 3                           # number of actions available at each state
-    RT = 1                          # reward magnitude at the reward port (node 116)
-    UB_stan = [ua, ub, ug]            # upper bounds for alpha, beta and gamma where the lower bound for all parameters is 0
+    RewardNodeMag = 1               # reward magnitude at the reward port (node 116)
+    InvalidState = -1              # padding to indicate invalid nodes on nodemap and invalid states in trajectories
+    StartNode = 0                  # node at which all episodes begin
+    HomeNode = 127                 # node at maze entrance
+    RewardNode = 116               # node where liquid reward is located
 
     # Storing actions taken at each state, s to transition to state s'
     TrajA = np.zeros(np.shape(TrajS)).astype(int)
@@ -83,65 +80,33 @@ if os.path.isfile(data_dir + sim_data_file):
                 if TrajS[n, b, bl + 1] != -1 and TrajS[n, b, bl] != 127:
                     TrajA[n, b, bl] = np.where(nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1])[0][0] + 1
 
-    if model_type == 'state-action':
-        if init == 'RAND1':
-            Q0 = np.random.rand(N,S,A)    # initialized state-action values for each mouse
-        Q0[:, 127,:] = 0                # setting action-values of terminal state, 127 to 0
-        Q0[:, 116,:] = 0                # setting action-values of terminal state, 116 to 0
-        Q0[:,nodemap==-1] = -1000      # setting action-values of invalid states to some extreme negative value
-
-    elif model_type == 'state':
-        print('Initializing values')
-        if init == 'ZERO':
-            V0 = np.zeros((N, S))
-        elif init == 'RAND1':
-            V0 = np.random.rand(N, S)  # initialized state values for each mouse
-        elif init == 'ONES':
-            V0 = np.ones((N, S))
-        V0[:, 127] = 0  # setting action-values of terminal state, 127 to 0
-        V0[:, 116] = 0  # setting action-values of terminal state, 116 to 0
+    print('Initializing values')
+    if init == 'ZERO':
+        V0 = np.zeros((N, S))
+    elif init == 'RAND1':
+        V0 = np.random.rand(N, S)  # initialized state values for each mouse
+    elif init == 'ONES':
+        V0 = np.ones((N, S))
+    V0[:, 127] = 0  # setting action-values of terminal state, 127 to 0
+    V0[:, 116] = 0  # setting action-values of terminal state, 116 to 0
 
     # Run STAN model
-    if model_type == 'state-action':
-        model_data = {'N': N,
-                          'B': B,
-                          'BL': BL,
-                          'S': S,
-                          'A': A,
-                          'RT': RT,
-                          'Q0': Q0,
-                          'nodemap': nodemap,
-                          'TrajS': TrajS,
-                          'nonRew_RVisits': nonRew_RVisits,
-                          'TrajA': TrajA,
-                          'UB': UB_stan}
-    elif model_type == 'state' and (not classic and reparam):
-        print('Running TD0 default mode')
-        model_data = {'N': N,
-                          'B': B,
-                          'BL': BL,
-                          'S': S,
-                          'A': A,
-                          'RT': RT,
-                          'V0': V0,
-                          'nodemap': nodemap,
-                          'TrajS': TrajS,
-                          'TrajA': TrajA,
-                          'nonRew_RVisits': nonRew_RVisits,
-                          'UB': UB_stan}
-    elif model_type == 'state' and classic:
-        print('Running TD0 classic mode')
-        model_data = {'N': N,
-                          'B': B,
-                          'BL': BL,
-                          'S': S,
-                          'A': A,
-                          'RT': RT,
-                          'V0': V0,
-                          'nodemap': nodemap,
-                          'TrajS': TrajS,
-                          'TrajA': TrajA,
-                          'UB': UB_stan}
+    model_data = {'N': N,
+                  'B': B,
+                  'BL': BL,
+                  'S': S,
+                  'A': A,
+                  'RewardNodeMag': RewardNodeMag,
+                  'V0': V0,
+                  'nodemap': nodemap,
+                  'InvalidState': InvalidState,
+                  'HomeNode': HomeNode,
+                  'StartNode': StartNode,
+                  'RewardNode': RewardNode,
+                  'TrajS': TrajS,
+                  'TrajA': TrajA,
+                  'NUM_PARAMS': len(upper_bounds),
+                  'UB': upper_bounds}
 
     if traj_type == 'simulated':
         print('Fitting to simulated data from file ', sim_data_file, ' with true parameters ', true_params[set], '(alpha, beta, gamma)')

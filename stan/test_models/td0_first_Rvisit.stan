@@ -4,13 +4,18 @@ data{
     int BL;                       // maximum bout length until the first reward was sampled
     int S;                        // number of states/nodes in the maze
     int A;                        // number of actions available at each state
-    int RT;                       // reward magnitude at the reward port (node 116)
+    int RewardNodeMag;            // reward magnitude at the reward port (node 116)
     real V0[N,S];               // initial state values for each mouse
     int nodemap[S,A];           // node labels corresponding to state-action values in the Q lookup table
+    int InvalidState;             // placeholder for invalid states
+    int HomeNode;                 // node at maze entrance
+    int StartNode;                // node at which all episodes begin
+    int RewardNode;               // node where liquid reward is located
     int TrajS[N,B,BL];            // trajectories of all mice up until the first reward was sampled
     int TrajA[N,B,BL];            // corresponding actions taken at each point in TrajS to transition to the next state
                                   // TrajA actions: 1,2,3 correspond to column positions on nodemap for each row position (states)
-    real UB[3];                    // upper bounds for each free parameter
+    int NUM_PARAMS;               // number of free parameters
+    real UB[NUM_PARAMS];          // upper bounds for each free parameter
 }
 transformed data {
     real alpha_UB;
@@ -38,11 +43,12 @@ parameters{
 }
 model{
     // Declare model parameters
-    real V[N,S];
+    real V[S];
     int s;
     int a;
     int R;
     int sprime;
+    int nextStateOption;
     vector[3] sprime_values_beta;
 
     // sampling population level parameters
@@ -52,9 +58,6 @@ model{
     beta_sd ~ normal(0, 1);
     gamma_mu ~ normal(0, 1);
     gamma_sd ~ normal(0, 1);
-
-    // Initialize state values for a mouse
-    V = V0;
 
     for (n in 1:N){
         real alpha;
@@ -69,59 +72,56 @@ model{
         gamma_sub[n] ~ normal(gamma_mu, gamma_sd);
         gamma = gamma_UB * Phi_approx(gamma_sub[n]);
 
+        // Initialize state values for a mouse
+        V = V0[n,:];
+
         // Initialize starting state, s0 to node 0
         s = 0;
 
         for (b in 1:B){
-            // Begin episode if the mouse enters the maze during this bout
-            // i.e. when the first node position is 0 and second node position is not 127
-
-            if (TrajS[n,b,1] == 0 && TrajS[n,b,2] != 127){
-
+            // Begin an episode
+            for (step in 2:BL){
                 // Begin stepping through the episode
-                for (step in 2:BL){
 
-                    // Transition to the next state
-                    sprime = TrajS[n,b,step];
+                // Transition to the next state
+                sprime = TrajS[n,b,step];
 
-                    // Checking if the trajectory is still valid
-                    if (sprime != -1){
-                        // Sample a reward
-                        if (sprime == 116){
-                            R = RT;
-                        }
-                        else{
-                            R = 0;
-                        }
-
-                        // Checking if current state, s is an end node.
-                        // If so, probability of transitioning to the next state is always 1
-                        if (nodemap[s+1,3]!=-1){
-                            // Select an action
-                            // Get a vector of 3 possible state-action values for the state, sprime
-                            for (i in 1:A){
-                                sprime_values_beta[i] = V[n,nodemap[s+1,i]+1] * beta;
-                            }
-
-                            // Update the likelihood of transitioning to state, sprime from state, s
-                            TrajA[n,b,step-1] ~ categorical_logit(sprime_values_beta);
-                        }
-
-                        // Update previous state-action value
-                        V[n,s+1] += alpha * (R + gamma * V[n,sprime+1] - V[n,s+1]);
-
-                        // Update new state and action to old state and action
-                        s = sprime;
-
-                        // Check if current state is a terminal state
-                        if (s == 127 || s == 116){
-                            break;
-                        }
+                // Checking if the trajectory is still valid
+                if (sprime != InvalidState){
+                    // Sample a reward
+                    if (sprime == RewardNode){
+                        R = RewardNodeMag;
                     }
                     else{
-                        // End the current bout/episode and move on to the next one
+                        R = 0;
+                    }
+
+                    // Select an action
+                    // Get a vector of 3 possible state-action values for the state, sprime
+                    for (i in 1:A){
+                        nextStateOption = nodemap[s+1,i];
+                        if (nextStateOption == InvalidState){
+                            sprime_values_beta[i] = 0;
+                        }
+                        else{
+                            sprime_values_beta[i] = V[nodemap[s+1,i]+1] * beta;
+                        }
+                    }
+
+                    // Update previous state-action value
+                    V[s+1] += alpha * (R + gamma * V[sprime+1] - V[s+1]);
+
+                    // Update new state and action to old state and action
+                    s = sprime;
+
+                    // Check if current state is a terminal state
+                    if (s == HomeNode || s == RewardNode){
                         break;
                     }
+                }
+                else{
+                    // End the current bout/episode and move on to the next one
+                    break;
                 }
             }
         }
@@ -157,6 +157,7 @@ generated quantities{
         int a;
         int R;
         int sprime;
+        int nextStateOption;
         vector[3] sprime_values_beta;
         real V[S];
 
@@ -168,54 +169,49 @@ generated quantities{
         log_LL[n] = 0;
 
         for (b in 1:B){
-            // Begin episode if the mouse enters the maze during this bout i.e. when the first node position is 0 and not 127
-
-            if (TrajS[n,b,1] == 0 && TrajS[n,b,2] != 127){
-
+            // Begin episode
+            for (step in 2:BL){
                 // Begin stepping through the episode
-                for (step in 2:BL){
 
-                    // Transition to the next state
-                    sprime = TrajS[n,b,step];
+                // Transition to the next state
+                sprime = TrajS[n,b,step];
 
-                    // Checking if the trajectory is still valid
-                    if (sprime != -1){
-                        // Sample a reward
-                        if (sprime == 116){
-                            R = RT;
-                        }
-                        else{
-                            R = 0;
-                        }
-
-                        // Checking if current state, s is an end node.
-                        // If so, probability of transitioning to the next state is always 1
-                        if (nodemap[s+1,3]!=-1){
-                            // Select an action
-                            // Get a vector of 3 possible state-action values for the transition from s -> sprime
-                            for (i in 1:A){
-                                sprime_values_beta[i] = V[nodemap[s+1,i]+1] * beta_sub_phi[n];
-                            }
-
-                            // Update the likelihood of choosing action, aprime from state sprime
-                            log_LL[n] += categorical_logit_lpmf( TrajA[n,b,step-1] | sprime_values_beta );
-                        }
-
-                        // Update previous state-action value
-                        V[s+1] += alpha_sub_phi[n] * (R + gamma_sub_phi[n] * V[sprime+1] - V[s+1]);
-
-                        // Update new state and action to old state and action
-                        s = sprime;
-
-                        // Check if current state is a terminal state
-                        if (s == 127 || s == 116){
-                            break;
-                        }
+                // Checking if the trajectory is still valid
+                if (sprime != InvalidState){
+                    // Sample a reward
+                    if (sprime == RewardNode){
+                        R = RewardNodeMag;
                     }
                     else{
-                        // End the current bout/episode and move on to the next one
+                        R = 0;
+                    }
+
+                    // Select an action
+                    // Get a vector of 3 possible state-action values for the transition from s -> sprime
+                    for (i in 1:A){
+                        nextStateOption = nodemap[s+1,i];
+                        if (nextStateOption == InvalidState){
+                            sprime_values_beta[i] = 0;
+                        }
+                        else{
+                            sprime_values_beta[i] = V[nodemap[s+1,i]+1] * beta_sub_phi[n];
+                        }
+                    }
+
+                    // Update previous state-action value
+                    V[s+1] += alpha_sub_phi[n] * (R + gamma_sub_phi[n] * V[sprime+1] - V[s+1]);
+
+                    // Update new state and action to old state and action
+                    s = sprime;
+
+                    // Check if current state is a terminal state
+                    if (s == HomeNode || s == RewardNode){
                         break;
                     }
+                }
+                else{
+                    // End the current bout/episode and move on to the next one
+                    break;
                 }
             }
         }
