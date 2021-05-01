@@ -23,6 +23,17 @@ def NewTraj(fr=None,ce=None,ke=None,no=None,re=None):
     '''
     return Traj(fr,ce,ke,no,re)
 
+def add_node_times_to_tf(tf):
+    tf.node_times=list()
+    n_bouts = len(tf.no)
+    for bout in range(n_bouts):
+        bout_init_fr = tf.fr[bout,0]
+        n_steps = len(tf.no[bout])
+        tf.node_times.append(tf.no[bout].astype('float'))
+        for step in range(n_steps):
+            tf.node_times[bout][step][1] = float(tf.no[bout][step][1] + bout_init_fr)/float(frame_rate)
+    return tf
+
 def TestTrajModule():
 	return 'OK'
 
