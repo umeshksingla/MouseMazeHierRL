@@ -2,24 +2,34 @@ from parameters import FRAME_RATE, RWD_NODE
 import numpy as np
 
 
+def get_node_visit_times(tf, node_id):
+    """
+    Get lists of node visit times
+    :param tf: trajectory object
+    :return: times_to_node_visits
+    """
+    frs_to_node_visits = []
+    n_bouts = len(tf.no)
+    for bout in range(n_bouts):
+        node_visits_frs = tf.no[bout][tf.no[bout][:, 0] == node_id]
+        if len(node_visits_frs) > 0:
+            bout_init_fr = tf.fr[bout, 0]  # first frame of the bout
+            frs_to_node_visits.append(bout_init_fr + node_visits_frs[:, 1])
+
+    frs_to_node_visits = np.concatenate(frs_to_node_visits)
+
+    times_to_node_visits = np.array([frame_to_node_visit / FRAME_RATE
+                                          for frame_to_node_visit in frs_to_node_visits])
+    return times_to_node_visits
+
+
 def get_wp_visit_times_and_rwd_times(tf):
     """
     Get lists of waterport visit times and reward delivery times
     :param tf: trajectory object
     :return: times_to_waterport_visits, times_to_rwd
     """
-    frs_to_waterport_visits = []
-    n_bouts = len(tf.no)
-    for bout in range(n_bouts):
-        rwd_node_visits_frs = tf.no[bout][tf.no[bout][:, 0] == RWD_NODE]
-        if len(rwd_node_visits_frs) > 0:
-            bout_init_fr = tf.fr[bout, 0]  # first frame of the bout
-            frs_to_waterport_visits.append(bout_init_fr + rwd_node_visits_frs[:, 1])
-
-    frs_to_waterport_visits = np.concatenate(frs_to_waterport_visits)
-
-    times_to_waterport_visits = np.array([frame_to_waterport_visit / FRAME_RATE
-                                          for frame_to_waterport_visit in frs_to_waterport_visits])
+    times_to_waterport_visits = get_node_visit_times(tf, RWD_NODE)
 
     # calculate reward deliveries
 
