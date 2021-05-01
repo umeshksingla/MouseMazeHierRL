@@ -20,7 +20,7 @@ if traj_type == 'simulated':
     log_dir = os.getenv('LOG_DIR')
     true_params = pickle.load(open(data_dir + 'true_param.p', 'rb'))
 elif traj_type == 'real':
-    data_dir = traj_dir + 'real_traj/' + os.getenv('DATA_DIR') + '/'
+    data_dir = traj_dir + 'real_traj/'
     input_traj = os.getenv('TRAJ_DATA')
     log_file = os.getenv('LOG_FILE')
 stan_file = stan_model_dir + os.getenv('STAN_FILE')
@@ -87,8 +87,8 @@ if os.path.isfile(data_dir + sim_data_file):
         V0 = np.random.rand(N, S)  # initialized state values for each mouse
     elif init == 'ONES':
         V0 = np.ones((N, S))
-    V0[:, 127] = 0  # setting action-values of terminal state, 127 to 0
-    V0[:, 116] = 0  # setting action-values of terminal state, 116 to 0
+    V0[:, HomeNode] = 0  # setting action-values of terminal state, 127 to 0
+    V0[:, RewardNode] = 0  # setting action-values of terminal state, 116 to 0
 
     # Run STAN model
     model_data = {'N': N,

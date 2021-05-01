@@ -101,6 +101,8 @@ def TDlambda_Rvisit(sub_fits, fit_group, fit_group_data):
                     for node in nodemap[s, :]:
                         if node == InvalidState:
                             betaV.extend([0])
+                        elif np.isnan(V[node]):
+                            betaV.extend([1])
                         else:
                             betaV.extend([np.exp(beta * V[node])])
                     prob = betaV / np.sum(betaV)
@@ -224,3 +226,4 @@ for set_counter, param_values in enumerate(param_sets):
 
 # Save parameter sets
 pickle.dump(true_param,open(pred_traj_dir+'true_param.p','wb'))
+print('Predicted trajectory generation complete.')

@@ -81,6 +81,8 @@ model{
         beta = beta_UB * Phi_approx(beta_sub[n]);
         gamma_sub[n] ~ normal(gamma_mu, gamma_sd);
         gamma = gamma_UB * Phi_approx(gamma_sub[n]);
+        lamda_sub[n] ~ normal(lamda_mu, lamda_sd);
+        lamda = lamda_UB * Phi_approx(lamda_sub[n]);
 
         // Initialize state values for all mice
         V = V0[n,:];
