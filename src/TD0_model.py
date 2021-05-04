@@ -11,8 +11,8 @@ from MM_Traj_Utils import *
 
 class TD0MultipleVisits(TD):
     
-    def __init__(self, main_dir):
-        TD.__init__(self, main_dir)
+    def __init__(self, file_suffix='_TD0MultipleVisits'):
+        TD.__init__(self, file_suffix)
 
     def get_trajectory_data(self):
         """
@@ -82,9 +82,8 @@ class TD0MultipleVisits(TD):
 
 class TD0FirstVisit(TD):
     
-    def __init__(self, main_dir):
-        TD.__init__(self, main_dir)
-        self.file_prefix = '_first_visit'
+    def __init__(self, file_suffix='_TD0FirstVisit'):
+        TD.__init__(self, file_suffix)
 
     def get_trajectory_data(self):
         """

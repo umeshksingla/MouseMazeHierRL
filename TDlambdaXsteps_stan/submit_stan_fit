@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH -J pd_tdlambda
+#SBATCH -o /sphere/mattar-lab/stan/logs/clusterlog_stanfit_tdlambda_real.out
+#SBATCH -p bigmem
+
+#source /home/AD/kperera/dcm2bids/bin/activate
+
+export PREFIX=TDlambdaXsteps_   # prefix for stan model file, log files, data directories etc
+
+export TRAJ_TYPE=real                        # options: real or simulated
+ROOT=../${PREFIX}stan
+export STAN_FILE=${ROOT}/test_models/${PREFIX}.stan       # stan model file
+
+export INIT=ZERO  # Initial state values, Options available: ZERO, RAND, ONES
+export PARAMS=alpha,beta,gamma,lamda  # List of free parameters in model
+export UPPER_BOUNDS=[1,10,1,1]  # Set upper bounds for all parameters
+
+LOG_DIR=${ROOT}/logs/${PREFIX}
+mkdir -p ${LOG_DIR}
+
+if [ $TRAJ_TYPE == simulated ]
+then
+  export MAX_FITS=22  # If fitting to simulated data, input maximum number of datasets to fit to
+  for set in $(seq 0 $MAX_FITS)
+  do
+    export SET=${set}
+    export RESULTS_DIR=${ROOT}/stan_results/${PREFIX}set${SET}
+
+    DATA_DIR=${ROOT}/traj_data/pred_traj
+    export TRAJ_DATA=${DATA_DIR}/${PREFIX}_data_set${set}.p
+    export TRUE_PARAMS_FILE=${DATA_DIR}/true_param.p
+
+    echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
+    echo Starting python for set ${SET} using $1 as input
+    python -u $1 > ${LOG_DIR}/log${SET}.log
+    echo "Exited with code: "$exitcode
+    echo $exitcode
+  done
+elif [ $TRAJ_TYPE == real ]
+then
+
+  DATA_DIR=${ROOT}/traj_data/real_traj
+  export TRAJ_DATA=${DATA_DIR}/${PREFIX}_data.p
+  export RESULTS_DIR=${ROOT}/stan_results/${PREFIX}
+
+  echo Starting python for real trajectories using $1 as input
+  echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
+  python -u $1 > ${LOG_DIR}/log.log
+  exitcode=$?
+  echo "Exited with code: "$exitcode
+fi
+exit 0

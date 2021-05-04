@@ -1,20 +1,21 @@
 """
 """
 import numpy as np
+import pickle
+import os
 
-from parameters import InvalidState, RewNames
+from parameters import InvalidState, RewNames, RewardNode
 from TD_model import TD
 from MM_Traj_Utils import *
 
 
 class TDLambdaXStepsRewardReceived(TD):
-    
-    def __init__(self, main_dir):
-        TD.__init__(self, main_dir)
-        self.X = 20
-        self.file_prefix = '_XStepsRewardReceivedTrajectories'
 
-    def get_trajectory_data(self):
+    def __init__(self, file_suffix='_XStepsRewardReceivedTrajectories'):
+        TD.__init__(self, file_suffix)
+        self.X = 20
+
+    def extract_and_save_trajectory_data(self, output_dir):
         """
         """
 #         N = 10
@@ -23,13 +24,13 @@ class TDLambdaXStepsRewardReceived(TD):
 #         TrajS = np.ones((N,TrajNo,TrajSize)) * InvalidState
         trajectory_data = []
         for mouseId, nickname in enumerate(RewNames):
-            trajectory_data.append(self.get_trajectory_data_by_nickname(nickname))
+            trajectory_data.append(self.__get_trajectory_data_by_nickname__(nickname))
 #             break
-        with open(os.path.join(self.stan_data_dir, f'{self.file_prefix}.p'),'wb') as f:
+        with open(os.path.join(output_dir, f'{self.file_suffix}.p'),'wb') as f:
             pickle.dump(trajectory_data, f)
         return trajectory_data
 
-    def get_trajectory_data_by_nickname(self, nickname):
+    def __get_trajectory_data_by_nickname__(self, nickname):
         tf = LoadTraj(nickname + '-tf')
         
         trajectory_data = []
@@ -51,7 +52,7 @@ class TDLambdaXStepsRewardReceived(TD):
                 lastXsteps_ = bout_trajectory[max(prev_idx+1, idx-self.X):idx , 0]
 
                 # Check if RWD_NODE was visited within X steps but no reward was received
-                rew_node_visit_in_lastXsteps = np.where(lastXsteps_[:-1] == RWD_NODE)[0]
+                rew_node_visit_in_lastXsteps = np.where(lastXsteps_[:-1] == RewardNode)[0]
                 last_rew_node_visit = rew_node_visit_in_lastXsteps[-1] if rew_node_visit_in_lastXsteps.size > 0 else -1
 
                 # If yes, then consider only the later part of the trajectory
@@ -61,7 +62,7 @@ class TDLambdaXStepsRewardReceived(TD):
 #                 print(f" ===> {idx} {each} {traj} {rew_node_visit_in_lastXsteps}")
         return trajectory_data
 
-    def simulate(sub_fits, orig_data):
+    def simulate(self, sub_fits, orig_data):
         pass
 #         '''
 #         Model predictions (sample predicted trajectories) using fitted parameters sub_fits.
