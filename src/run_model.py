@@ -27,11 +27,11 @@ Path(results_dir).mkdir(exist_ok=True, parents=True)
 print(traj_type, results_dir, stan_file, sim_data_file)
 
 if not os.path.isfile(sim_data_file):
-    print('Invalid dataset for fitting')
+    print('Invalid dataset for fitting.')
     sys.exit()
 
 # IMPORT the desired model
-from .TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
+from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
 model = TDLambdaXStepsRewardReceived()
 nodemap = model.get_SAnodemap()
 S = model.S
@@ -43,30 +43,13 @@ upper_bounds = os.getenv('UPPER_BOUNDS')
 # exec('upper_bounds='+upper_bounds)
 init_state_value_type = os.getenv('INIT')
 
-
 #  Loading nodes of mice trajectories
-# TrajS   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
-#           Matrix entries are node labels and extra space in the matrix is filled with -1
-TrajS = pickle.load(open(sim_data_file, 'rb')).astype(int)
-print('Loading', traj_type, 'data from ', sim_data_file)
+TrajS = model.load_trajectories(sim_data_file)
 
+# Loading actions taken at each state, s to transition to state s'
+TrajA = model.load_TrajA(TrajS, nodemap)
 
-N = np.shape(TrajS)[0]          # setting the number of rewarded mice
-B = np.shape(TrajS)[1]          # setting the maximum number of bouts until the first reward was sampled
-BL = np.shape(TrajS)[2]         # setting the maximum bout length until the first reward was sampled
-
-# Storing actions taken at each state, s to transition to state s'
-# TrajA   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
-# TrajA   : Matrix entries are action indices (1, 2 or 3) taken to transition from i to i+1 in TrajS
-#           extra space in the matrix is filled with an invalid action, 0.
-#           Action values of 1 is a transition from a deep node, s to shallow node sprime
-#           Action values 2 and 3 are transitions from a shallow node, s to deeper nodes, sprime
-TrajA = np.zeros(np.shape(TrajS)).astype(int)
-for n in np.arange(N):
-    for b in np.arange(B):
-        for bl in np.arange(BL - 1):
-            if TrajS[n, b, bl + 1] != -1 and TrajS[n, b, bl] != 127:
-                TrajA[n, b, bl] = np.where(nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1])[0][0] + 1
+N, B, BL = TrajS.shape
 
 print('Initializing values')
 if init_state_value_type == 'ZERO':

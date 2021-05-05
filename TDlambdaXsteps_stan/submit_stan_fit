@@ -17,6 +17,7 @@ export UPPER_BOUNDS=[1,10,1,1]  # Set upper bounds for all parameters
 
 LOG_DIR=${ROOT}/logs/${PREFIX}
 mkdir -p ${LOG_DIR}
+d=`date +%s`
 
 if [ $TRAJ_TYPE == simulated ]
 then
@@ -27,26 +28,27 @@ then
     export RESULTS_DIR=${ROOT}/stan_results/${PREFIX}set${SET}
 
     DATA_DIR=${ROOT}/traj_data/pred_traj
-    export TRAJ_DATA=${DATA_DIR}/${PREFIX}_data_set${set}.p
+    export TRAJ_DATA=${DATA_DIR}/${PREFIX}data_set${set}.p
     export TRUE_PARAMS_FILE=${DATA_DIR}/true_param.p
 
     echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
     echo Starting python for set ${SET} using $1 as input
-    python -u $1 > ${LOG_DIR}/log${SET}.log
+    python -u $1 > ${LOG_DIR}/log${SET}-${d}.log
     echo "Exited with code: "$exitcode
-    echo $exitcode
+    echo "Log File: "${LOG_DIR}/log${SET}-${d}.log
   done
 elif [ $TRAJ_TYPE == real ]
 then
 
   DATA_DIR=${ROOT}/traj_data/real_traj
-  export TRAJ_DATA=${DATA_DIR}/${PREFIX}_data.p
+  export TRAJ_DATA=${DATA_DIR}/${PREFIX}data.p
   export RESULTS_DIR=${ROOT}/stan_results/${PREFIX}
 
   echo Starting python for real trajectories using $1 as input
   echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
-  python -u $1 > ${LOG_DIR}/log.log
+  python -u $1 #> ${LOG_DIR}/log-${d}.log
   exitcode=$?
   echo "Exited with code: "$exitcode
+  echo "Log File: "${LOG_DIR}/log-${d}.log
 fi
 exit 0

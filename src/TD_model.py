@@ -8,7 +8,7 @@ import pickle
 from pathlib import Path
 
 
-from .parameters import *
+from parameters import *
 
 
 class TD:
@@ -60,6 +60,49 @@ class TD:
         # with open(os.path.join(self.main_dir, 'nodemap.p'),'wb') as f:
         #     pickle.dump(SAnodemap, f)
         return SAnodemap
+
+    def load_trajectories(self, data_file):
+        # TrajS   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
+        #           Matrix entries are node labels and extra space in the matrix is filled with -1
+        with open(data_file, 'rb') as f:
+            data = pickle.load(f)
+
+        N = len(data)
+        B = max([len(n) for n in data])
+        BL = max([len(b) for n in data for b in n])
+
+        TrajS = np.ones((N, B, BL)) * InvalidState
+
+        # over mouse
+        for n in np.arange(len(data)):
+            # over each of their bouts
+            for b in np.arange(len(data[n])):
+                # over each step of the bout
+                for s in np.arange(len(data[n][b])):
+                    TrajS[n, b, s] = data[n][b][s]
+        return TrajS.astype(int)
+
+    def load_TrajA(self, TrajS, nodemap):
+        # TrajA   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
+        # TrajA   : Matrix entries are action indices (1, 2 or 3) taken to transition from t to t+1 in TrajS
+        #           extra space in the matrix is filled with an invalid action, 0.
+        #           Action values of 1 is a transition from a deep node, s to shallow node sprime
+        #           Action values 2 and 3 are transitions from a shallow node, s to deeper nodes, sprime
+        N, B, BL = TrajS.shape
+        TrajA = np.zeros((N, B, BL)).astype(int)
+        for n in np.arange(N):
+            for b in np.arange(B):
+                for bl in np.arange(BL - 1):
+                    if TrajS[n, b, bl + 1] != -1 and TrajS[n, b, bl] != 127:
+                        # print("n, b, bl", n, b, bl)
+                        # print("TrajS[n, b, bl]", TrajS[n, b, bl])
+                        # print("nodemap[TrajS[n, b, bl], :]", nodemap[TrajS[n, b, bl], :])
+                        # print("TrajS[n, b, bl + 1]", TrajS[n, b, bl + 1])
+                        # print("=====")
+                        TrajA[n, b, bl] = np.where(
+                            nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
+                        )[0][0] + 1
+        return TrajA
 
     def simulate(self, sub_fits, orig_data):
         pass
