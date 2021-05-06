@@ -81,6 +81,13 @@ model{
         // Loop through each bout
         for (b in 1:B){
 
+            if (TrajS[n,b,1] == InvalidState){
+            // when first node of a bout is invalid,
+            // no need to check the rest of the bouts
+            // they will just be -1s required to fill the matrix
+                break;
+            }
+
             // Begin stepping through the bout
             for (step in 2:BL){
 
@@ -103,6 +110,7 @@ model{
                         break;
                     }
                     s_next_values_beta[i] = V[s_next_i+1] * beta;
+                    print("s_next_i ", s_next_i, "Vs_next_i", V[s_next_i+1], "s_next_beta_i ", s_next_values_beta[i], " s_current ", s_current, " beta ", beta);
                 }
 
                 print("probs: ", s_next_values_beta, " current state: ", s_current);
@@ -171,6 +179,13 @@ generated quantities{
 
         // Loop through each bout
         for (b in 1:B){
+
+            if (TrajS[n,b,1] == InvalidState){
+            // when first node of a bout is invalid,
+            // no need to check the rest of the bouts
+            // they will just be -1s required to fill the matrix
+                break;
+            }
 
             // Begin stepping through the bout
             for (step in 2:BL){
