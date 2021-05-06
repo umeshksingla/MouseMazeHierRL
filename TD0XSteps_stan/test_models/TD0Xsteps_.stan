@@ -49,6 +49,7 @@ model{
     int R;
     int s_next;
     int s_next_i;
+    int IsCurrentStateEndNode;
     real td_error;
     vector[3] s_next_values_beta;
 
@@ -94,13 +95,23 @@ model{
                 R = (s_next == RewardNode) ? RewardNodeMag : 0;
 
                 // Possible next states by taking an action in state s_current
+                IsCurrentStateEndNode = 0;
                 for (i in 1:A){
                     s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                    s_next_values_beta[i] = (s_next_i != InvalidState) ? V[s_next_i+1] * beta : 0;
+                    if (s_next_i != InvalidState) {
+                        IsCurrentStateEndNode = 1;
+                        break;
+                    }
+                    s_next_values_beta[i] = V[s_next_i+1] * beta;
                 }
 
+                print("probs: ", s_next_values_beta, " current state: ", s_current);
+
                 // Update the likelihood of transitioning from state s to state s_next
-                TrajA[n,b,step-1] ~ categorical_logit(s_next_values_beta);
+                print("log density before =", target(), " n ", n, " b ", b, " step-1 ", step-1);
+                if (!IsCurrentStateEndNode)
+                    TrajA[n,b,step-1] ~ categorical_logit(s_next_values_beta);
+                print("log density after =", target(), " n ", n, " b ", b, " step-1 ", step-1);
 
                 // Calculate error signal for current state
                 td_error = R + gamma * V[s_next+1] - V[s_current+1];
@@ -147,6 +158,7 @@ generated quantities{
         int R;
         int s_next;
         int s_next_i;
+        int IsCurrentStateEndNode;
         real td_error;
         vector[3] s_next_values_beta;
         real V[S];
@@ -175,13 +187,21 @@ generated quantities{
                 R = (s_next == RewardNode) ? RewardNodeMag : 0;
 
                 // Possible next states by taking an action i in state s_current
+                IsCurrentStateEndNode = 0;
                 for (i in 1:A){
                     s_next_i = nodemap[s_current+1,i];
-                    s_next_values_beta[i] = (s_next_i != InvalidState) ? V[s_next_i+1] * beta_sub_phi[n] : 0;
+                    if (s_next_i != InvalidState) {
+                        IsCurrentStateEndNode = 1;
+                        break;
+                    }
+                    s_next_values_beta[i] = V[s_next_i+1] * beta_sub_phi[n];;
                 }
 
                 // Update the likelihood of choosing action a_true in state s_current
-                log_LL[n] += categorical_logit_lpmf( a_true | s_next_values_beta );
+                print("log_LL before =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
+                if (!IsCurrentStateEndNode)
+                    log_LL[n] += categorical_logit_lpmf( a_true | s_next_values_beta );
+                print("log_LL after =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
 
                 // Calculate error signal for current state
                 td_error = R + gamma_sub_phi[n] * V[s_next+1] - V[s_current+1];

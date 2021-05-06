@@ -5,7 +5,7 @@
 
 #source /home/AD/kperera/dcm2bids/bin/activate
 
-export PREFIX=TD0Xsteps_   # prefix for stan model file, log files, data directories etc
+export PREFIX=TD0XSteps_   # prefix for stan model file, log files, data directories etc
 
 export TRAJ_TYPE=real                        # options: real or simulated
 ROOT=../${PREFIX}stan
