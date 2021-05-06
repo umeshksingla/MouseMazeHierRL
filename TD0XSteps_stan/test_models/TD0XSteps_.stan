@@ -125,10 +125,11 @@ model{
                 // Calculate error signal for current state
                 td_error = R + gamma * V[s_next+1] - V[s_current+1];
 
-                // Propagate value to all other states
-                for (j in 1:S){
-                    V[s_current+1] += alpha * td_error;
-                }
+                // Update current state value
+                V[s_current+1] += alpha * td_error;
+
+                print("alpha ", alpha, " gamma ", gamma)
+                print("=====")
 
                 // Check if current state is a terminal state
                 // if (s_current == HomeNode || s_current == RewardNode)
@@ -222,10 +223,8 @@ generated quantities{
                 // Calculate error signal for current state
                 td_error = R + gamma_sub_phi[n] * V[s_next+1] - V[s_current+1];
 
-                // Propagate value to all other states
-                for (j in 1:S){
-                    V[s_current+1] += alpha_sub_phi[n] * td_error;
-                }
+                // Update current state value
+                V[s_current+1] += alpha_sub_phi[n] * td_error;
 
                 // Check if current state is a terminal state
                 // if (s_current == HomeNode || s_current == RewardNode)
