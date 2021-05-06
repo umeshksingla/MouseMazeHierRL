@@ -50,7 +50,6 @@ def main():
 
     # Loading actions taken at each state, s to transition to state s'
     TrajA = model.load_TrajA(TrajS, nodemap)
-
     N, B, BL = TrajS.shape
 
     print('Initializing values')
@@ -94,10 +93,10 @@ def main():
         control={'max_treedepth':15, 'adapt_delta':0.9},
         n_jobs=8
     )
-    return sm, fit
+    return sm, fit, N, B, BL
 
 
-def save(sm, fit):
+def save(sm, fit, N, B, BL):
     # Save model and fit object and fit data
     with open(results_dir + 'model.pkl', 'wb') as f:
         pickle.dump(sm, f, protocol=-1)
@@ -146,5 +145,5 @@ def save(sm, fit):
 
 
 if __name__ == '__main__':
-    sm, fit = main()
-    save(sm, fit)
+    sm, fit, N, B, BL = main()
+    save(sm, fit, N, B, BL)
