@@ -92,7 +92,7 @@ def main():
     fit = sm.sampling(
         data=model_data, iter=2000, chains=4, warmup=250,
         control={'max_treedepth':15, 'adapt_delta':0.9},
-        n_jobs=1
+        n_jobs=8
     )
     return sm, fit
 

@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -J pd_tdlambda
-#SBATCH -o /sphere/mattar-lab/stan/logs/clusterlog_stanfit_tdlambda_real.out
-#SBATCH -p bigmem
+#SBATCH -J td0xteps
+#SBATCH -o /sphere/mattar-lab/mousemazemodeling/MouseMaze/TD0XSteps_stan/slurm.out
+#SBATCH -p general_gpu_k80
 
-#source /home/AD/kperera/dcm2bids/bin/activate
+source /home/AD/usingla/mvenv/bin/activate
 
 export PREFIX=TD0XSteps_   # prefix for stan model file, log files, data directories etc
 
@@ -11,7 +11,7 @@ export TRAJ_TYPE=real                        # options: real or simulated
 ROOT=../${PREFIX}stan
 export STAN_FILE=${ROOT}/test_models/${PREFIX}.stan       # stan model file
 
-export INIT=ZERO  # Initial state values, Options available: ZERO, RAND, ONES
+export INIT=ONES  # Initial state values, Options available: ZERO, RAND, ONES
 export PARAMS=alpha,beta,gamma  # List of free parameters in model
 export UPPER_BOUNDS=[1,10,1]  # Set upper bounds for all parameters
 
