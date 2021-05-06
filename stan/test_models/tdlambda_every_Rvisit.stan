@@ -1,6 +1,6 @@
 data{
     int N;                        // number of rewarded mice
-    int B;                        // maximum number of bouts until the first reward was sampled
+    int B;                        // maximum number of bouts throughout the experiment
     int BL;                       // maximum bout length until the first reward was sampled
     int S;                        // number of states/nodes in the maze
     int A;                        // number of actions available at each state
@@ -55,6 +55,7 @@ model{
     int R;
     int sprime;
     int nextStateOption;
+    int sIsEndNode;
     real td_error;
     vector[3] sprime_values_beta;
 
@@ -80,9 +81,9 @@ model{
         beta_sub[n] ~ normal(beta_mu, beta_sd);
         beta = beta_UB * Phi_approx(beta_sub[n]);
         gamma_sub[n] ~ normal(gamma_mu, gamma_sd);
-        gamma = gamma_UB * Phi_approx(gamma_sub[n]);
+        gamma = Phi_approx(gamma_sub[n]);
         lamda_sub[n] ~ normal(lamda_mu, lamda_sd);
-        lamda = lamda_UB * Phi_approx(lamda_sub[n]);
+        lamda = Phi_approx(lamda_sub[n]);
 
         // Initialize state values for all mice
         V = V0[n,:];
@@ -96,59 +97,66 @@ model{
         }
 
         for (b in 1:B){
-            // Loop through each episode
-            for (step in 2:BL){
-                // Begin stepping through the episode
+            // Checking if the current episode is valid by looking at the first step of the episode
+            if (TrajS[n,b,1] != InvalidState){
+                // Begin stepping through the valid episode
+                for (step in 2:BL){
+                    // Transition to the next state
+                    sprime = TrajS[n,b,step];
 
-                // Transition to the next state
-                sprime = TrajS[n,b,step];
-
-                // Checking if the trajectory is still valid
-                if (sprime != InvalidState){
-                    // Sample a reward
-                    if (sprime == RewardNode){
-                        R = RewardNodeMag;
-                    }
-                    else{
-                        R = 0;
-                    }
-
-                    // Select an action
-                    // Get a vector of 3 possible state-action values for the state, sprime
-                    for (i in 1:A){
-                        nextStateOption = nodemap[s+1,i];
-                        if (nextStateOption == InvalidState){
-                            sprime_values_beta[i] = 0;
+                    // Checking if the trajectory is still valid
+                    if (sprime != InvalidState){
+                        // Sample a reward
+                        if (sprime == RewardNode){
+                            R = RewardNodeMag;
                         }
                         else{
-                            sprime_values_beta[i] = V[nodemap[s+1,i]+1] * beta;
+                            R = 0;
+                        }
+
+                        // Select an action
+                        // Get a vector of 3 possible state-action values for the state, sprime
+                        sIsEndNode = 0;
+                        for (i in 1:A){
+                            nextStateOption = nodemap[s+1,i];
+                            if (nextStateOption == InvalidState){
+                                // Invalid states as potential options only occur when the current state, s is an end node
+                                sIsEndNode = 1;
+                                break;  // at an end node there is only one sprime state to transition with
+                                        // a probability of 1. i.e. log(prob) = 0
+                            }
+                            else{
+                                sprime_values_beta[i] = V[nextStateOption + 1] * beta;
+                            }
+                        }
+
+                        // Update the likelihood of transitioning to state, sprime from state, s
+                        if (sIsEndNode == 0){
+                            TrajA[n,b,step-1] ~ categorical_logit(sprime_values_beta);
+                        }
+
+                        // Calculate error signal for current state
+                        td_error = R + gamma * V[sprime+1] - V[s+1];
+                        e[s+1] += 1;
+
+                        // Propagate value to all other states
+                        for (j in 1:S){
+                            V[j] += alpha * td_error * e[j];
+                            e[j] = gamma * lamda * e[j];
+                        }
+
+                        // Update new state and action to old state and action
+                        s = sprime;
+
+                        // Check if current state is a terminal state
+                        if (s == HomeNode || s == RewardNode){
+                            break;
                         }
                     }
-
-                    // Update the likelihood of transitioning to state, sprime from state, s
-                    TrajA[n,b,step-1] ~ categorical_logit(sprime_values_beta);
-
-                    // Calculate error signal for current state
-                    td_error = R + gamma * V[sprime+1] - V[s+1];
-                    e[s+1] += 1;
-
-                    // Propagate value to all other states
-                    for (j in 1:S){
-                        V[s+1] += alpha * td_error * e[s+1];
-                        e[s+1] = gamma * lamda * e[s+1];
-                    }
-
-                    // Update new state and action to old state and action
-                    s = sprime;
-
-                    // Check if current state is a terminal state
-                    if (s == HomeNode || s == RewardNode){
+                    else{
+                        // End the current bout/episode and move on to the next one
                         break;
                     }
-                }
-                else{
-                    // End the current bout/episode and move on to the next one
-                    break;
                 }
             }
         }
@@ -170,9 +178,9 @@ generated quantities{
     alpha_sub_phi = Phi_approx(alpha_sub);
     beta_mu_phi = beta_UB * Phi_approx(beta_mu);
     beta_sub_phi = Phi_approx(beta_sub);
-    gamma_mu_phi = gamma_UB * Phi_approx(gamma_mu);
+    gamma_mu_phi = Phi_approx(gamma_mu);
     gamma_sub_phi = Phi_approx(gamma_sub);
-    lamda_mu_phi = lamda_UB * Phi_approx(lamda_mu);
+    lamda_mu_phi = Phi_approx(lamda_mu);
     lamda_sub_phi = Phi_approx(lamda_sub);
 
     for (n in 1:N){
@@ -188,6 +196,7 @@ generated quantities{
         int R;
         int sprime;
         int nextStateOption;
+        int sIsEndNode;
         real td_error;
         real e[S];
         vector[3] sprime_values_beta;
@@ -206,59 +215,66 @@ generated quantities{
         log_LL[n] = 0;
 
         for (b in 1:B){
-            // Loop through each episode
-            for (step in 2:BL){
-                // Begin stepping through the episode
+            // Checking if the current episode is valid by looking at the first step of the episode
+            if (TrajS[n,b,1] != InvalidState){
+                // Begin stepping through the valid episode
+                for (step in 2:BL){
+                    // Transition to the next state
+                    sprime = TrajS[n,b,step];
 
-                // Transition to the next state
-                sprime = TrajS[n,b,step];
-
-                // Checking if the trajectory is still valid
-                if (sprime != InvalidState){
-                    // Sample a reward
-                    if (sprime == RewardNode){
-                        R = RewardNodeMag;
-                    }
-                    else{
-                        R = 0;
-                    }
-
-                    // Select an action
-                    // Get a vector of 3 possible state-action values for the transition from s -> sprime
-                    for (i in 1:A){
-                        nextStateOption = nodemap[s+1,i];
-                        if (nextStateOption == InvalidState){
-                            sprime_values_beta[i] = 0;
+                    // Checking if the trajectory is still valid
+                    if (sprime != InvalidState){
+                        // Sample a reward
+                        if (sprime == RewardNode){
+                            R = RewardNodeMag;
                         }
                         else{
-                            sprime_values_beta[i] = V[nodemap[s+1,i]+1] * beta_sub_phi[n];
+                            R = 0;
+                        }
+
+                        // Select an action
+                        // Get a vector of 3 possible state-action values for the transition from s -> sprime
+                        sIsEndNode = 0;
+                        for (i in 1:A){
+                            nextStateOption = nodemap[s+1,i];
+                            if (nextStateOption == InvalidState){
+                                // Invalid states as potential options only occur when the current state, s is an end node
+                                sIsEndNode = 1;
+                                break;  // at an end node there is only one sprime state to transition with
+                                        // a probability of 1. i.e. log(prob) = 0
+                            }
+                            else{
+                                sprime_values_beta[i] = V[nextStateOption + 1] * beta_sub_phi[n];
+                            }
+                        }
+
+                        // Update the likelihood of choosing action, aprime from state sprime
+                        if (sIsEndNode == 0){
+                            log_LL[n] += categorical_logit_lpmf( TrajA[n,b,step-1] | sprime_values_beta );
+                        }
+
+                        // Calculate error signal for current state
+                        td_error = R + gamma_sub_phi[n] * V[sprime+1] - V[s+1];
+                        e[s+1] += 1;
+
+                        // Propagate value to all other states
+                        for (j in 1:S){
+                            V[j] += alpha_sub_phi[n] * td_error * e[j];
+                            e[j] = gamma_sub_phi[n] * lamda_sub_phi[n] * e[j];
+                        }
+
+                        // Update new state and action to old state and action
+                        s = sprime;
+
+                        // Check if current state is a terminal state
+                        if (s == HomeNode || s == RewardNode){
+                            break;
                         }
                     }
-
-                    // Update the likelihood of choosing action, aprime from state sprime
-                    log_LL[n] += categorical_logit_lpmf( TrajA[n,b,step-1] | sprime_values_beta );
-
-                    // Calculate error signal for current state
-                    td_error = R + gamma_sub_phi[n] * V[sprime+1] - V[s+1];
-                    e[s+1] += 1;
-
-                    // Propagate value to all other states
-                    for (j in 1:S){
-                        V[s+1] += alpha_sub_phi[n] * td_error * e[s+1];
-                        e[s+1] = gamma_sub_phi[n] * lamda_sub_phi[n] * e[s+1];
-                    }
-
-                    // Update new state and action to old state and action
-                    s = sprime;
-
-                    // Check if current state is a terminal state
-                    if (s == HomeNode || s == RewardNode){
+                    else{
+                        // End the current bout/episode and move on to the next one
                         break;
                     }
-                }
-                else{
-                    // End the current bout/episode and move on to the next one
-                    break;
                 }
             }
         }
