@@ -49,6 +49,7 @@ model{
     int R;
     int sprime;
     int nextStateOption;
+    int sIsEndNode;
     vector[3] sprime_values_beta;
 
     // sampling population level parameters
@@ -98,14 +99,23 @@ model{
 
                     // Select an action
                     // Get a vector of 3 possible state-action values for the state, sprime
+                    sIsEndNode = 0;
                     for (i in 1:A){
                         nextStateOption = nodemap[s+1,i];
                         if (nextStateOption == InvalidState){
-                            sprime_values_beta[i] = 0;
+                            // Invalid states as potential options only occur when the current state, s is an end node
+                            sIsEndNode = 1;
+                            break;  // at an end node there is only one sprime state to transition with
+                                    // a probability of 1. i.e. log(prob) = 0
                         }
                         else{
-                            sprime_values_beta[i] = V[nodemap[s+1,i]+1] * beta;
+                            sprime_values_beta[i] = V[nextStateOption + 1] * beta;
                         }
+                    }
+
+                    // Update the likelihood of transitioning to state, sprime from state, s
+                    if (sIsEndNode == 0){
+                        TrajA[n,b,step-1] ~ categorical_logit(sprime_values_beta);
                     }
 
                     // Update previous state-action value
@@ -188,14 +198,23 @@ generated quantities{
 
                     // Select an action
                     // Get a vector of 3 possible state-action values for the transition from s -> sprime
+                    sIsEndNode = 0;
                     for (i in 1:A){
                         nextStateOption = nodemap[s+1,i];
                         if (nextStateOption == InvalidState){
-                            sprime_values_beta[i] = 0;
+                            // Invalid states as potential options only occur when the current state, s is an end node
+                            sIsEndNode = 1;
+                            break;  // at an end node there is only one sprime state to transition with
+                                    // a probability of 1. i.e. log(prob) = 0
                         }
                         else{
-                            sprime_values_beta[i] = V[nodemap[s+1,i]+1] * beta_sub_phi[n];
+                            sprime_values_beta[i] = V[nextStateOption + 1] * beta_sub_phi[n];
                         }
+                    }
+
+                    // Update the likelihood of choosing action, aprime from state sprime
+                    if (sIsEndNode == 0){
+                        log_LL[n] += categorical_logit_lpmf( TrajA[n,b,step-1] | sprime_values_beta );
                     }
 
                     // Update previous state-action value
