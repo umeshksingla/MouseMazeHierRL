@@ -92,7 +92,7 @@ model{
             for (step in 2:BL){
 
                 s_current = TrajS[n,b,step-1];  // current state
-                s_next = TrajS[n,b,step];   // actual next state
+                s_next = TrajS[n,b,step];   // true next state
 
                 // Checking if the trajectory is still valid
                 if (s_next == InvalidState)
@@ -105,16 +105,16 @@ model{
                 IsCurrentStateEndNode = 0;
                 for (i in 1:A){
                     s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                    print("s_next_i ", s_next_i, " action i ", i)
+                    print(" action ", i, "s_next_i ", s_next_i)
                     if (s_next_i == InvalidState) {
                         IsCurrentStateEndNode = 1;
                         break;
                     }
                     s_next_values_beta[i] = V[s_next_i+1] * beta;
-                    print("Vs_next_i", V[s_next_i+1], "s_next_beta_i ", s_next_values_beta[i], " s_current ", s_current, " beta ", beta);
+                    print("Vs_next_i ", V[s_next_i+1], " beta ", beta, " s_next_beta_i ", s_next_values_beta[i], " s_current ", s_current);
                 }
 
-                print("probs: ", s_next_values_beta, " current state: ", s_current);
+                print("probs: ", s_next_values_beta, " current state: ", s_current, " true next ", s_next);
 
                 // Update the likelihood of transitioning from state s to state s_next
                 print("log density before =", target(), " n ", n, " b ", b, " step-1 ", step-1);
