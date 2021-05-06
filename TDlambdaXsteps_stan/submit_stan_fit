@@ -34,9 +34,9 @@ then
     echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
     echo Starting python for set ${SET} using $1 as input
     LOG_FILE=${LOG_DIR}/log-${d}.log
+    echo "Log File: "${LOG_FILE}
     python -u $1 > ${LOG_FILE}
     echo "Exited with code: "$exitcode
-    echo "Log File: "${LOG_FILE}
   done
 elif [ $TRAJ_TYPE == real ]
 then
@@ -48,9 +48,9 @@ then
   echo Starting python for real trajectories using $1 as input
   echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
   LOG_FILE=${LOG_DIR}/log-${d}.log
+  echo "Log File: "${LOG_FILE}
   python -u $1 > ${LOG_FILE}
   exitcode=$?
   echo "Exited with code: "$exitcode
-  echo "Log File: "${LOG_FILE}
 fi
 exit 0
