@@ -40,7 +40,7 @@ A = model.A
 free_params = os.getenv('PARAMS').split(',')
 print('Free params: ', free_params)
 upper_bounds = os.getenv('UPPER_BOUNDS')
-# exec('upper_bounds='+upper_bounds)
+exec('upper_bounds='+upper_bounds)
 init_state_value_type = os.getenv('INIT')
 
 #  Loading nodes of mice trajectories
