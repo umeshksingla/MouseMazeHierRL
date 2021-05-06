@@ -105,12 +105,13 @@ model{
                 IsCurrentStateEndNode = 0;
                 for (i in 1:A){
                     s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                    if (s_next_i != InvalidState) {
+                    print("s_next_i ", s_next_i, " action i ", i)
+                    if (s_next_i == InvalidState) {
                         IsCurrentStateEndNode = 1;
                         break;
                     }
                     s_next_values_beta[i] = V[s_next_i+1] * beta;
-                    print("s_next_i ", s_next_i, "Vs_next_i", V[s_next_i+1], "s_next_beta_i ", s_next_values_beta[i], " s_current ", s_current, " beta ", beta);
+                    print("Vs_next_i", V[s_next_i+1], "s_next_beta_i ", s_next_values_beta[i], " s_current ", s_current, " beta ", beta);
                 }
 
                 print("probs: ", s_next_values_beta, " current state: ", s_current);
@@ -205,7 +206,7 @@ generated quantities{
                 IsCurrentStateEndNode = 0;
                 for (i in 1:A){
                     s_next_i = nodemap[s_current+1,i];
-                    if (s_next_i != InvalidState) {
+                    if (s_next_i == InvalidState) {
                         IsCurrentStateEndNode = 1;
                         break;
                     }
