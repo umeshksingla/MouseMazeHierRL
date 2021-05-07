@@ -83,3 +83,69 @@ def create_list_waterport_visits_in_between_rwds(times_to_waterport_visits, time
                 all_waterport_visits.append(waterport_visits_in_between_rwds)
 
     return all_waterport_visits
+
+def get_SAnodemap():
+    """
+    Creates a mapping based on the maze layout where current states are linked to the next 3 future states
+
+    Returns: SAnodemap, a 2D array of current state to future state mappings
+             Also saves SAnodemap in the main_dir as 'nodemap.p'
+    Return type: ndarray[(S, A), int]
+    """
+    SAnodemap = np.ones((self.S, self.A), dtype=int) * InvalidState
+    for node in np.arange(self.S - 1):
+        # Shallow level node available from current node
+        if node % 2 == 0:
+            SAnodemap[node, 0] = (node - 2) / 2
+        elif node % 2 == 1:
+            SAnodemap[node, 0] = (node - 1) / 2
+        if SAnodemap[node, 0] == InvalidState:
+            SAnodemap[node, 0] = HomeNode
+
+        if node not in lv6_nodes:
+            # Deeper level nodes available from current node
+            SAnodemap[node, 1] = node * 2 + 1
+            SAnodemap[node, 2] = node * 2 + 2
+
+    # Nodes available from entry point
+    SAnodemap[HomeNode, 0] = InvalidState
+    SAnodemap[HomeNode, 1] = 0
+    SAnodemap[HomeNode, 2] = InvalidState
+
+    # with open(os.path.join(self.main_dir, 'nodemap.p'),'wb') as f:
+    #     pickle.dump(SAnodemap, f)
+    return SAnodemap
+
+def load_environment():
+    '''
+    :return: dictionary of frequently used variables, config{N: , S: , A: , nodemap: , ....}
+    '''
+    config = {}
+    config['N'] = 10 # number of rewarded mice
+    config['S'] = 128  # number of states/nodes in the maze
+    config['A'] = 3  # number of actions available at each state
+    config['RewardNodeMag'] = 1  # reward magnitude at the reward port (node 116)
+    config['InvalidState'] = -1  # padding to indicate invalid nodes on nodemap and invalid states in trajectories
+    config['StartNode'] = 0  # node at which all episodes begin
+    config['HomeNode'] = 127  # node at maze entrance
+    config['RewardNode'] = 116  # node where liquid reward is located
+    config['NumRuns'] = 100  # number of times to repeat model predictions when running them forward on trajectories
+    config['nodemap'] = get_SAnodemap()  # mapping from each node to its three neighboring nodes with -1 as padding
+                                                              # for invalid nodes
+    # Some lists of nicknames for mice
+    config['RewNames'] = ['B1', 'B2', 'B3', 'B4', 'C1', 'C3', 'C6', 'C7', 'C8', 'C9']
+    config['UnrewNames'] = ['B5', 'B6', 'B7', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9']
+    config['AllNames'] = config['RewNames'] + config['UnrewNames']
+    config['UnrewNamesSub'] = ['B5', 'B6', 'B7', 'D3', 'D4', 'D5', 'D7', 'D8', 'D9']  # excluding D6 which barely entered the maze
+
+    # Define cell numbers of end/leaf nodes
+    lvl6_nodes = list(range(63, 127))
+    lvl5_nodes = list(range(31, 63))
+    lvl4_nodes = list(range(15, 31))
+    lvl3_nodes = list(range(7, 15))
+    lvl2_nodes = list(range(3, 7))
+    lvl1_nodes = list(range(1, 3))
+    lvl0_nodes = list(range(0, 1))
+    config['lvl_dict'] = {0: lvl0_nodes, 1: lvl1_nodes, 2: lvl2_nodes, 3: lvl3_nodes, 4: lvl4_nodes, 5: lvl5_nodes, 6: lvl6_nodes}
+
+    return config
