@@ -7,6 +7,7 @@ from copy import deepcopy
 from dataclasses import make_dataclass
 from MM_Plot_Utils import plot
 from MM_Maze_Utils import *
+from parameters import FRAME_RATE
 
 # Trajectory routines 
 Traj = make_dataclass('Traj', ['fr','ce','ke','no','re']) # a simple structure for trajectory data 
@@ -24,6 +25,10 @@ def NewTraj(fr=None,ce=None,ke=None,no=None,re=None):
     return Traj(fr,ce,ke,no,re)
 
 def add_node_times_to_tf(tf):
+    """
+    Adds a field `node_times` to tf with the time of node visit, in place of the frame that was present at `tf.no`.
+    `tf.node_times` has nodes numbers and start times within the bout; list of (n_visited_nodes,2) ndarrays, one ndarray for each bout
+    """
     tf.node_times=list()
     n_bouts = len(tf.no)
     for bout in range(n_bouts):
@@ -31,7 +36,7 @@ def add_node_times_to_tf(tf):
         n_steps = len(tf.no[bout])
         tf.node_times.append(tf.no[bout].astype('float'))
         for step in range(n_steps):
-            tf.node_times[bout][step][1] = float(tf.no[bout][step][1] + bout_init_fr)/float(frame_rate)
+            tf.node_times[bout][step][1] = float(tf.no[bout][step][1] + bout_init_fr)/float(FRAME_RATE)
     return tf
 
 def TestTrajModule():
@@ -990,7 +995,7 @@ def TimeInMaze(f,tf):
         if i==n_bouts:
             break
     frame_count+=f-tf.fr[i,0] # add frames in the bout of the given frame f
-    return frame_count/30  # 30 Hz is the frame rate
+    return frame_count/FRAME_RATE  # 30 Hz is the frame rate
     
 def FrameInExpt(t,tf):
     '''
@@ -1002,12 +1007,12 @@ def FrameInExpt(t,tf):
     ti=0
     i=0
     while True:
-        tb=(tf.fr[i,1]-tf.fr[i,0])/30 # length of this bout in s
+        tb=(tf.fr[i,1]-tf.fr[i,0])/FRAME_RATE # length of this bout in s
         if ti+tb>t or i==n-1:
             break
         ti+=tb
         i+=1
-    return tf.fr[i,0]+(t-ti)*30    
+    return tf.fr[i,0]+(t-ti)*FRAME_RATE    
 
 def SplitModeClips(tf,ma,re=True):
     '''
