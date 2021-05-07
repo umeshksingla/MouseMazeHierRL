@@ -12,8 +12,8 @@ ROOT=../${PREFIX}stan
 export STAN_FILE=${ROOT}/test_models/${PREFIX}.stan       # stan model file
 
 export INIT=ZERO  # Initial state values, Options available: ZERO, RAND, ONES
-export PARAMS=alpha,beta,gamma,lamda  # List of free parameters in model
-export UPPER_BOUNDS=[1,10,1,1]  # Set upper bounds for all parameters
+export PARAMS=alpha,beta,gamma  # List of free parameters in model
+export UPPER_BOUNDS=[1,10,1]  # Set upper bounds for all parameters
 
 LOG_DIR=${ROOT}/logs/${PREFIX}
 mkdir -p ${LOG_DIR}

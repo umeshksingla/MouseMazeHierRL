@@ -7,7 +7,6 @@ import numpy as np
 import pickle
 from pathlib import Path
 
-
 from parameters import *
 
 
@@ -93,15 +92,11 @@ class TD:
         for n in np.arange(N):
             for b in np.arange(B):
                 for bl in np.arange(BL - 1):
-                    if TrajS[n, b, bl + 1] != -1 and TrajS[n, b, bl] != 127:
-                        # print("n, b, bl", n, b, bl)
-                        # print("TrajS[n, b, bl]", TrajS[n, b, bl])
-                        # print("nodemap[TrajS[n, b, bl], :]", nodemap[TrajS[n, b, bl], :])
-                        # print("TrajS[n, b, bl + 1]", TrajS[n, b, bl + 1])
-                        # print("=====")
-                        TrajA[n, b, bl] = np.where(
-                            nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
-                        )[0][0] + 1
+                    if TrajS[n, b, bl + 1] == InvalidState:
+                        break
+                    TrajA[n, b, bl] = np.where(
+                        nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
+                    )[0][0] + 1
         return TrajA
 
     def simulate(self, sub_fits, orig_data):

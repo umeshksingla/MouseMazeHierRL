@@ -65,11 +65,10 @@ model{
         real alpha;
         real beta;
         real gamma;
-        real lamda;
 
         // sampling agent parameters
         alpha_sub[n] ~ normal(alpha_mu, alpha_sd);
-        alpha = Phi_approx(alpha_sub[n]);
+        alpha = alpha_UB * Phi_approx(alpha_sub[n]);
         beta_sub[n] ~ normal(beta_mu, beta_sd);
         beta = beta_UB * Phi_approx(beta_sub[n]);
         gamma_sub[n] ~ normal(gamma_mu, gamma_sd);
@@ -98,29 +97,32 @@ model{
                 if (s_next == InvalidState)
                     break;
 
-                // Sample a reward
-                R = (s_next == RewardNode) ? RewardNodeMag : 0;
-
+                print("alpha ", alpha, " beta ", beta, " gamma ", gamma);
                 // Possible next states by taking an action in state s_current
+                print(" current state: ", s_current, " true next ", s_next);
                 IsCurrentStateEndNode = 0;
                 for (i in 1:A){
                     s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                    print(" action ", i, "s_next_i ", s_next_i)
+                    print("action ", i, " s_next_i ", s_next_i);
                     if (s_next_i == InvalidState) {
                         IsCurrentStateEndNode = 1;
                         break;
                     }
                     s_next_values_beta[i] = V[s_next_i+1] * beta;
-                    print("Vs_next_i ", V[s_next_i+1], " beta ", beta, " s_next_beta_i ", s_next_values_beta[i], " s_current ", s_current);
+                    print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
                 }
 
-                print("probs: ", s_next_values_beta, " current state: ", s_current, " true next ", s_next);
+                print("probs: ", s_next_values_beta);
 
-                // Update the likelihood of transitioning from state s to state s_next
+                // Update the likelihood of transitioning from state s_current to state s_next
                 print("log density before =", target(), " n ", n, " b ", b, " step-1 ", step-1);
                 if (!IsCurrentStateEndNode)
                     TrajA[n,b,step-1] ~ categorical_logit(s_next_values_beta);
+                    // target += categorical_logit_lpdf(TrajA[n,b,step-1] | s_next_values_beta);
                 print("log density after =", target(), " n ", n, " b ", b, " step-1 ", step-1);
+
+                // Sample a reward
+                R = (s_next == RewardNode) ? RewardNodeMag : 0;
 
                 // Calculate error signal for current state
                 td_error = R + gamma * V[s_next+1] - V[s_current+1];
@@ -128,7 +130,6 @@ model{
                 // Update current state value
                 V[s_current+1] += alpha * td_error;
 
-                print("alpha ", alpha, " gamma ", gamma)
                 print("=====")
 
                 // Check if current state is a terminal state
@@ -200,8 +201,6 @@ generated quantities{
                 if (s_next == InvalidState)
                     break;
 
-                // Sample a reward
-                R = (s_next == RewardNode) ? RewardNodeMag : 0;
 
                 // Possible next states by taking an action i in state s_current
                 IsCurrentStateEndNode = 0;
@@ -219,6 +218,9 @@ generated quantities{
                 if (!IsCurrentStateEndNode)
                     log_LL[n] += categorical_logit_lpmf( a_true | s_next_values_beta );
                 print("log_LL after =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
+
+                // Sample a reward
+                R = (s_next == RewardNode) ? RewardNodeMag : 0;
 
                 // Calculate error signal for current state
                 td_error = R + gamma_sub_phi[n] * V[s_next+1] - V[s_current+1];
