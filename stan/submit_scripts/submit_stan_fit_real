@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH -J rl_tdlambda
+#SBATCH -o /sphere/mattar-lab/stan/logs/clusterlog_stanfit_tdlambda_real.out
+#SBATCH -p general
+
+source /home/AD/kperera/dcm2bids/bin/activate
+export TRAJ_TYPE=real                        # options: real or simulated
+export STAN_FILE=tdlambda_every_Rvisit.stan       # stan file in "stan/test_models/"
+export RESULTS_DIR=TDlamda_Rvisit_real         # Set path to store stan results in, "stan/stan_results/"
+export INIT=RAND  # Set to ZERO for initial state values, V0 to all be zero. Set to RAND for random initial states values between 0 and 1
+                  # Set to ONES for state values to all begin optimistically at one
+export PARAMS=alpha,beta,gamma,lamda              # List of free parameters in model
+export UPPER_BOUNDS=[1,10,1,1]                    # Set upper bounds for all parameters
+
+export TRAJ_DATA=rewMICE_post_firstR_every_Rvisit.pkl  # If fitting to real data, input file name with the '.p' extension
+export LOG_FILE=pylog_stanfit_real                   # If fitting to real data, set log file path
+
+echo Starting python for real trajectories using $1 as input
+python -u $1 > /sphere/mattar-lab/stan/logs/${LOG_FILE}.out
+exitcode=$?
+echo $exitcode
+exit 0

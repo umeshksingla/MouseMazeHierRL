@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH -J sim_tdlambda
+#SBATCH -o /sphere/mattar-lab/stan/logs/clusterlog_sim_tdlambda.out
+#SBATCH -p general_short
+
+export MAIN_DIR=/sphere/mattar-lab/stan       # parent folder containing all code and data
+export DATA_DIR=TDlamda_Rvisit_20Bout1000Traj  # folder in "stan/traj_data/pred_traj/" to save predicted trajectories
+export REAL_DATA=rewMICE_post_firstR_every_Rvisit.pkl  # Real trajectory data to match predicted trajectory sizes to
+export MAX_TRAJ=1000  # Max trajectory length to simulate for each agent
+export MAX_BOUTS=20  # Number of bouts to simulate for each agent
+export PARAMS=alpha,beta,gamma,lamda  # List of free parameters in model
+export SWEEP_RANGE=[0,0,0,1]  # Set to 1 to generate a range of values (param_lower, param_upper, param_step) for each parameter.
+                              # To set specific parameter values, set to 0 instead
+export PARAM_RANGE=[[],[],[],[0.5,1,0.2]]  # Format for each parameter: [param_lower, param_upper, param_step]
+export PARAM_SPECIFIC=[[0.1,0.8],[4,8],[0.9],[]]  # Format for each parameter: list of values
+export INIT=ONES  # Set to ZERO for initial state values, V0 to all be zero. Set to RAND for random initial states values between 0 and 1
+source /home/AD/kperera/dcm2bids/bin/activate
+echo Starting python using $1 as input
+python -u $1 > /sphere/mattar-lab/stan/logs/pythonlog_sim_tdlambda.out
+exit 0
