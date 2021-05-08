@@ -6,20 +6,25 @@ AllNames=RewNames+UnrewNames
 UnrewNamesSub=['B5','B6','B7','D3','D4','D5','D7','D8','D9'] # excluding D6 which barely entered the maze
 
 RWD_NODE = 116
-HomeNode = 127
-RewardNode = RWD_NODE
+HOME_NODE = 127
+INVALID_STATE = -1
+WATER_PORT_STATE = 128
 FRAME_RATE = 30  # Hz
-InvalidState = -1
+
+# Parameters to transition out of
+HomeNode = HOME_NODE
+RewardNode = RWD_NODE
+InvalidState = INVALID_STATE
 
 # Define cell numbers of end/leaf nodes
-lv6_nodes = list(range(63,127))
-lv5_nodes = list(range(31,63))
-lv4_nodes = list(range(15,31))
-lv3_nodes = list(range(7,15))
-lv2_nodes = list(range(3,7))
-lv1_nodes = list(range(1,3))
-lv0_nodes = list(range(0,1))
-lvl_dict = {0:lv0_nodes, 1:lv1_nodes, 2:lv2_nodes, 3:lv3_nodes, 4:lv4_nodes, 5:lv5_nodes, 6:lv6_nodes}
+lvl6_nodes = list(range(63,127))
+lvl5_nodes = list(range(31,63))
+lvl4_nodes = list(range(15,31))
+lvl3_nodes = list(range(7,15))
+lvl2_nodes = list(range(3,7))
+lvl1_nodes = list(range(1,3))
+lvl0_nodes = list(range(0,1))
+NODE_LVL = {0:lvl0_nodes, 1:lvl1_nodes, 2:lvl2_nodes, 3:lvl3_nodes, 4:lvl4_nodes, 5:lvl5_nodes, 6:lvl6_nodes}
 
 # Define nodes belonging to each quadrant
 quad1 = [3, 7, 8, 15, 16, 17, 18, 31, 32, 33, 34, 35, 36, 37, 38, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78]
