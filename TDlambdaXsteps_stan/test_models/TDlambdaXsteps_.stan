@@ -118,14 +118,14 @@ model{
                 if (s_next == InvalidState)
                     break;
 
-                print("alpha ", alpha, " beta ", beta, " gamma ", gamma, " lamda ", lamda);
+                //print("alpha ", alpha, " beta ", beta, " gamma ", gamma, " lamda ", lamda);
                 // Possible next states by taking an action in state s_current
-                print("current state: ", s_current, " true next: ", s_next, " isTerminalState: ", isTerminalState);
+                //print("current state: ", s_current, " true next: ", s_next, " isTerminalState: ", isTerminalState);
                 isCurrentStateEndNode = 0;
                 if (!isTerminalState) {
                     for (i in 1:A){
                         s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                        print("action ", i, " s_next_i ", s_next_i);
+                        //print("action ", i, " s_next_i ", s_next_i);
                         if (s_next_i == InvalidState) {
                             isCurrentStateEndNode = 1;
                             break;
