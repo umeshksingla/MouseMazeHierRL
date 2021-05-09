@@ -22,13 +22,13 @@ transformed data {
     real alpha_UB;
     real beta_UB;
     real gamma_UB;
-    //real lamda_UB;
+    real lamda_UB;
 
     // Storing parameter upper bounds
     alpha_UB = UB[1];
     beta_UB = UB[2];
     gamma_UB = UB[3];
-    //lamda_UB = UB[4];
+    lamda_UB = UB[4];
 }
 parameters{
     // population parameters
@@ -38,14 +38,14 @@ parameters{
     real <lower = 0.001> beta_sd;
     real gamma_mu;
     real <lower = 0.001> gamma_sd;
-    //real lamda_mu;
-    //real <lower = 0.001> lamda_sd;
+    real lamda_mu;
+    real <lower = 0.001> lamda_sd;
 
     // agent parameters
     real alpha_sub[N];
     real beta_sub[N];
     real gamma_sub[N];
-    //real lamda_sub[N];
+    real lamda_sub[N];
 }
 model{
     // Declare model parameters
@@ -60,7 +60,6 @@ model{
     int isTerminalState;
     real td_error;
     vector[3] s_next_values_beta;
-    real lamda=0.5;
 
     // sampling population level parameters
     alpha_mu ~ normal(0, 1);
@@ -69,14 +68,14 @@ model{
     beta_sd ~ normal(0, 1);
     gamma_mu ~ normal(0, 1);
     gamma_sd ~ normal(0, 1);
-    //lamda_mu ~ normal(0, 1);
-    //lamda_sd ~ normal(0, 1);
+    lamda_mu ~ normal(0, 1);
+    lamda_sd ~ normal(0, 1);
 
     for (n in 1:N){
         real alpha;
         real beta;
         real gamma;
-        //real lamda;
+        real lamda;
 
         // sampling agent parameters
         alpha_sub[n] ~ normal(alpha_mu, alpha_sd);
@@ -85,8 +84,8 @@ model{
         beta = beta_UB * Phi_approx(beta_sub[n]);
         gamma_sub[n] ~ normal(gamma_mu, gamma_sd);
         gamma = gamma_UB * Phi_approx(gamma_sub[n]);
-        //lamda_sub[n] ~ normal(lamda_mu, lamda_sd);
-        //lamda = lamda_UB * Phi_approx(lamda_sub[n]);
+        lamda_sub[n] ~ normal(lamda_mu, lamda_sd);
+        lamda = lamda_UB * Phi_approx(lamda_sub[n]);
 
         // Initialize state values for this mice
         V = V0[n,:];
@@ -165,8 +164,8 @@ generated quantities{
     real beta_sub_phi[N];
     real gamma_mu_phi;
     real gamma_sub_phi[N];
-    //real lamda_mu_phi;
-    //real lamda_sub_phi[N];
+    real lamda_mu_phi;
+    real lamda_sub_phi[N];
     real log_LL[N];
 
     // Preparing fitted parameters for output to file and model summary
@@ -198,7 +197,6 @@ generated quantities{
         real e[S];
         vector[3] s_next_values_beta;
         real V[S];
-        real lamda=0.5;
 
         // Initialize state values for this mice
         V = V0[n,:];
@@ -264,8 +262,8 @@ generated quantities{
                 // Propagate value to all other states
                 for (j in 1:S){
                     V[j] += alpha_sub_phi[n] * td_error * e[j];
-                    //e[j] = gamma_sub_phi[n] * lamda_sub_phi[n] * e[j];
-                    e[j] = gamma_sub_phi[n] * lamda * e[j];
+                    e[j] = gamma_sub_phi[n] * lamda_sub_phi[n] * e[j];
+                    //e[j] = gamma_sub_phi[n] * lamda * e[j];
                 }
 
             }
