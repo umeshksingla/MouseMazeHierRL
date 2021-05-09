@@ -59,7 +59,7 @@ def main():
     print('Initializing values')
     if init_state_value_type == 'ZERO':
         V0 = np.zeros((N, S))
-    elif init_state_value_type == 'RAND1':
+    elif init_state_value_type == 'RAND':
         V0 = np.random.rand(N, S)  # initialized state values for each mouse
     elif init_state_value_type == 'ONES':
         V0 = np.ones((N, S))
