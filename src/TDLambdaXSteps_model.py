@@ -4,51 +4,48 @@ import numpy as np
 import pickle
 import os
 
-from parameters import InvalidState, RewNames, RewardNode
-from TD_model import TD
+from parameters import InvalidState, RewNames, RewardNode, WaterPortNode
+from BaseModel import BaseModel
 from MM_Traj_Utils import *
 
 
-class TDLambdaXStepsRewardReceived(TD):
+class TDLambdaXStepsRewardReceived(BaseModel):
 
     def __init__(self, file_suffix='_XStepsRewardReceivedTrajectories'):
-        TD.__init__(self, file_suffix)
+        BaseModel.__init__(self, file_suffix)
         self.X = 20
 
-    def extract_and_save_trajectory_data(self, output_dir):
+    def extract_trajectory_data(self, save_dir=None):
         """
+        save_dir: path to the directory where you want to save the pickled
+        data object.
         """
-#         N = 10
-#         TrajSize = 3000
-#         TrajNo = 20
-#         TrajS = np.ones((N,TrajNo,TrajSize)) * InvalidState
         trajectory_data = []
         for mouseId, nickname in enumerate(RewNames):
             trajectory_data.append(self.__get_trajectory_data_by_nickname__(nickname))
 #             break
-        with open(os.path.join(output_dir, f'{self.file_suffix}.p'),'wb') as f:
-            pickle.dump(trajectory_data, f)
+        if save_dir:
+            with open(os.path.join(save_dir, f'{self.file_suffix}.p'), 'wb') as f:
+                pickle.dump(trajectory_data, f)
         return trajectory_data
 
     def __get_trajectory_data_by_nickname__(self, nickname):
-        tf = LoadTraj(nickname + '-tf')
-        
+        tf = LoadTrajFromPath('../outdata/' + nickname + '-tf')
         trajectory_data = []
 
         for boutId, reward_frames in enumerate(tf.re):
             bout_trajectory = tf.no[boutId]
             prev_idx = -1
-            
-#             print(f"boutId {boutId}")
+
             for each in reward_frames:
                 start_frame, end_frame = each
-                
+
                 # Look for the current reward visit in the trajectory
                 idx =  np.searchsorted(bout_trajectory[:, 1], start_frame, side='left') 
-                
-                # Take the last X steps from the trajectory till the current reward visit
-                # Or if previous reward visit was within X steps, then max of those
-                # Or if there haven't been X steps till now
+
+                # Take only the last X steps before the current reward visit.
+                # (Taking into account if the previous reward visit was within X
+                # steps Or if there haven't been X steps till now.)
                 lastXsteps_ = bout_trajectory[max(prev_idx+1, idx-self.X):idx , 0]
 
                 # Check if RWD_NODE was visited within X steps but no reward was received
@@ -57,12 +54,14 @@ class TDLambdaXStepsRewardReceived(TD):
 
                 # If yes, then consider only the later part of the trajectory
                 traj = lastXsteps_[last_rew_node_visit+1:]
+                # And append WaterPortNode at the end to denote the receipt of a reward.
+                traj = np.append(traj, WaterPortNode)
+
                 trajectory_data.append(traj)
                 prev_idx = idx
-#                 print(f" ===> {idx} {each} {traj} {rew_node_visit_in_lastXsteps}")
         return trajectory_data
 
-    def simulate(self, sub_fits, orig_data):
+    def simulate(self, sub_fits):
         pass
 #         '''
 #         Model predictions (sample predicted trajectories) using fitted parameters sub_fits.

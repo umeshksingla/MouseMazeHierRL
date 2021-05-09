@@ -1,18 +1,19 @@
 """
+Broken and yet to refactor.
 """
 
 import numpy as np
 import pickle
 
 from parameters import *
-from TD_model import TD
+from BaseModel import BaseModel
 from MM_Traj_Utils import *
 
 
-class TD0MultipleVisits(TD):
+class TD0MultipleVisits(BaseModel):
     
     def __init__(self, file_suffix='_TD0MultipleVisits'):
-        TD.__init__(self, file_suffix)
+        BaseModel.__init__(self, file_suffix)
 
     def get_trajectory_data(self):
         """
@@ -80,10 +81,10 @@ class TD0MultipleVisits(TD):
         return
 
 
-class TD0FirstVisit(TD):
+class TD0FirstVisit(BaseModel):
     
     def __init__(self, file_suffix='_TD0FirstVisit'):
-        TD.__init__(self, file_suffix)
+        BaseModel.__init__(self, file_suffix)
 
     def get_trajectory_data(self):
         """

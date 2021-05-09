@@ -1,4 +1,11 @@
 """
+Use this base class to define your model: from extracting data to loading states
+and actions, to simulating agents.
+This is supposed to be only provide a skeleton, feel free to override any
+function.
+
+For an example, refer to TDLambdaXStepsRewardReceived file that inherits from
+this class.
 """
 
 import abc
@@ -10,14 +17,13 @@ from pathlib import Path
 from parameters import *
 
 
-class TD:
-    def __init__(self, file_suffix='TD'):
-        self.S = 128  # Number of states
+class BaseModel:
+    def __init__(self, file_suffix='BaseModel'):
+        self.S = 129  # Number of states, including WaterPortState
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
 
-    @abc.abstractmethod
-    def extract_and_save_trajectory_data(self, output_dir):
+    def extract_trajectory_data(self, save_dir=None):
         """
         Extracts the required trajectory data and pickle-dumps on the disk.
         """
@@ -55,16 +61,15 @@ class TD:
         SAnodemap[HomeNode,0] = InvalidState
         SAnodemap[HomeNode,1] = 0
         SAnodemap[HomeNode,2] = InvalidState
-        
-        # with open(os.path.join(self.main_dir, 'nodemap.p'),'wb') as f:
-        #     pickle.dump(SAnodemap, f)
+
+        # Nodes at WaterPortState
+        SAnodemap[WaterPortNode, 0] = InvalidState
+        SAnodemap[WaterPortNode, 1] = InvalidState
+        SAnodemap[WaterPortNode, 2] = InvalidState
         return SAnodemap
 
-    def load_trajectories(self, data_file):
+    def __load_trajectories__(self, data):
         # TrajS   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
-        #           Matrix entries are node labels and extra space in the matrix is filled with -1
-        with open(data_file, 'rb') as f:
-            data = pickle.load(f)
 
         N = len(data)
         B = max([len(n) for n in data])
@@ -81,6 +86,14 @@ class TD:
                     TrajS[n, b, s] = data[n][b][s]
         return TrajS.astype(int)
 
+    def load_trajectories_from_file(self, data_file):
+        with open(data_file, 'rb') as f:
+            data = pickle.load(f)
+        return self.__load_trajectories__(data)
+
+    def load_trajectories_from_object(self, trajectory_data):
+        return self.__load_trajectories__(trajectory_data)
+
     def load_TrajA(self, TrajS, nodemap):
         # TrajA   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
         # TrajA   : Matrix entries are action indices (1, 2 or 3) taken to transition from t to t+1 in TrajS
@@ -92,13 +105,16 @@ class TD:
         for n in np.arange(N):
             for b in np.arange(B):
                 for bl in np.arange(BL - 1):
-                    if TrajS[n, b, bl + 1] == InvalidState:
+                    if TrajS[n, b, bl + 1] == InvalidState or TrajS[n, b, bl + 1] == WaterPortNode:
                         break
                     TrajA[n, b, bl] = np.where(
                         nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
                     )[0][0] + 1
         return TrajA
 
-    def simulate(self, sub_fits, orig_data):
+    def simulate(self, sub_fits):
+        """
+        Simulate the agent with given set of parameters sub_fits.
+        """
         pass
 

@@ -45,6 +45,14 @@ def LoadTraj(filename):
     with open('outdata/'+filename, 'rb') as f:
         return pickle.load(f)
 
+def LoadTrajFromPath(path):
+    '''
+    Loads a trajectory from a pickle file.
+    Puts the results in a Traj structure.
+    '''
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+
 def SaveTraj(filename,tr):
     '''
     Saves a trajectory to a pickle file.

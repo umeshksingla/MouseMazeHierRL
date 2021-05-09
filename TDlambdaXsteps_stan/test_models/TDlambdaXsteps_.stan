@@ -11,6 +11,7 @@ data{
     int HomeNode;                 // node at maze entrance
     int StartNode;                // node at which all episodes begin
     int RewardNode;               // node where reward is located
+    int WaterPortNode;            // node to denote water receipt after reward node
     int TrajS[N,B,BL];            // trajectories of all mice
     int TrajA[N,B,BL];            // corresponding actions taken at each point in TrajS to transition to the next state
                                   // TrajA actions: 1,2,3 correspond to column positions on nodemap for each row position (states)
@@ -55,7 +56,8 @@ model{
     int R;
     int s_next;
     int s_next_i;
-    int IsCurrentStateEndNode;
+    int isCurrentStateEndNode;
+    int isTerminalState;
     real td_error;
     vector[3] s_next_values_beta;
     real lamda=0.5;
@@ -78,7 +80,7 @@ model{
 
         // sampling agent parameters
         alpha_sub[n] ~ normal(alpha_mu, alpha_sd);
-        alpha = Phi_approx(alpha_sub[n]);
+        alpha = alpha_UB * Phi_approx(alpha_sub[n]);
         beta_sub[n] ~ normal(beta_mu, beta_sd);
         beta = beta_UB * Phi_approx(beta_sub[n]);
         gamma_sub[n] ~ normal(gamma_mu, gamma_sd);
@@ -108,35 +110,39 @@ model{
             for (step in 2:BL){
 
                 s_current = TrajS[n,b,step-1];  // current state
-                s_next = TrajS[n,b,step];   // actual next state
+                s_next = TrajS[n,b,step];       // true next state
+
+                isTerminalState = (s_current == RewardNode && s_next == WaterPortNode);
+                R = isTerminalState ? RewardNodeMag : 0;    // Sample a reward
 
                 // Checking if the trajectory is still valid
                 if (s_next == InvalidState)
                     break;
 
+                print("alpha ", alpha, " beta ", beta, " gamma ", gamma);
                 // Possible next states by taking an action in state s_current
-                IsCurrentStateEndNode = 0;
-                for (i in 1:A){
-                    s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                    print("action ", i, " s_next_i ", s_next_i);
-                    if (s_next_i == InvalidState) {
-                        IsCurrentStateEndNode = 1;
-                        break;
+                print("current state: ", s_current, " true next: ", s_next, " isTerminalState: ", isTerminalState);
+                isCurrentStateEndNode = 0;
+                if (!isTerminalState) {
+                    for (i in 1:A){
+                        s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
+                        print("action ", i, " s_next_i ", s_next_i);
+                        if (s_next_i == InvalidState) {
+                            isCurrentStateEndNode = 1;
+                            break;
+                        }
+                        s_next_values_beta[i] = V[s_next_i+1] * beta;
+                        print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
                     }
-                    s_next_values_beta[i] = V[s_next_i+1] * beta;
-                    print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
                 }
 
                 print("probs: ", s_next_values_beta);
 
                 // Update the likelihood of transitioning from state s_current to state s_next
-                print("log density before =", target(), " n ", n, " b ", b, " step-1 ", step-1);
-                if (!IsCurrentStateEndNode)
+                print("log density before =", target(), " n ", n, " b ", b, " step-1 ", step-1, " isCurrentStateEndNode ", isCurrentStateEndNode);
+                if (!isCurrentStateEndNode && !isTerminalState)
                     TrajA[n,b,step-1] ~ categorical_logit(s_next_values_beta);
                 print("log density after =", target(), " n ", n, " b ", b, " step-1 ", step-1);
-
-                // Sample a reward
-                R = (s_next == RewardNode) ? RewardNodeMag : 0;
 
                 // Calculate error signal for current state
                 td_error = R + gamma * V[s_next+1] - V[s_current+1];
@@ -147,10 +153,7 @@ model{
                     V[j] += alpha * td_error * e[j];
                     e[j] = gamma * lamda * e[j];
                 }
-
-                // Check if current state is a terminal state
-                // if (s_current == HomeNode || s_current == RewardNode)
-                //    break;
+                print("====");
             }
         }
     }
@@ -189,7 +192,8 @@ generated quantities{
         int R;
         int s_next;
         int s_next_i;
-        int IsCurrentStateEndNode;
+        int isCurrentStateEndNode;
+        int isTerminalState;
         real td_error;
         real e[S];
         vector[3] s_next_values_beta;
@@ -224,32 +228,34 @@ generated quantities{
                 a_true = TrajA[n,b,step-1];      // true action taken in current state
                 s_next = TrajS[n,b,step];       // true next state
 
+                isTerminalState = (s_current == RewardNode && s_next == WaterPortNode);
+                R = isTerminalState ? RewardNodeMag : 0;    // Sample a reward
+
                 // Checking if the trajectory is still valid
                 if (s_next == InvalidState)
                     break;
 
                 // Possible next states by taking an action i in state s_current
                 print(" current state: ", s_current, " true next ", s_next);
-                IsCurrentStateEndNode = 0;
-                for (i in 1:A){
-                    s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                    print("action ", i, " s_next_i ", s_next_i);
-                    if (s_next_i == InvalidState) {
-                        IsCurrentStateEndNode = 1;
-                        break;
+                isCurrentStateEndNode = 0;
+                if (!isTerminalState) {
+                    for (i in 1:A){
+                        s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
+                        print("action ", i, " s_next_i ", s_next_i);
+                        if (s_next_i == InvalidState) {
+                            isCurrentStateEndNode = 1;
+                            break;
+                        }
+                        s_next_values_beta[i] = V[s_next_i+1] * beta_sub_phi[n];
+                        print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
                     }
-                    s_next_values_beta[i] = V[s_next_i+1] * beta_sub_phi[n];
-                    print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
                 }
 
                 // Update the likelihood of choosing action a_true in state s_current
                 print("log_LL before =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
-                if (!IsCurrentStateEndNode)
+                if (!isCurrentStateEndNode && !isTerminalState)
                     log_LL[n] += categorical_logit_lpmf( a_true | s_next_values_beta );
                 print("log_LL after =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
-
-                // Sample a reward
-                R = (s_next == RewardNode) ? RewardNodeMag : 0;
 
                 // Calculate error signal for current state
                 td_error = R + gamma_sub_phi[n] * V[s_next+1] - V[s_current+1];
@@ -262,9 +268,6 @@ generated quantities{
                     e[j] = gamma_sub_phi[n] * lamda * e[j];
                 }
 
-                // Check if current state is a terminal state
-                // if (s_current == HomeNode || s_current == RewardNode)
-                //    break;
             }
         }
     }

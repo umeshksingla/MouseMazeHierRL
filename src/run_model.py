@@ -9,7 +9,7 @@ import numpy as np
 import shutil
 from pathlib import Path
 
-from parameters import HomeNode, RewardNode, InvalidState
+from parameters import HomeNode, RewardNode, InvalidState, WaterPortNode
 
 # Load environment variables
 # input files
@@ -21,14 +21,14 @@ if traj_type == 'simulated':
     set = int(os.getenv('SET'))
     true_params = pickle.load(open(os.path.abspath(os.getenv('TRUE_PARAMS_FILE')), 'rb'))
 
+    if not os.path.isfile(sim_data_file):
+        print('Invalid dataset for fitting.')
+        sys.exit()
+
 # output files
 results_dir = os.path.abspath(os.getenv('RESULTS_DIR'))
 Path(results_dir).mkdir(exist_ok=True, parents=True)
 print(traj_type, results_dir, stan_file, sim_data_file)
-
-if not os.path.isfile(sim_data_file):
-    print('Invalid dataset for fitting.')
-    sys.exit()
 
 free_params = os.getenv('PARAMS').split(',')
 print('Free params: ', free_params)
@@ -42,15 +42,19 @@ def main():
     from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
     model = TDLambdaXStepsRewardReceived()
     nodemap = model.get_SAnodemap()
+
     S = model.S
     A = model.A
 
     #  Loading nodes of mice trajectories
-    TrajS = model.load_trajectories(sim_data_file)
+    trajectory_data = model.extract_trajectory_data()
+    print(trajectory_data[0][0])
+    TrajS = model.load_trajectories_from_object(trajectory_data)
+    N, B, BL = TrajS.shape
+    print("TrajS.shape", N, B, BL)
 
     # Loading actions taken at each state, s to transition to state s'
     TrajA = model.load_TrajA(TrajS, nodemap)
-    N, B, BL = TrajS.shape
 
     print('Initializing values')
     if init_state_value_type == 'ZERO':
@@ -59,8 +63,8 @@ def main():
         V0 = np.random.rand(N, S)  # initialized state values for each mouse
     elif init_state_value_type == 'ONES':
         V0 = np.ones((N, S))
-    V0[:, HomeNode] = 0  # setting state-values of terminal state, 127 to 0
-    V0[:, RewardNode] = 0  # setting state-values of terminal state, 116 to 0
+    V0[:, HomeNode] = 0         # setting state-values of terminal state HomeNode to 0
+    V0[:, WaterPortNode] = 0    # setting state-values of terminal state WaterPortNode to 0
 
     # STAN model data
     model_data = {'N': N,
@@ -75,6 +79,7 @@ def main():
                   'HomeNode': HomeNode,
                   'StartNode': 0,               # node at which all episodes begin
                   'RewardNode': RewardNode,     # reward magnitude at the reward port (node 116)
+                  'WaterPortNode': WaterPortNode,
                   'TrajS': TrajS,
                   'TrajA': TrajA,
                   'NUM_PARAMS': len(upper_bounds),
@@ -83,7 +88,7 @@ def main():
     if traj_type == 'simulated':
         print('Fitting to simulated data from file ', sim_data_file, ' with true parameters ', true_params[set], '(alpha, beta, gamma)')
     elif traj_type == 'real':
-        print('Fitting to real data from file ', sim_data_file, ' free parameters:', free_params)
+        print('Fitting to real data; free parameters:', free_params)
 
     sm = pystan.StanModel(file=stan_file)
 
@@ -91,12 +96,12 @@ def main():
     fit = sm.sampling(
         data=model_data, iter=2000, chains=4, warmup=250,
         control={'max_treedepth':15, 'adapt_delta':0.9},
-        n_jobs=8
+        n_jobs=4
     )
     return sm, fit, N, B, BL
 
 
-def save(sm, fit, N, B, BL):
+def save(sm, fit, N):
     # Save model and fit object and fit data
     with open(results_dir + 'model.pkl', 'wb') as f:
         pickle.dump(sm, f, protocol=-1)
@@ -145,5 +150,5 @@ def save(sm, fit, N, B, BL):
 
 
 if __name__ == '__main__':
-    sm, fit, N, B, BL = main()
-    save(sm, fit, N, B, BL)
+    sm, fit, N, _, _ = main()
+    save(sm, fit, N)

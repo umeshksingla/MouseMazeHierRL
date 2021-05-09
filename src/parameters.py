@@ -10,6 +10,7 @@ HomeNode = 127
 RewardNode = RWD_NODE
 FRAME_RATE = 30  # Hz
 InvalidState = -1
+WaterPortNode = 128
 
 # Define cell numbers of end/leaf nodes
 lv6_nodes = list(range(63,127))
