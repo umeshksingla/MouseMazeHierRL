@@ -1,9 +1,9 @@
 #!/bin/bash
-+#SBATCH -J tdlamdaxteps
-+#SBATCH -o /sphere/mattar-lab/mousemazemodeling/MouseMaze/TDlambdaXsteps_stan/slurm.out
-+#SBATCH -p general_gpu_k80
-+
-+source /home/AD/usingla/mvenv/bin/activate
+#SBATCH -J tdlamdaxteps
+#SBATCH -o /sphere/mattar-lab/mousemazemodeling/MouseMaze/TDlambdaXsteps_stan/slurm.out
+#SBATCH -p general_gpu_k80
+
+source /home/AD/usingla/mvenv/bin/activate
 
 export PREFIX=TDlambdaXsteps_   # prefix for stan model file, log files, data directories etc
 
