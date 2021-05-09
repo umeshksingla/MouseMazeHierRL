@@ -102,13 +102,17 @@ def main():
 
 
 def save(sm, fit, N):
+    summary_dict = fit.summary()
+    print(fit)
+    print(summary_dict)
+
     # Save model and fit object and fit data
     with open(results_dir + 'model.pkl', 'wb') as f:
         pickle.dump(sm, f, protocol=-1)
     with open(results_dir + 'fit.pkl', 'wb') as f:
         pickle.dump(fit, f, protocol=-1)
     with open(results_dir + 'fit_data.txt', 'w') as f:
-        f.write(fit)
+        print(fit, file=f)
 
     # Save fit diagnostics
     diag_fitdata = open(results_dir + 'diagnostics_log.txt', 'w')
@@ -125,10 +129,8 @@ def save(sm, fit, N):
     diag_fitdata.close()
 
     # Extract best fit parameters and log likelihoods
-    fit = pickle.load(open(results_dir+'fit.pkl','rb'))
     best_sub_fits = {}
     best_group_fits = {}
-    summary_dict = fit.summary()
     for k in np.arange(N):
         best_sub_fits[k] = np.zeros(len(free_params)+1)
         for id, param in enumerate(free_params):

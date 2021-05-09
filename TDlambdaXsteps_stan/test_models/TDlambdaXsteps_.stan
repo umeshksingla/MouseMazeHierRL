@@ -119,7 +119,7 @@ model{
                 if (s_next == InvalidState)
                     break;
 
-                print("alpha ", alpha, " beta ", beta, " gamma ", gamma);
+                print("alpha ", alpha, " beta ", beta, " gamma ", gamma, " lamda ", lamda);
                 // Possible next states by taking an action in state s_current
                 print("current state: ", s_current, " true next: ", s_next, " isTerminalState: ", isTerminalState);
                 isCurrentStateEndNode = 0;
@@ -132,17 +132,17 @@ model{
                             break;
                         }
                         s_next_values_beta[i] = V[s_next_i+1] * beta;
-                        print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
+                        //print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
                     }
                 }
 
-                print("probs: ", s_next_values_beta);
+                //print("probs: ", s_next_values_beta);
 
                 // Update the likelihood of transitioning from state s_current to state s_next
-                print("log density before =", target(), " n ", n, " b ", b, " step-1 ", step-1, " isCurrentStateEndNode ", isCurrentStateEndNode);
+                //print("log density before =", target(), " n ", n, " b ", b, " step-1 ", step-1, " isCurrentStateEndNode ", isCurrentStateEndNode);
                 if (!isCurrentStateEndNode && !isTerminalState)
                     TrajA[n,b,step-1] ~ categorical_logit(s_next_values_beta);
-                print("log density after =", target(), " n ", n, " b ", b, " step-1 ", step-1);
+                //print("log density after =", target(), " n ", n, " b ", b, " step-1 ", step-1);
 
                 // Calculate error signal for current state
                 td_error = R + gamma * V[s_next+1] - V[s_current+1];
@@ -153,7 +153,7 @@ model{
                     V[j] += alpha * td_error * e[j];
                     e[j] = gamma * lamda * e[j];
                 }
-                print("====");
+                //print("====");
             }
         }
     }
@@ -236,26 +236,26 @@ generated quantities{
                     break;
 
                 // Possible next states by taking an action i in state s_current
-                print(" current state: ", s_current, " true next ", s_next);
+                //print(" current state: ", s_current, " true next ", s_next);
                 isCurrentStateEndNode = 0;
                 if (!isTerminalState) {
                     for (i in 1:A){
                         s_next_i = nodemap[s_current+1,i];   // s_current+1 because of indexing difference in py and stan
-                        print("action ", i, " s_next_i ", s_next_i);
+                        //print("action ", i, " s_next_i ", s_next_i);
                         if (s_next_i == InvalidState) {
                             isCurrentStateEndNode = 1;
                             break;
                         }
                         s_next_values_beta[i] = V[s_next_i+1] * beta_sub_phi[n];
-                        print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
+                        //print("Vs_next_i ", V[s_next_i+1], " s_next_beta_i ", s_next_values_beta[i]);
                     }
                 }
 
                 // Update the likelihood of choosing action a_true in state s_current
-                print("log_LL before =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
+                //print("log_LL before =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
                 if (!isCurrentStateEndNode && !isTerminalState)
                     log_LL[n] += categorical_logit_lpmf( a_true | s_next_values_beta );
-                print("log_LL after =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
+                //print("log_LL after =", log_LL[n], " n ",n," b ",b," step-1 ",step-1," a_true ",a_true," s_next_values_beta ",s_next_values_beta);
 
                 // Calculate error signal for current state
                 td_error = R + gamma_sub_phi[n] * V[s_next+1] - V[s_current+1];
