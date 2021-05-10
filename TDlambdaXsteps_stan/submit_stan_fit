@@ -11,7 +11,7 @@ export TRAJ_TYPE=real                        # options: real or simulated
 ROOT=../${PREFIX}stan
 export STAN_FILE=${ROOT}/test_models/${PREFIX}.stan       # stan model file
 
-export INIT=ZERO  # Initial state values, Options available: ZERO, RAND, ONES
+export INIT=RAND  # Initial state values, Options available: ZERO, RAND, ONES
 export PARAMS=alpha,beta,gamma,lamda  # List of free parameters in model
 export UPPER_BOUNDS=[1,10,1,1]  # Set upper bounds for all parameters
 

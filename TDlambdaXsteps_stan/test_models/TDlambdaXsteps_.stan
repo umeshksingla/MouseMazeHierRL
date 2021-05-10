@@ -175,8 +175,8 @@ generated quantities{
     beta_sub_phi = Phi_approx(beta_sub);
     gamma_mu_phi = gamma_UB * Phi_approx(gamma_mu);
     gamma_sub_phi = Phi_approx(gamma_sub);
-    //lamda_mu_phi = lamda_UB * Phi_approx(lamda_mu);
-    //lamda_sub_phi = Phi_approx(lamda_sub);
+    lamda_mu_phi = lamda_UB * Phi_approx(lamda_mu);
+    lamda_sub_phi = Phi_approx(lamda_sub);
 
     for (n in 1:N){
         beta_sub_phi[n] = beta_UB * beta_sub_phi[n];
@@ -233,6 +233,7 @@ generated quantities{
                 if (s_next == InvalidState)
                     break;
 
+                //print("alpha ", alpha_sub_phi[n], " beta ", beta_sub_phi[n], " gamma ", gamma_sub_phi[n], " lamda ", lamda_sub_phi[n]);
                 // Possible next states by taking an action i in state s_current
                 //print(" current state: ", s_current, " true next ", s_next);
                 isCurrentStateEndNode = 0;
@@ -263,9 +264,8 @@ generated quantities{
                 for (j in 1:S){
                     V[j] += alpha_sub_phi[n] * td_error * e[j];
                     e[j] = gamma_sub_phi[n] * lamda_sub_phi[n] * e[j];
-                    //e[j] = gamma_sub_phi[n] * lamda * e[j];
                 }
-
+                //print("====")
             }
         }
     }
