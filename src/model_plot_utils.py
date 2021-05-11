@@ -9,7 +9,7 @@ from matplotlib import cm
 from MM_Maze_Utils import *
 from parameters import *
 
-def plot_trajectory(state_hist_all, episode, save_dir=None, mouse=None, figtitle=None):
+def plot_trajectory(state_hist_all, episode, save_file_name=None, mouse=None, figtitle=None, display=True):
     '''
     Plots specified simulated trajectories on the maze layout.
     
@@ -116,6 +116,8 @@ def plot_trajectory(state_hist_all, episode, save_dir=None, mouse=None, figtitle
     cbar.ax.tick_params(labelsize=18)
     fig.suptitle(figtitle)
     fig = plt.gcf()
-#     fig.savefig(save_dir+mouse+'.png')
-    plt.show()
+    if save_file_name:
+        fig.savefig(save_file_name)
+    if display:
+        plt.show()
     return

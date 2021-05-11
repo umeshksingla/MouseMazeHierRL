@@ -3,8 +3,9 @@
 import numpy as np
 import pickle
 import os
+from collections import defaultdict
 
-from parameters import InvalidState, RewNames, RewardNode, WaterPortNode
+from parameters import *
 from BaseModel import BaseModel
 from MM_Traj_Utils import *
 
@@ -14,6 +15,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
     def __init__(self, file_suffix='_XStepsRewardReceivedTrajectories'):
         BaseModel.__init__(self, file_suffix)
         self.X = 20
+        self.terminal_nodes = {HomeNode, WaterPortNode}
 
     def extract_trajectory_data(self, save_dir=None):
         """
@@ -61,147 +63,179 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 prev_idx = idx
         return trajectory_data
 
-    def simulate(self, sub_fits):
-        pass
-#         '''
-#         Model predictions (sample predicted trajectories) using fitted parameters sub_fits.
+    def get_action_probabilities(self, state, beta, V, nodemap):
+        # Use softmax policy to select action, a at current state, s
+        if state in lv6_nodes:
+            action_prob = [1, 0, 0]
+        else:
+            betaV = [np.exp(beta * V[int(val)]) for val in nodemap[state, :]]
+            action_prob = []
+            for action in np.arange(self.A):
+                if np.isinf(betaV[action]):  # TODO: ?
+                    action_prob.append(1)
+                elif np.isnan(betaV[action]):
+                    action_prob.append(0)
+                else:
+                    action_prob.append(betaV[action] / np.nansum(betaV))
+            # print(state, action_prob, betaV)
+            # Check for invalid probabilities
+            for i in action_prob:
+                if np.isnan(i):
+                    print('Invalid action probabilities ', action_prob, betaV, state)
 
-#         You can use this to generate simulated data for parameter recovery as well.
+            if np.sum(action_prob) < 0.999:
+                print('Invalid action probabilities, failed summing to 1: ',
+                      action_prob, betaV, state)
 
-#         sub_fits: dictionary of fitted parameters and log likelihood for each rewarded mouse. 
-#                        best_sub_fits{0:[alpha_fit, beta_fit, gamma_fit, LL], 1:[]...., 9:[]}
-#         orig_data: str, file path for real trajectory data
+        return action_prob
 
-#         Returns: state_hist_AllMice, dictionary of trajectories simulated by a model using fitted parameters for all Rew mice
-#                  state_hist_AllMice{0:[0,1,3..], 1:[]..}
+    def get_initial_state(self):
+        return np.random.choice(quad1+quad2+quad3+quad4)  # Start from a quadrant
+        # return np.random.randint(63, high=self.S)        # Random initial state
+        # return 1                                # start at 1
 
-#                  int valid_bouts, counter to record the number of bouts that were simulated corresponding to real trajectory
-#                                   data used for fitting
+    def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, e):
 
-#                  int success, either 0 or 1 to flag when the model fails to generate simulated trajectories adhering
-#                               to certain bounds: fitted parameters, number of episodes, trajectory length
-#         '''
-#             # Set environment parameters
+        episode_traj = []
+        valid_episode = False
+        nodemap = self.get_SAnodemap()
 
-#         S = 127
-#         A = 3
-#         RT = 1
-#         nodemap = self.get_SAnodemap(S, A)  # rows index the current state, columns index 3 available neighboring states
-#         state_hist_AllMice = {}
-#         valid_bouts = []
-#         avg_count = 1
-#         episode_cap = 500
-#         value_cap = 1e5
-#         success = 1
+        s = self.get_initial_state()
 
-#         TrajS = pickle.load(open(orig_data,'rb')).astype(int)
+        while s not in self.terminal_nodes:
 
-#         for mouseID in np.arange(10):
-#             # Set model parameters
-#             alpha = sub_fits[mouseID][0]  # learning rate
-#             beta = sub_fits[mouseID][1]   # softmax exploration - exploitation
-#             gamma = sub_fits[mouseID][2]
-#             R = 0
+            episode_traj.append(s)  # Record current state
 
-#             # number of episodes to train over which are real bouts beginning at node 0 
-#             # and exploring deeper into the maze, which is > than a trajectory length of 2 (node 0 -> node 127)
-#             valid_boutID = np.where(TrajS[mouseID,:,2]!=InvalidState)[0]
-#             N = len(valid_boutID)
-#             valid_bouts.extend([N])
+            if s != RewardNode:
+                action_prob = self.get_action_probabilities(s, beta, V, nodemap)
+                a = np.random.choice(range(self.A), 1, p=action_prob)[0]  # Choose action
+                s_next = int(nodemap[s, a])           # Take action
+                # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
+            else:
+                s_next = WaterPortNode
 
-#             for count in np.arange(avg_count):
-#                 # Initialize model parameters
-#                 V = np.random.rand(S+1)  # state-action values
-#                 V[HomeNode] = 0  # setting action-values of maze entry to 0
-#                 V[RewardNode] = 0  # setting action-values of reward port to 0
-#                 state_hist_mouse = {}
-#                 R_visits = 0
+            R = 1 if s == RewardNode else 0  # Observe reward
 
-#                 for n in np.arange(N):
-#                     valid_episode = False
-#                     episode_attempt = 0
+            # Update state-values
+            td_error = R + gamma * V[s_next] - V[s]
+            e[s] += 1
+            for node in np.arange(self.S):
+                V[node] += alpha * td_error * e[node]
+                e[node] = gamma * lamda * e[node]
 
-#                     # Extract from real mouse trajectory the terminal node in current bout and trajectory length
-#                     end = np.where(TrajS[mouseID,valid_boutID[n]]==InvalidState)[0][0]
-#                     valid_traj = TrajS[mouseID,valid_boutID[n],0:end]
+            # print("V[s]", s, V[s])
+            if np.isnan(V[s]):
+                print('Warning invalid state-value: ', s, s_next, V[s], V[s_next], alpha, beta, gamma, R)
+            elif np.isinf(V[s]):
+                print('Warning infinite state-value: ', V)
+            elif abs(V[s]) >= 1e5:
+                print('Warning state value exceeded upper bound. Might approach infinity')
+                V[s] = np.sign(V[s]) * 1e5
 
-#                     # Back-up a copy of state-values to use in case the next episode has to be discarded
-#                     V_backup = np.copy(V)
+            if s == RewardNode:
+                valid_episode = True
+                # print('Reward Reached. Recording episode.')
+                break
 
-#                     # Begin episode
-#                     while not valid_episode and episode_attempt < episode_cap:
-#                         # Initialize starting state,s0 to node 0
-#                         s = 0
-#                         state_hist = []
+            s = s_next
 
-#                         while s!=HomeNode and s!=RewardNode:
-#                             # Record current state
-#                             state_hist.extend([s])
+            # Check whether to abort the current episode
+            if len(episode_traj) > MAX_LENGTH:
+                valid_episode = False
+                # print('Trajectory too long. Aborting episode.')
+                break
+            # print("====")
+        return valid_episode, episode_traj
 
-#                             # Use softmax policy to select action, a at current state, s
-#                             if s in lv6_nodes:
-#                                 aprob = [1,0,0]
-#                             else:
-#                                 betaV = [np.exp(beta*V[int(val)]) for val in nodemap[s,:]]
-#                                 aprob = []
-#                                 for atype in np.arange(3):
-#                                     if np.isinf(betaV[atype]):
-#                                         aprob.extend([1])
-#                                     elif np.isnan(betaV[atype]):
-#                                         aprob.extend([0])
-#                                     else:
-#                                         aprob.extend([betaV[atype]/np.nansum(betaV)])
+    def simulate(self, sub_fits, MAX_LENGTH=25):
+        """
+        Model predictions (sample predicted trajectories) using fitted parameters sub_fits.
+        You can use this to generate simulated data for parameter recovery as well.
 
-#                             # Check for invalid probabilities
-#                             for i in aprob:
-#                                 if np.isnan(i):
-#                                     print('Invalid action probabilities ', aprob, betaV, s)
-#                                     print(alpha, beta, gamma, mouseID, n)
-#                             if np.sum(aprob) < 0.999:
-#                                 print('Invalid action probabilities, failed summing to 1: ', aprob, betaV, s)
-#                             a = np.random.choice([0,1,2],1,p=aprob)[0]
+        sub_fits: 
+            dictionary of fitted parameters and log likelihood for each mouse. 
+            {0:[alpha_fit, beta_fit, gamma_fit, lambda_fit, LL], 1:[]...}
 
-#                             # Take action, observe reward and next state
-#                             sprime = int(nodemap[s,a])
-#                             if sprime == RewardNode:
-#                                 R = 1  # Receive a reward of 1 when transitioning to the reward port
-#                             else:
-#                                 R = 0
+        Returns:
+        state_hist_AllMice:
+            dictionary of trajectories simulated by a model using fitted 
+            parameters for specified mice. e.g. {0:[0,1,3..], 1:[]..}
+        success:
+            int. either 0 or 1 to flag when the model fails to generate
+            trajectories adhering to certain bounds: fitted parameters, 
+            number of episodes, trajectory length, etc.
+        """
 
-#                             # Update action-value of previous state value, V[s]
-#                             V[s] += alpha * (R + gamma*V[sprime] - V[s])
-#                             if np.isnan(V[s]):
-#                                 print('Warning invalid state-value: ', s, sprime, V[s], V[sprime], alpha, beta, gamma, R)
-#                             elif np.isinf(V[s]):
-#                                 print('Warning infinite state-value: ', V)
-#                             elif V[s]>value_cap:
-#                                 #print('Warning state value exceeded upper bound. Might approach infinity')
-#                                 V[s] = value_cap
+        stats = {}
+        episodes_all_mice = defaultdict(dict)
+        episode_cap = 500   # max attempts at generating a bout episode
+        value_cap = 1e5
+        success = 1
 
-#                             # Shift state values for the next time step
-#                             s = sprime
+        # trajectory_data = self.extract_trajectory_data()
+        # TrajS = self.load_trajectories_from_object(trajectory_data)
+        # N, B, BL = TrajS.shape
 
-#                             # Check whether to abort the current episode
-#                             if len(state_hist) > len(valid_traj):
-#                                 #print('Trajectory too long. Aborting episode')
-#                                 break
-#                         state_hist.extend([s])
 
-#                         # Find actual end node for mouse trajectory in the current bout/episode
-#                         if s == valid_traj[-1]:
-#                             if (len(state_hist) > 2) and (len(state_hist) > 0.5 * len(valid_traj)) and (len(state_hist) <= len(valid_traj)):
-#                                 state_hist_mouse[n] = state_hist
-#                                 valid_episode = True
-#                         else:
-#                             R = 0
-#                             V = np.copy(V_backup)
-#                             #print('Rejecting episode of length: ', len(state_hist), ' for mouse ', mouseID, ' bout ', valid_boutID[n], ' traj length ', len(valid_traj))
-#                             episode_attempt += 1
+        for mouseID in sub_fits:
 
-#                     if episode_attempt >= episode_cap:
-#                         print('Failed to generate episodes for mouse ', mouseID, ' with parameter set: ', alpha, beta, gamma)
-#                         success = 0
-#                         break
-#                 state_hist_AllMice[mouseID] = state_hist_mouse
+            count_valid, count_total = 0, 1
+            # Set model parameters
+            alpha = sub_fits[mouseID][0]    # learning rate
+            beta = sub_fits[mouseID][1]     # softmax exploration - exploitation
+            gamma = sub_fits[mouseID][2]    # discount factor
+            lamda = sub_fits[mouseID][3]    # eligibility trace
 
-#         return state_hist_AllMice, valid_bouts, success
+            print("alpha, beta, gamma, lamda, mouseID, nick",
+                  alpha, beta, gamma, lamda, mouseID, RewNames[mouseID])
+
+            # number of episodes to train over which are real bouts beginning at node 0
+            # and exploring deeper into the maze, which is > than a trajectory length of 2 (node 0 -> node 127)
+            # valid_boutID = np.where(TrajS[mouseID,:,2]!=InvalidState)[0]
+            N_BOUTS_TO_GENERATE = 100    # len(TrajS[mouseID])   # number of bout episodes to generate
+
+            V = np.random.rand(self.S+1)  # Initialize state-action values
+            V[HomeNode] = 0     # setting action-values of maze entry to 0
+            V[RewardNode] = 0   # setting action-values of reward port to 0
+
+            e = np.zeros(self.S)    # eligibility trace vector for all states
+
+            episodes = []
+            invalid_initial_state_counts = defaultdict(int)
+            while len(episodes) < N_BOUTS_TO_GENERATE:
+
+                # Back-up a copy of state-values to use in case the next episode has to be discarded
+                V_backup = np.copy(V)
+                e_backup = np.copy(e)
+
+                # Begin generating episode
+                episode_attempt = 0
+                valid_episode = False
+                while not valid_episode and episode_attempt <= episode_cap:
+                    episode_attempt += 1
+                    valid_episode, episode_traj = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
+                    count_valid += int(valid_episode)
+                    count_total += 1
+                    if valid_episode:
+                        episodes.append(episode_traj)
+                    else:   # retry
+                        V = np.copy(V_backup)
+                        e = np.copy(e_backup)
+                        if episode_traj:
+                            invalid_initial_state_counts[episode_traj[0]] += 1
+
+                if not episodes:
+                    print('Failed to generate episodes for mouse ', mouseID)
+                    success = 0
+                    break
+                # print("=============")
+            episodes_all_mice[mouseID] = dict([(i, epi) for i, epi in enumerate(episodes)])
+            stats[mouseID] = {
+                "mouse": RewNames[mouseID],
+                "MAX_LENGTH": MAX_LENGTH,
+                "count_valid": count_valid,
+                "count_total": count_total,
+                "fraction_valid": round(count_valid/count_total, 3) * 100,
+                # "invalid_initial_state_counts": invalid_initial_state_counts
+            }
+        return episodes_all_mice, success, stats

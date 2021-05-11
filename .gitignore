@@ -8,5 +8,7 @@ stan/stan_results
 !stan/stan_results/TD0
 stan/traj_data
 figures
+.DS_Store
 TDlambdaXsteps_stan/logs/
 TDlambdaXsteps_stan/traj_data/
+TDlambdaXsteps_stan/stan_results/

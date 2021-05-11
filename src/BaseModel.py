@@ -68,7 +68,8 @@ class BaseModel:
         SAnodemap[WaterPortNode, 2] = InvalidState
         return SAnodemap
 
-    def __load_trajectories__(self, data):
+    @staticmethod
+    def __load_trajectories__(data):
         # TrajS   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
 
         N = len(data)
