@@ -27,7 +27,7 @@ def NewMaze(n=6): # n must be even for square maze
     Each run has a parent run from which it branched off (except the entry run).
     Each run has two children that branch from it (except the end runs)
     This routine constructs the list of cells in each run and a lot of other useful
-    data to operate on the maze.
+    data to operate on the maze. Below, `nc` stands for number of cells.
     Data fields:
     le = Number of levels; int.
     ru = Runs. List of lists of cell numbers.
