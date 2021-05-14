@@ -3,6 +3,7 @@
 import numpy as np
 import pickle
 import os
+import sys
 from collections import defaultdict
 
 from parameters import *
@@ -90,18 +91,34 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         return action_prob
 
     def get_initial_state(self):
-        return np.random.choice(quad1+quad2+quad3+quad4)  # Start from a quadrant
-        # return np.random.randint(63, high=self.S)        # Random initial state
-        # return 1                                # start at 1
+        # return np.random.choice(quad1)  # Start from a quadrant
+        # a=list(range(self.S))
+        # a.remove(28)
+        # a.remove(57)
+        # a.remove(115)
+        # a.remove(RewardNode)
+        # return np.random.choice(a)
+
+        a=list(range(63, self.S))
+        a.remove(115)
+        a.remove(RewardNode)
+        return np.random.choice(a)  # Random initial state
+        # return 1  # start at 1
+        # return 0  # start at 0
 
     def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, e):
 
-        episode_traj = []
-        valid_episode = False
         nodemap = self.get_SAnodemap()
 
-        s = self.get_initial_state()
+        s_initial = self.get_initial_state()
+        while s_initial in [28, 57, 115, RewardNode]:
+            print("Wrong initial state !!!!!!!!!", s_initial)
+            s_initial = self.get_initial_state()
+        # print("Initial state: ", s_initial)
 
+        s = s_initial
+        episode_traj = []
+        valid_episode = False
         while s not in self.terminal_nodes:
 
             episode_traj.append(s)  # Record current state
@@ -129,22 +146,21 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             elif np.isinf(V[s]):
                 print('Warning infinite state-value: ', V)
             elif abs(V[s]) >= 1e5:
-                print('Warning state value exceeded upper bound. Might approach infinity')
+                print('Warning state value exceeded upper bound. Might approach infinity.')
                 V[s] = np.sign(V[s]) * 1e5
 
             if s == RewardNode:
-                valid_episode = True
                 # print('Reward Reached. Recording episode.')
+                valid_episode = True
+                break
+
+            if len(episode_traj) > MAX_LENGTH:
+                # print('Trajectory too long. Aborting episode.')
+                valid_episode = False
                 break
 
             s = s_next
 
-            # Check whether to abort the current episode
-            if len(episode_traj) > MAX_LENGTH:
-                valid_episode = False
-                # print('Trajectory too long. Aborting episode.')
-                break
-            # print("====")
         return valid_episode, episode_traj
 
     def simulate(self, sub_fits, MAX_LENGTH=25):
@@ -157,7 +173,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             {0:[alpha_fit, beta_fit, gamma_fit, lambda_fit, LL], 1:[]...}
 
         Returns:
-        state_hist_AllMice:
+        episodes_all_mice:
             dictionary of trajectories simulated by a model using fitted 
             parameters for specified mice. e.g. {0:[0,1,3..], 1:[]..}
         success:
@@ -168,19 +184,13 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
         stats = {}
         episodes_all_mice = defaultdict(dict)
+        invalid_episodes_all_mice = defaultdict(dict)
         episode_cap = 500   # max attempts at generating a bout episode
-        value_cap = 1e5
         success = 1
-
-        # trajectory_data = self.extract_trajectory_data()
-        # TrajS = self.load_trajectories_from_object(trajectory_data)
-        # N, B, BL = TrajS.shape
-
+        N_BOUTS_TO_GENERATE = 100  # number of bout episodes to generate
 
         for mouseID in sub_fits:
 
-            count_valid, count_total = 0, 1
-            # Set model parameters
             alpha = sub_fits[mouseID][0]    # learning rate
             beta = sub_fits[mouseID][1]     # softmax exploration - exploitation
             gamma = sub_fits[mouseID][2]    # discount factor
@@ -189,11 +199,6 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             print("alpha, beta, gamma, lamda, mouseID, nick",
                   alpha, beta, gamma, lamda, mouseID, RewNames[mouseID])
 
-            # number of episodes to train over which are real bouts beginning at node 0
-            # and exploring deeper into the maze, which is > than a trajectory length of 2 (node 0 -> node 127)
-            # valid_boutID = np.where(TrajS[mouseID,:,2]!=InvalidState)[0]
-            N_BOUTS_TO_GENERATE = 100    # len(TrajS[mouseID])   # number of bout episodes to generate
-
             V = np.random.rand(self.S+1)  # Initialize state-action values
             V[HomeNode] = 0     # setting action-values of maze entry to 0
             V[RewardNode] = 0   # setting action-values of reward port to 0
@@ -201,7 +206,8 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             e = np.zeros(self.S)    # eligibility trace vector for all states
 
             episodes = []
-            invalid_initial_state_counts = defaultdict(int)
+            invalid_episodes = []
+            count_valid, count_total = 0, 1
             while len(episodes) < N_BOUTS_TO_GENERATE:
 
                 # Back-up a copy of state-values to use in case the next episode has to be discarded
@@ -221,15 +227,15 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                     else:   # retry
                         V = np.copy(V_backup)
                         e = np.copy(e_backup)
-                        if episode_traj:
-                            invalid_initial_state_counts[episode_traj[0]] += 1
-
-                if not episodes:
+                        invalid_episodes.append(episode_traj)
+                    # print("===")
+                if not count_valid:
                     print('Failed to generate episodes for mouse ', mouseID)
                     success = 0
                     break
                 # print("=============")
             episodes_all_mice[mouseID] = dict([(i, epi) for i, epi in enumerate(episodes)])
+            invalid_episodes_all_mice[mouseID] = dict([(i, epi) for i, epi in enumerate(invalid_episodes)])
             stats[mouseID] = {
                 "mouse": RewNames[mouseID],
                 "MAX_LENGTH": MAX_LENGTH,
@@ -238,4 +244,4 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 "fraction_valid": round(count_valid/count_total, 3) * 100,
                 # "invalid_initial_state_counts": invalid_initial_state_counts
             }
-        return episodes_all_mice, success, stats
+        return episodes_all_mice, invalid_episodes_all_mice, success, stats
