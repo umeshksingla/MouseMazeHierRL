@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH -J pd_tdlambda
+#SBATCH -o /sphere/mattar-lab/stan/logs/clusterlog_stanfit_tdlambda_pred.out
+#SBATCH -p general
+
+source /home/AD/kperera/dcm2bids/bin/activate
+export TRAJ_TYPE=simulated                        # options: real or simulated
+export STAN_FILE=tdlambda_every_Rvisit.stan       # stan file in "stan/test_models/"
+export RESULTS_DIR=TDlamda_Rvisit_pred         # Set path to store stan results in, "stan/stan_results/"
+export INIT=RAND  # Set to ZERO for initial state values, V0 to all be zero. Set to RAND for random initial states values between 0 and 1
+                  # Set to ONES for state values to all begin optimistically at one
+export PARAMS=alpha,beta,gamma,lamda              # List of free parameters in model
+export UPPER_BOUNDS=[1,10,1,1]                    # Set upper bounds for all parameters
+
+export DATA_DIR=TDlamda_Rvisit_20Bout1000Traj     # If fitting to simulated data, directory with trajectory data in "stan/traj_data/pred_traj"
+export LOG_DIR=TDlamda_Rvisit                     # If fitting to simulated data, set log directory path in "stan/logs/"
+export MAX_FITS=10                                # If fitting to simulated data, input maximum number of datasets to fit to
+
+echo $STAN_FILE $DATA_DIR $RESULTS_DIR $LOG_DIR
+
+if [ ! -d logs/$LOG_DIR ]
+then
+  mkdir logs/$LOG_DIR
+fi
+for set in $(seq 0 $MAX_FITS)
+do
+  export SET=${set}
+  echo Starting python for set ${SET} using $1 as input
+  python -u $1 > /sphere/mattar-lab/stan/logs/${LOG_DIR}/log${SET}.out
+  exitcode=$?
+  echo $exitcode
+done
+exit 0
