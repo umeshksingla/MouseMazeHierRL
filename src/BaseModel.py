@@ -27,7 +27,9 @@ class BaseModel:
         """
         Extracts the required trajectory data and pickle-dumps on the disk.
         """
-        raise NotImplementedError("You need to define your own data extract function. Base model doesn't have any.")
+        raise NotImplementedError(
+            "You need to define your own data extract function. "
+            "Base model doesn't have any.")
 
     @staticmethod
     def __load_trajectories__(data):
@@ -113,5 +115,7 @@ class BaseModel:
         """
         Simulate the agent with given set of parameters sub_fits.
         """
-        raise NotImplementedError("You need to define your own simulate function. Base model doesn't have any.")
+        raise NotImplementedError(
+            "You need to define your own simulate function."
+            " Base model doesn't have any.")
 

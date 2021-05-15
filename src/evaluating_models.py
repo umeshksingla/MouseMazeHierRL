@@ -1,3 +1,7 @@
+"""
+Completely broken and yet to refactor.
+"""
+
 '''
 Needs: set of best fit parameters in the form, sub_fits{0:[alpha_fit, beta_fit, gamma_fit, LL], 1:[]...., 9:[]}
 

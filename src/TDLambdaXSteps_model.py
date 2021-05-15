@@ -1,5 +1,8 @@
 """
+TDLambdaXSteps model:
+Take only the last X steps before a reward as training data.
 """
+
 import numpy as np
 import pickle
 import os

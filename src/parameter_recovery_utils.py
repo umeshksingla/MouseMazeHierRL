@@ -1,3 +1,7 @@
+"""
+Broken and yet to refactor.
+"""
+
 # Generating simulated data for a range of parameter values and saving these trajectories in the directory 'stan_simdata_dir'
 
 # Set variables
