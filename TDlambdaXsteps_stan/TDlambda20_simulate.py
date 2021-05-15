@@ -1,26 +1,36 @@
 """
-Post-training analysis on predicted trajectories
+Post-training analysis on predicted trajectories, generating trajectories
+and playing around.
 
-Really intended as a custom script file, and not part of the main source code.
+Intended as a custom script file, and not part of the main source code.
 
 """
 
 import pickle
-from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
-from model_plot_utils import plot_trajectory
 from pathlib import Path
 import os
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-model = TDLambdaXStepsRewardReceived()
+import sys
+module_path = '../src'
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
+from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
+from model_plot_utils import plot_trajectory
+
+
+# Load the parameters fitted by stan for each mouse
 with open('/Volumes/ssrde-home/run2/TDlambdaXsteps_best_sub_fits.p', 'rb') as f:
     sub_fits = pickle.load(f)
 
-area = 'endnodes-1'
 MAX_LENGTH = 50
-save_file_path = f'/Users/usingla/mouse-maze/figs/lamda_as_param/MAX_LENGTH={MAX_LENGTH}/{area}/'
+save_file_path = f'/Users/usingla/mouse-maze/figs/lamda_as_param/MAX_LENGTH={MAX_LENGTH}/random/'
 Path(save_file_path).mkdir(parents=True, exist_ok=True)
+
+# Import the model class you are interested in
+model = TDLambdaXStepsRewardReceived()
 
 for mouse in range(10):
     print(sub_fits[mouse])
@@ -45,7 +55,7 @@ for mouse in range(10):
     plt.plot(episodes_all_mice[mouse].keys(), [len(path) for e, path in episodes_all_mice[mouse].items()], 'b*')
     plt.ylabel("Reward Path length")
     plt.xlabel("time")
-    plt.savefig(os.path.join(save_file_path, f'pathlength_vs_time_{mouse+1}.png'))
+    # plt.savefig(os.path.join(save_file_path, f'pathlength_vs_time_{mouse+1}.png'))
     # plt.show()
     plt.clf()
     plt.close()
@@ -55,8 +65,7 @@ for mouse in range(10):
     plt.ylabel("Fraction")
     plt.xlabel("Path length")
     plt.title("Valid episodes: path length")
-    plt.savefig(
-        os.path.join(save_file_path, f'valid_epi_pathlength_dist_{mouse + 1}.png'))
+    # plt.savefig(os.path.join(save_file_path, f'valid_epi_pathlength_dist_{mouse + 1}.png'))
     # plt.show()
     plt.clf()
     plt.close()
@@ -65,8 +74,7 @@ for mouse in range(10):
     plt.ylabel("Fraction")
     plt.xlabel("Path length")
     plt.title("Invalid episodes: path length")
-    plt.savefig(
-        os.path.join(save_file_path, f'invalid_epi_pathlength_dist_{mouse + 1}.png'))
+    # plt.savefig(os.path.join(save_file_path, f'invalid_epi_pathlength_dist_{mouse + 1}.png'))
     # plt.show()
     plt.clf()
     plt.close()
@@ -76,8 +84,7 @@ for mouse in range(10):
     plt.ylabel("Fraction")
     plt.xlabel("Path length")
     plt.title("Valid episodes: path length")
-    plt.savefig(
-        os.path.join(save_file_path, f'valid_epi_pathlength_dist_zoomout_{mouse + 1}.png'))
+    # plt.savefig(os.path.join(save_file_path, f'valid_epi_pathlength_dist_zoomout_{mouse + 1}.png'))
     # plt.show()
     plt.clf()
     plt.close()
@@ -86,8 +93,7 @@ for mouse in range(10):
     plt.ylabel("Fraction")
     plt.xlabel("Path length")
     plt.title("Invalid episodes: path length")
-    plt.savefig(
-        os.path.join(save_file_path, f'invalid_epi_pathlength_dist_zoomout_{mouse + 1}.png'))
+    # plt.savefig(os.path.join(save_file_path, f'invalid_epi_pathlength_dist_zoomout_{mouse + 1}.png'))
     # plt.show()
     plt.clf()
     plt.close()
@@ -115,8 +121,7 @@ for mouse in range(10):
              initial_state_invalid_counts.values(), 'r.', label='invalid')
     plt.title("Percent of valid or invalid episodes for an initial state")
     plt.xlabel("initial state")
-    plt.savefig(
-        os.path.join(save_file_path, f'initial_state_valid_percent_{mouse + 1}.png'))
+    # plt.savefig(os.path.join(save_file_path, f'initial_state_valid_percent_{mouse + 1}.png'))
     plt.legend()
     # plt.show()
     plt.clf()
@@ -124,42 +129,3 @@ for mouse in range(10):
 
     print("========================================")
 
-'''
-# generated
-
-10 quad1-1
-10 quad1-2
-10 zero-1
-10 zero-2
-10 endnodes-1
-10 no28_57_115_116-1
-10 no28_57_115_116-2
-
-25 'quad1-1'
-25 'quad1-2'
-25 zero-1
-25 zero-2
-25 no28_57_115_116-1
-25 no28_57_115_116-2
-
-50 'quad1-1'
-50 'quad1-2'
-50 zero-1
-50 zero-2
-50 endnodes-1
-
-100 'quad1-1'
-100 'quad1-2'
-100 zero-1
-100 zero-2
-100 no28_57_115_116-1
-100 no28_57_115_116-2
-100 endnodes-1
-
-200 'quad1-1'
-200 'quad1-2'
-200 'zero-1'
-200 no28_57_115_116-1
-200 no28_57_115_116-2
-200 endnodes-1
-'''

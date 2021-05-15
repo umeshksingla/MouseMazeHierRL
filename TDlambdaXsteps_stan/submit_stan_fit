@@ -3,13 +3,12 @@
 #SBATCH -o /sphere/mattar-lab/mousemazemodeling/MouseMaze/TDlambdaXsteps_stan/slurm.out
 #SBATCH -p general_gpu_k80
 
+# NOTE!! Need to create a virtual env on ssrde with all the requirements installed
 source /home/AD/usingla/mvenv/bin/activate
 
 export PREFIX=TDlambdaXsteps_   # prefix for stan model file, log files, data directories etc
-
-export TRAJ_TYPE=real                        # options: real or simulated
 ROOT=../${PREFIX}stan
-export STAN_FILE=${ROOT}/test_models/${PREFIX}.stan       # stan model file
+export STAN_FILE=${ROOT}/${PREFIX}.stan       # stan model file
 
 export INIT=RAND  # Initial state values, Options available: ZERO, RAND, ONES
 export PARAMS=alpha,beta,gamma,lamda  # List of free parameters in model
@@ -19,38 +18,12 @@ LOG_DIR=${ROOT}/logs/${PREFIX}
 mkdir -p ${LOG_DIR}
 d=`date +%s`
 
-if [ $TRAJ_TYPE == simulated ]
-then
-  export MAX_FITS=22  # If fitting to simulated data, input maximum number of datasets to fit to
-  for set in $(seq 0 $MAX_FITS)
-  do
-    export SET=${set}
-    export RESULTS_DIR=${ROOT}/stan_results/${PREFIX}set${SET}
+export RESULTS_DIR=${ROOT}/stan_results/${PREFIX}
+echo $STAN_FILE $RESULTS_DIR
 
-    DATA_DIR=${ROOT}/traj_data/pred_traj
-    export TRAJ_DATA=${DATA_DIR}/${PREFIX}data_set${set}.p
-    export TRUE_PARAMS_FILE=${DATA_DIR}/true_param.p
-
-    echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
-    echo Starting python for set ${SET} using $1 as input
-    LOG_FILE=${LOG_DIR}/log-${d}.log
-    echo "Log File: "${LOG_FILE}
-    python -u $1 2>&1 | tee ${LOG_FILE}
-    echo "Exited with code: "$exitcode
-  done
-elif [ $TRAJ_TYPE == real ]
-then
-
-  DATA_DIR=${ROOT}/traj_data/real_traj
-  export TRAJ_DATA=${DATA_DIR}/${PREFIX}data.p
-  export RESULTS_DIR=${ROOT}/stan_results/${PREFIX}
-
-  echo Starting python for real trajectories using $1 as input
-  echo $STAN_FILE $TRAJ_DATA $RESULTS_DIR
-  LOG_FILE=${LOG_DIR}/log-${d}.log
-  echo "Log File: "${LOG_FILE}
-  python -u $1 2>&1 | tee ${LOG_FILE}
-  exitcode=$?
-  echo "Exited with code: "$exitcode
-fi
-exit 0
+echo Starting python using $1 as input
+LOG_FILE=${LOG_DIR}/log-${d}.log
+echo "Log File: "${LOG_FILE}
+python -u $1 2>&1 | tee ${LOG_FILE}
+exitcode=$?
+echo "Exited with code: "$exitcode

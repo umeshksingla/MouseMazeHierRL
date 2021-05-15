@@ -2,33 +2,28 @@
 Run the model
 """
 
-import os, sys
+import os
 import pystan
 import pickle
 import numpy as np
-import shutil
 from pathlib import Path
 
+import sys
+module_path = '../src'
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
 from parameters import HomeNode, RewardNode, InvalidState, WaterPortNode
+from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
 
 # Load environment variables
 # input files
-traj_type = os.getenv('TRAJ_TYPE')
 stan_file = os.path.abspath(os.getenv('STAN_FILE'))
-sim_data_file = os.path.abspath(os.getenv('TRAJ_DATA'))
-
-if traj_type == 'simulated':
-    set = int(os.getenv('SET'))
-    true_params = pickle.load(open(os.path.abspath(os.getenv('TRUE_PARAMS_FILE')), 'rb'))
-
-    if not os.path.isfile(sim_data_file):
-        print('Invalid dataset for fitting.')
-        sys.exit()
 
 # output files
 results_dir = os.path.abspath(os.getenv('RESULTS_DIR'))
 Path(results_dir).mkdir(exist_ok=True, parents=True)
-print(traj_type, results_dir, stan_file, sim_data_file)
+print(results_dir, stan_file)
 
 free_params = os.getenv('PARAMS').split(',')
 print('Free params: ', free_params)
@@ -38,8 +33,6 @@ init_state_value_type = os.getenv('INIT')
 
 
 def main():
-    # IMPORT the desired model
-    from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
     model = TDLambdaXStepsRewardReceived()
     nodemap = model.get_SAnodemap()
 
@@ -47,8 +40,7 @@ def main():
     A = model.A
 
     #  Loading nodes of mice trajectories
-    trajectory_data = model.extract_trajectory_data()
-    print(trajectory_data[0][0])
+    trajectory_data = model.extract_trajectory_data(orig_data_dir='../outdata')
     TrajS = model.load_trajectories_from_object(trajectory_data)
     N, B, BL = TrajS.shape
     print("TrajS.shape", N, B, BL)
@@ -84,11 +76,6 @@ def main():
                   'TrajA': TrajA,
                   'NUM_PARAMS': len(upper_bounds),
                   'UB': upper_bounds}
-
-    if traj_type == 'simulated':
-        print('Fitting to simulated data from file ', sim_data_file, ' with true parameters ', true_params[set], '(alpha, beta, gamma)')
-    elif traj_type == 'real':
-        print('Fitting to real data; free parameters:', free_params)
 
     sm = pystan.StanModel(file=stan_file)
 

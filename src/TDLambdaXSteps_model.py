@@ -13,27 +13,26 @@ from MM_Traj_Utils import *
 
 class TDLambdaXStepsRewardReceived(BaseModel):
 
-    def __init__(self, file_suffix='_XStepsRewardReceivedTrajectories'):
+    def __init__(self, X = 20, file_suffix='_XStepsRewardReceivedTrajectories'):
         BaseModel.__init__(self, file_suffix)
-        self.X = 20
+        self.X = X
         self.terminal_nodes = {HomeNode, WaterPortNode}
 
-    def extract_trajectory_data(self, save_dir=None):
+    def extract_trajectory_data(self, orig_data_dir='../outdata/', save_dir=None):
         """
         save_dir: path to the directory where you want to save the pickled
         data object.
         """
         trajectory_data = []
         for mouseId, nickname in enumerate(RewNames):
-            trajectory_data.append(self.__get_trajectory_data_by_nickname__(nickname))
-#             break
+            trajectory_data.append(self.__get_trajectory_data_by_nickname__(orig_data_dir, nickname))
         if save_dir:
             with open(os.path.join(save_dir, f'{self.file_suffix}.p'), 'wb') as f:
                 pickle.dump(trajectory_data, f)
         return trajectory_data
 
-    def __get_trajectory_data_by_nickname__(self, nickname):
-        tf = LoadTrajFromPath('../outdata/' + nickname + '-tf')
+    def __get_trajectory_data_by_nickname__(self, orig_data_dir, nickname):
+        tf = LoadTrajFromPath(os.path.join(orig_data_dir, nickname + '-tf'))
         trajectory_data = []
 
         for boutId, reward_frames in enumerate(tf.re):
@@ -44,7 +43,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 start_frame, end_frame = each
 
                 # Look for the current reward visit in the trajectory
-                idx =  np.searchsorted(bout_trajectory[:, 1], start_frame, side='left') 
+                idx = np.searchsorted(bout_trajectory[:, 1], start_frame, side='left')
 
                 # Take only the last X steps before the current reward visit.
                 # (Taking into account if the previous reward visit was within X
@@ -78,7 +77,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                     action_prob.append(0)
                 else:
                     action_prob.append(betaV[action] / np.nansum(betaV))
-            # print(state, action_prob, betaV)
+
             # Check for invalid probabilities
             for i in action_prob:
                 if np.isnan(i):
@@ -91,32 +90,18 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         return action_prob
 
     def get_initial_state(self):
-        # return np.random.choice(quad1)  # Start from a quadrant
-        # a=list(range(self.S))
-        # a.remove(28)
-        # a.remove(57)
-        # a.remove(115)
-        # a.remove(RewardNode)
-        # return np.random.choice(a)
-
-        a=list(range(63, self.S))
+        a=list(range(self.S))
+        a.remove(28)
+        a.remove(57)
         a.remove(115)
         a.remove(RewardNode)
-        return np.random.choice(a)  # Random initial state
-        # return 1  # start at 1
-        # return 0  # start at 0
+        return np.random.choice(a)    # Random initial state
 
     def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, e):
 
         nodemap = self.get_SAnodemap()
 
-        s_initial = self.get_initial_state()
-        while s_initial in [28, 57, 115, RewardNode]:
-            print("Wrong initial state !!!!!!!!!", s_initial)
-            s_initial = self.get_initial_state()
-        # print("Initial state: ", s_initial)
-
-        s = s_initial
+        s = self.get_initial_state()
         episode_traj = []
         valid_episode = False
         while s not in self.terminal_nodes:
@@ -171,15 +156,23 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         sub_fits: 
             dictionary of fitted parameters and log likelihood for each mouse. 
             {0:[alpha_fit, beta_fit, gamma_fit, lambda_fit, LL], 1:[]...}
+        MAX_LENGTH:
+            max length of an episode to simulate
 
         Returns:
         episodes_all_mice:
             dictionary of trajectories simulated by a model using fitted 
             parameters for specified mice. e.g. {0:[0,1,3..], 1:[]..}
+        invalid_episodes_all_mice:
+            dictionary of trajectories simulated by a model using fitted
+            parameters for specified mice. e.g. {0:[0,1,3..], 1:[]..}
+            where they didn't reach the reward in even MAX_LENGTH steps
         success:
             int. either 0 or 1 to flag when the model fails to generate
             trajectories adhering to certain bounds: fitted parameters, 
             number of episodes, trajectory length, etc.
+        stats:
+            dict. some stats on generated traj
         """
 
         stats = {}
@@ -225,7 +218,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                     if valid_episode:
                         episodes.append(episode_traj)
                     else:   # retry
-                        V = np.copy(V_backup)
+                        V = np.copy(V_backup)   # TODO: maybe not discard invalid trajs?
                         e = np.copy(e_backup)
                         invalid_episodes.append(episode_traj)
                     # print("===")

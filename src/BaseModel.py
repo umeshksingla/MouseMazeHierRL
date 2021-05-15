@@ -1,11 +1,11 @@
 """
 Use this base class to define your model: from extracting data to loading states
-and actions, to simulating agents.
+and actions, to simulating agents, etc.
 This is supposed to be only provide a skeleton, feel free to override any
 function.
 
-For an example, refer to TDLambdaXStepsRewardReceived file that inherits from
-this class.
+For an example, refer to TDLambdaXSteps_model.py file that inherits from
+this class. Refer to TDlambda20.ipynb for an example usage.
 """
 
 import abc
@@ -23,50 +23,11 @@ class BaseModel:
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
 
-    def extract_trajectory_data(self, save_dir=None):
+    def extract_trajectory_data(self):
         """
         Extracts the required trajectory data and pickle-dumps on the disk.
         """
-        pass
-
-    def load_data(self, main_dir):
-        self.main_dir = os.path.abspath(main_dir)
-        self.stan_data_dir = os.path.join(self.main_dir, 'pre_reward_traj/real_traj')
-        Path(self.stan_data_dir).mkdir(parents=True, exist_ok=True)
-
-    def get_SAnodemap(self):
-        """
-        Creates a mapping based on the maze layout where current states are linked to the next 3 future states
-
-        Returns: SAnodemap, a 2D array of current state to future state mappings
-                 Also saves SAnodemap in the main_dir as 'nodemap.p'
-        Return type: ndarray[(S, A), int]
-        """
-        SAnodemap = np.ones((self.S, self.A), dtype=int) * InvalidState
-        for node in np.arange(self.S-1):
-            # Shallow level node available from current node
-            if node%2 == 0:
-                SAnodemap[node,0] = (node - 2) / 2
-            elif node%2 == 1:
-                SAnodemap[node,0] = (node - 1) / 2
-            if SAnodemap[node,0] == InvalidState:
-                SAnodemap[node,0] = HomeNode
-
-            if node not in lv6_nodes:
-                # Deeper level nodes available from current node
-                SAnodemap[node,1] = node*2 + 1
-                SAnodemap[node,2] = node*2 + 2
-
-        # Nodes available from entry point
-        SAnodemap[HomeNode,0] = InvalidState
-        SAnodemap[HomeNode,1] = 0
-        SAnodemap[HomeNode,2] = InvalidState
-
-        # Nodes at WaterPortState
-        SAnodemap[WaterPortNode, 0] = InvalidState
-        SAnodemap[WaterPortNode, 1] = InvalidState
-        SAnodemap[WaterPortNode, 2] = InvalidState
-        return SAnodemap
+        raise NotImplementedError("You need to define your own data extract function. Base model doesn't have any.")
 
     @staticmethod
     def __load_trajectories__(data):
@@ -113,9 +74,44 @@ class BaseModel:
                     )[0][0] + 1
         return TrajA
 
+    def get_SAnodemap(self):
+        """
+        Creates a mapping based on the maze layout where current states are
+        linked to the next 3 future states.
+
+        Returns: SAnodemap, a 2D array of current state to future state mappings
+                 Also saves SAnodemap in the main_dir as 'nodemap.p'
+        Return type: ndarray[(S, A), int]
+        """
+        SAnodemap = np.ones((self.S, self.A), dtype=int) * InvalidState
+        for node in np.arange(self.S-1):
+            # Shallow level node available from current node
+            if node%2 == 0:
+                SAnodemap[node,0] = (node - 2) / 2
+            elif node%2 == 1:
+                SAnodemap[node,0] = (node - 1) / 2
+            if SAnodemap[node,0] == InvalidState:
+                SAnodemap[node,0] = HomeNode
+
+            if node not in lv6_nodes:
+                # Deeper level nodes available from current node
+                SAnodemap[node,1] = node*2 + 1
+                SAnodemap[node,2] = node*2 + 2
+
+        # Nodes available from entry point
+        SAnodemap[HomeNode,0] = InvalidState
+        SAnodemap[HomeNode,1] = 0
+        SAnodemap[HomeNode,2] = InvalidState
+
+        # Nodes at WaterPortState
+        SAnodemap[WaterPortNode, 0] = InvalidState
+        SAnodemap[WaterPortNode, 1] = InvalidState
+        SAnodemap[WaterPortNode, 2] = InvalidState
+        return SAnodemap
+
     def simulate(self, sub_fits):
         """
         Simulate the agent with given set of parameters sub_fits.
         """
-        pass
+        raise NotImplementedError("You need to define your own simulate function. Base model doesn't have any.")
 
