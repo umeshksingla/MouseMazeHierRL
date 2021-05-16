@@ -83,3 +83,34 @@ def create_list_waterport_visits_in_between_rwds(times_to_waterport_visits, time
                 all_waterport_visits.append(waterport_visits_in_between_rwds)
 
     return all_waterport_visits
+
+
+def get_SAnodemap():
+    """
+    Creates a mapping based on the maze layout where current states are linked to the next 3 future states
+
+    Returns: SAnodemap, a 2D array of current state to future state mappings
+    Return type: array[(S, A), int]
+    """
+    SAnodemap = np.ones((S, A), dtype=int) * INVALID_STATE
+    for node in np.arange(S - 1):
+        # Shallow level node available from current node
+        if node % 2 == 0:
+            SAnodemap[node, 0] = (node - 2) / 2
+        elif node % 2 == 1:
+            SAnodemap[node, 0] = (node - 1) / 2
+        if SAnodemap[node, 0] == INVALID_STATE:
+            SAnodemap[node, 0] = HOME_NODE
+
+        if node not in NODE_LVL[6]:
+            # Deeper level nodes available from current node
+            SAnodemap[node, 1] = node * 2 + 1
+            SAnodemap[node, 2] = node * 2 + 2
+
+    SAnodemap[HOME_NODE, 0] = INVALID_STATE
+    SAnodemap[HOME_NODE, 1] = 0
+    SAnodemap[HOME_NODE, 2] = INVALID_STATE
+    SAnodemap[WATER_PORT_STATE, :] = INVALID_STATE
+    SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
+
+    return SAnodemap

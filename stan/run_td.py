@@ -3,6 +3,12 @@ import pystan
 import pickle
 import numpy as np
 import shutil
+module_path = 'src'
+if module_path not in sys.path:
+    sys.path.append(module_path)
+sys.path.append('scrap_code')
+from utility import *
+from parameters import *
 
 # Set directories for access
 main_dir = '/sphere/mattar-lab/stan/'
@@ -16,9 +22,9 @@ results_dir = main_dir + 'stan_results/' + os.getenv('RESULTS_DIR') + '/'
 if traj_type == 'simulated':
     data_dir = traj_dir + 'pred_traj/' + os.getenv('DATA_DIR') + '/'
     set = int(os.getenv('SET'))
-    input_traj = 'set'+str(set)+'.p'
+    input_traj = 'set'+str(set)+'.pkl'
     log_dir = os.getenv('LOG_DIR')
-    true_params = pickle.load(open(data_dir + 'true_param.p', 'rb'))
+    true_params = pickle.load(open(data_dir + 'true_param.pkl', 'rb'))
 elif traj_type == 'real':
     data_dir = traj_dir + 'real_traj/'
     input_traj = os.getenv('TRAJ_DATA')
@@ -33,21 +39,8 @@ if not os.path.exists(results_dir):
     os.mkdir(results_dir)
 
 print('Free params: ', free_params)
-nodemap = pickle.load(open('nodemap.p', 'rb'))  # retrieving a list of next states for every node in the maze
 
 # Loading nodes of mice trajectories
-'''
-TrajS   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
-          Matrix entries are node labels and extra space in the matrix is filled with -1
-TrajA   : 3D matrix of (number of mice, number of bouts, number of steps in each bout)
-          Matrix entries are action indices (1, 2 or 3) taken to transition from i to i+1 in TrajS
-          extra space in the matrix is filled with an invalid action, 0.
-          Action values of 1 is a transition from a deep node, s to shallow node sprime
-          Action values 2 and 3 are transitions from a shallow node, s to deeper nodes, sprime
-nodemap: 127 by 3 matrix of (node position, 3 possible node positions accessible from the current node)
-          Matrix entries are node labels and extra space in the matrix is filled with nan
-'''
-
 sim_data_file = input_traj
 if os.path.isfile(data_dir + sim_data_file):
     print('Valid dataset for fitting')
@@ -60,35 +53,24 @@ if os.path.isfile(data_dir + sim_data_file):
 
     TrajS = pickle.load(open(data_dir + sim_data_file, 'rb')).astype(int)
     print('Loading', traj_type, 'data from ', data_dir + sim_data_file)
+    print('Number of subjects: ', np.shape(TrajS)[0], ' Max Number of Bouts: ', np.shape(TrajS)[1], ' Max TrajSize: ', np.shape(TrajS)[2])
 
     N = np.shape(TrajS)[0]          # setting the number of rewarded mice
     B = np.shape(TrajS)[1]          # setting the maximum number of bouts until the first reward was sampled
     BL = np.shape(TrajS)[2]         # setting the maximum bout length until the first reward was sampled
-    S = 128                         # number of states/nodes in the maze
-    A = 3                           # number of actions available at each state
-    RewardNodeMag = 1               # reward magnitude at the reward port (node 116)
-    InvalidState = -1              # padding to indicate invalid nodes on nodemap and invalid states in trajectories
-    StartNode = 0                  # node at which all episodes begin
-    HomeNode = 127                 # node at maze entrance
-    RewardNode = 116               # node where liquid reward is located
 
     # Storing actions taken at each state, s to transition to state s'
-    TrajA = np.zeros(np.shape(TrajS)).astype(int)
-    for n in np.arange(N):
-        for b in np.arange(B):
-            for bl in np.arange(BL - 1):
-                if TrajS[n, b, bl + 1] != -1 and TrajS[n, b, bl] != 127:
-                    TrajA[n, b, bl] = np.where(nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1])[0][0] + 1
+    TrajA = state_to_action(TrajS, N, B, BL)
 
     print('Initializing values')
     if init == 'ZERO':
         V0 = np.zeros((N, S))
-    elif init == 'RAND1':
+    elif init == 'RAND':
         V0 = np.random.rand(N, S)  # initialized state values for each mouse
     elif init == 'ONES':
         V0 = np.ones((N, S))
-    V0[:, HomeNode] = 0  # setting action-values of terminal state, 127 to 0
-    V0[:, RewardNode] = 0  # setting action-values of terminal state, 116 to 0
+    V0[:, WaterPortState] = 0  # setting action-values of terminal state to 0
+    e0 = np.zeros(S)
 
     # Run STAN model
     model_data = {'N': N,
@@ -98,11 +80,11 @@ if os.path.isfile(data_dir + sim_data_file):
                   'A': A,
                   'RewardNodeMag': RewardNodeMag,
                   'V0': V0,
+                  'e0': e0,
                   'nodemap': nodemap,
                   'InvalidState': InvalidState,
                   'HomeNode': HomeNode,
-                  'StartNode': StartNode,
-                  'RewardNode': RewardNode,
+                  'WaterPortState': WaterPortState,
                   'TrajS': TrajS,
                   'TrajA': TrajA,
                   'NUM_PARAMS': len(upper_bounds),
@@ -152,14 +134,14 @@ if os.path.isfile(data_dir + sim_data_file):
         summary_param_type = np.where(summary_dict['summary_rownames'] == 'log_LL[' + str(k + 1) + ']')[0][0]
         summary_val = summary_dict['summary'][summary_param_type][0]
         best_sub_fits[k][len(free_params)] = summary_val
-    pickle.dump(best_sub_fits, open(save_dir_fit+'best_sub_fits.p',"wb"))
+    pickle.dump(best_sub_fits, open(save_dir_fit+'best_sub_fits.pkl',"wb"))
 
     # Save group fits
     for id, param in enumerate(free_params):
         summary_param_type = np.where(summary_dict['summary_rownames'] == param + '_mu_phi')[0][0]
         summary_val = summary_dict['summary'][summary_param_type][0]
         best_group_fits[id] = summary_val
-    pickle.dump(best_group_fits, open(save_dir_fit+'best_group_fits.p',"wb"))
+    pickle.dump(best_group_fits, open(save_dir_fit+'best_group_fits.pkl',"wb"))
 
     # Copy log file from main directory to stan_result dir
     if traj_type == 'simulated':
