@@ -9,11 +9,13 @@ from matplotlib import cm
 from MM_Maze_Utils import *
 from parameters import *
 
-def plot_trajectory(state_hist_all, episode, save_file_name=None, mouse=None, figtitle=None, display=True):
+
+def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None, display=True):
     '''
     Plots specified simulated trajectories on the maze layout.
     
-    state_hist_all: dictionary of trajectories simulated by a model. Eg. state_hist_all{0:[0,1,3..], 1:[]..}
+    state_hist_all: list of trajectories simulated by a model.
+        Eg. [[0,1,3..], [28, 57, 116, ..], [0, 2, ..]]
     episode: 'all', to plot all trajectories in state_hist_all
              int, to plot a specific bout/episode
     
@@ -25,12 +27,15 @@ def plot_trajectory(state_hist_all, episode, save_file_name=None, mouse=None, fi
         '''
         simulated trajectories, state_hist_all: {mouseID: [[TrajID x TrajSize]]}
         '''
+        # print("state_hist_all", state_hist_all)
         state_hist_cell = []
         state_hist_xy = {}
         ma=NewMaze(6)
-        for epID, episode in enumerate(state_hist_all.values()):
+        for epID, episode in enumerate(state_hist_all):
             cells = []
 #             cells.extend([7])
+            if not episode:
+                continue
             for id,node in enumerate(episode):
                 if id != 0 and node != HomeNode:
                     if node > episode[id-1]: 
@@ -73,6 +78,7 @@ def plot_trajectory(state_hist_all, episode, save_file_name=None, mouse=None, fi
 
     # Converting cell positions to x,y positions in the maze
     # ma.ce contains x,y positions for each cell
+    # print("state_hist_xy", state_hist_xy)
     if episode == 'all':
         for id, episode in enumerate(state_hist_xy):
             x = state_hist_xy[episode][:,0]

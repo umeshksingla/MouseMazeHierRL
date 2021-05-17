@@ -22,6 +22,7 @@ class BaseModel:
         self.S = 129  # Number of states, including WaterPortState
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
+        self.nodemap = self.get_SAnodemap()
 
     def extract_trajectory_data(self):
         """
@@ -95,7 +96,7 @@ class BaseModel:
             if SAnodemap[node,0] == InvalidState:
                 SAnodemap[node,0] = HomeNode
 
-            if node not in lv6_nodes:
+            if node not in lvl6_nodes:
                 # Deeper level nodes available from current node
                 SAnodemap[node,1] = node*2 + 1
                 SAnodemap[node,2] = node*2 + 2
