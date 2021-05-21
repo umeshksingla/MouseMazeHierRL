@@ -125,11 +125,15 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
         plt.show()
     return
 
-def plot_maze_stats(data, datatype):
-    '''
-    :param data: 1 x 127 array of values (a value for all 127 nodes in the maze)
-    :param datatype: 'states' or 'state_values'
-    '''
+
+def plot_maze_stats(data, datatype, save_file_name=None, display=True):
+    """
+    :param data: 1 x 127 array of values (a value for all 127 nodes in the maze
+    from 0 to 126)
+    :param datatype:
+        'states': to just highlight nodes with same color, or
+        'state_values': to see the gradient in color nodes based on the state values.
+    """
     ma = NewMaze()
     if datatype == 'states':
         fr,_=np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
@@ -149,3 +153,9 @@ def plot_maze_stats(data, datatype):
         rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
         ax.add_patch(rect)
     plt.axis('off'); # turn off the axes
+    fig = plt.gcf()
+    if save_file_name:
+        fig.savefig(save_file_name)
+    if display:
+        plt.show()
+    return
