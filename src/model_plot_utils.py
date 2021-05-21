@@ -8,14 +8,14 @@ from MM_Maze_Utils import *
 from parameters import HomeNode
 
 
-def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None, display=True):
+def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=None, display=True):
     '''
     Plots specified simulated trajectories on the maze layout.
     
     state_hist_all: list of trajectories simulated by a model.
         Eg. [[0,1,3..], [28, 57, 116, ..], [0, 2, ..]]
-    episode: 'all', to plot all trajectories in state_hist_all
-             int, to plot a specific bout/episode
+    episode_idx: 'all', to plot all trajectories in state_hist_all
+             int, to plot a specific bout/episode with index episode_idx
     
     Plots One maze figure with plotted trajectories and a color bar indicating nodes from entry to exit
     Returns: None
@@ -29,18 +29,18 @@ def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None,
         state_hist_cell = []
         state_hist_xy = {}
         ma=NewMaze(6)
-        for epID, episode in enumerate(state_hist_all):
+        for epID, epi in enumerate(state_hist_all):
             cells = []
-            if not episode:
+            if not epi:
                 continue
-            for id,node in enumerate(episode):
+            for id,node in enumerate(epi):
                 if id != 0 and node != HomeNode:
-                    if node > episode[id-1]: 
+                    if node > epi[id-1]:
                         # if going to a deeper node
                         cells.extend(ma.ru[node])
-                    elif node < episode[id-1]: 
+                    elif node < epi[id-1]:
                         # if going to a shallower node
-                        reverse_path = list(reversed(ma.ru[episode[id-1]]))
+                        reverse_path = list(reversed(ma.ru[epi[id-1]]))
                         reverse_path = reverse_path + [ma.ru[node][-1]]
                         cells.extend(reverse_path[1:])
             if node==HomeNode:
@@ -76,10 +76,10 @@ def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None,
     # Converting cell positions to x,y positions in the maze
     # ma.ce contains x,y positions for each cell
     # print("state_hist_xy", state_hist_xy)
-    if episode == 'all':
-        for id, episode in enumerate(state_hist_xy):
-            x = state_hist_xy[episode][:,0]
-            y = state_hist_xy[episode][:,1]
+    if episode_idx == 'all':
+        for id, epi in enumerate(state_hist_xy):
+            x = state_hist_xy[epi][:,0]
+            y = state_hist_xy[epi][:,1]
             t = np.linspace(0,1,x.shape[0]) # your "time" variable
 
             # set up a list of (x,y) points
@@ -95,8 +95,8 @@ def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None,
             # plot the collection
             lines=ax.add_collection(lc); # add the collection to the plot
     else:
-        x = state_hist_xy[episode][:,0]
-        y = state_hist_xy[episode][:,1]
+        x = state_hist_xy[episode_idx][:,0]
+        y = state_hist_xy[episode_idx][:,1]
         t = np.linspace(0,1,x.shape[0]) # your "time" variable
 
         # set up a list of (x,y) points
