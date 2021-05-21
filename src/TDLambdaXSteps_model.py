@@ -181,6 +181,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         stats = {}
         episodes_all_mice = defaultdict(dict)
         invalid_episodes_all_mice = defaultdict(dict)
+        loglikelihoods = defaultdict(int)
         episode_cap = 500   # max attempts at generating a bout episode
         success = 1
 
@@ -203,6 +204,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             episodes = []
             invalid_episodes = []
             count_valid, count_total = 0, 1
+            LL = 0.0
             while len(episodes) < N_BOUTS_TO_GENERATE:
 
                 # Back-up a copy of state-values to use in case the next episode has to be discarded
@@ -214,11 +216,12 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 valid_episode = False
                 while not valid_episode and episode_attempt <= episode_cap:
                     episode_attempt += 1
-                    valid_episode, episode_traj = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
+                    valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
                     count_valid += int(valid_episode)
                     count_total += 1
                     if valid_episode:
                         episodes.extend(episode_traj)
+                        LL += episode_ll
                     else:   # retry
                         V = np.copy(V_backup)   # TODO: maybe not discard invalid trajs?
                         e = np.copy(e_backup)
@@ -230,6 +233,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                     break
                 # print("=============")
             episodes_all_mice[mouseID] = episodes
+            loglikelihoods[mouseID] = LL
             invalid_episodes_all_mice[mouseID] = invalid_episodes
             stats[mouseID] = {
                 "mouse": RewNames[mouseID],
@@ -239,4 +243,4 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 "fraction_valid": round(count_valid/count_total, 3) * 100,
                 # "invalid_initial_state_counts": invalid_initial_state_counts
             }
-        return episodes_all_mice, invalid_episodes_all_mice, success, stats
+        return episodes_all_mice, invalid_episodes_all_mice, loglikelihoods, success, stats

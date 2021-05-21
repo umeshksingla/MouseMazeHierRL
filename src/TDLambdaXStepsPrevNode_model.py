@@ -105,6 +105,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             return s_
 
         s = self.get_initial_state()
+        LL = 0.0
         episode_traj = []
         # valid_episode = False
         # while s not in self.terminal_nodes:
@@ -115,7 +116,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             episode_traj.append(s)  # Record current state
 
             if s in self.terminal_nodes:
-                print("entering again", s, self.get_node_tuple_from_number(s))
+                # print("entering again", s, self.get_node_tuple_from_number(s))
                 # episode_traj.append("e")
                 s = self.get_initial_state()
 
@@ -123,6 +124,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 action_prob = self.get_action_probabilities(s, beta, V)
                 a = np.random.choice(range(self.A), 1, p=action_prob)[0]    # Choose action
                 s_next = take_action(s, a)  # Take action
+                LL += np.log(action_prob[a])
                 # print("s, s_next, a, action_prob", self.get_node_tuple_from_number(s), self.get_node_tuple_from_number(s_next), a, action_prob)
             else:
                 s_next = self.get_number_from_node_tuple((RewardNode, WaterPortNode))
@@ -187,7 +189,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         #     return True, maze_episode_traj
         # else:
         #     return False, maze_episode_traj
-        return True, episodes
+        return True, episodes, LL
 
 
 def test1():
@@ -198,18 +200,5 @@ def test1():
     assert new == t
 
 
-def test2():
-    from model_plot_utils import plot_trajectory
-    a = TDLambdaXStepsPrevNodeRewardReceived()
-    l = []
-    t = a.convert_state_traj_to_node(l)
-    plot_trajectory({0: t}, 'all')
-
-
-def plot_test():
-    pass
-
-
 if __name__ == '__main__':
     test1()
-    test2()
