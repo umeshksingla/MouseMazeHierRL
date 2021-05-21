@@ -1,13 +1,11 @@
 """
+Plot the node trajectories on maze
 """
 
-from matplotlib import pyplot as plt
-from matplotlib import patches
 from matplotlib.collections import LineCollection
-from matplotlib import cm
 
 from MM_Maze_Utils import *
-from parameters import *
+from parameters import HomeNode
 
 
 def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None, display=True):
@@ -33,7 +31,6 @@ def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None,
         ma=NewMaze(6)
         for epID, episode in enumerate(state_hist_all):
             cells = []
-#             cells.extend([7])
             if not episode:
                 continue
             for id,node in enumerate(episode):
