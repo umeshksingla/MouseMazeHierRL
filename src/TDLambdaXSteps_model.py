@@ -66,12 +66,12 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 prev_idx = idx
         return trajectory_data
 
-    def get_action_probabilities(self, state, beta, V, nodemap):
+    def get_action_probabilities(self, state, beta, V):
         # Use softmax policy to select action, a at current state, s
-        if state in lv6_nodes:
+        if state in lvl6_nodes:
             action_prob = [1, 0, 0]
         else:
-            betaV = [np.exp(beta * V[int(val)]) for val in nodemap[state, :]]
+            betaV = [np.exp(beta * V[int(val)]) for val in self.nodemap[state, :]]
             action_prob = []
             for action in np.arange(self.A):
                 if np.isinf(betaV[action]):  # TODO: ?
@@ -102,8 +102,6 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
     def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, e):
 
-        nodemap = self.get_SAnodemap()
-
         s = self.get_initial_state()
         episode_traj = []
         valid_episode = False
@@ -112,9 +110,9 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             episode_traj.append(s)  # Record current state
 
             if s != RewardNode:
-                action_prob = self.get_action_probabilities(s, beta, V, nodemap)
+                action_prob = self.get_action_probabilities(s, beta, V)
                 a = np.random.choice(range(self.A), 1, p=action_prob)[0]  # Choose action
-                s_next = int(nodemap[s, a])           # Take action
+                s_next = int(self.nodemap[s, a])           # Take action
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
                 s_next = WaterPortNode
@@ -149,9 +147,9 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
             s = s_next
 
-        return valid_episode, episode_traj
+        return valid_episode, [episode_traj]
 
-    def simulate(self, sub_fits, MAX_LENGTH=25):
+    def simulate(self, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=100):
         """
         Model predictions (sample predicted trajectories) using fitted parameters sub_fits.
         You can use this to generate simulated data for parameter recovery as well.
@@ -161,6 +159,8 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             {0:[alpha_fit, beta_fit, gamma_fit, lambda_fit, LL], 1:[]...}
         MAX_LENGTH:
             max length of an episode to simulate
+        N_BOUTS_TO_GENERATE:
+            number of bout episodes to generate
 
         Returns:
         episodes_all_mice:
@@ -183,7 +183,6 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         invalid_episodes_all_mice = defaultdict(dict)
         episode_cap = 500   # max attempts at generating a bout episode
         success = 1
-        N_BOUTS_TO_GENERATE = 100  # number of bout episodes to generate
 
         for mouseID in sub_fits:
 
@@ -199,7 +198,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
             V[HomeNode] = 0     # setting action-values of maze entry to 0
             V[RewardNode] = 0   # setting action-values of reward port to 0
 
-            e = np.zeros(self.S)    # eligibility trace vector for all states
+            e = np.zeros(self.S+1)    # eligibility trace vector for all states
 
             episodes = []
             invalid_episodes = []
@@ -219,19 +218,19 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                     count_valid += int(valid_episode)
                     count_total += 1
                     if valid_episode:
-                        episodes.append(episode_traj)
+                        episodes.extend(episode_traj)
                     else:   # retry
                         V = np.copy(V_backup)   # TODO: maybe not discard invalid trajs?
                         e = np.copy(e_backup)
                         invalid_episodes.append(episode_traj)
-                    # print("===")
+                    print("===")
                 if not count_valid:
                     print('Failed to generate episodes for mouse ', mouseID)
                     success = 0
                     break
                 # print("=============")
-            episodes_all_mice[mouseID] = dict([(i, epi) for i, epi in enumerate(episodes)])
-            invalid_episodes_all_mice[mouseID] = dict([(i, epi) for i, epi in enumerate(invalid_episodes)])
+            episodes_all_mice[mouseID] = episodes
+            invalid_episodes_all_mice[mouseID] = invalid_episodes
             stats[mouseID] = {
                 "mouse": RewNames[mouseID],
                 "MAX_LENGTH": MAX_LENGTH,
