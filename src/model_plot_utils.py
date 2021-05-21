@@ -127,3 +127,28 @@ def plot_trajectory(state_hist_all, episode, save_file_name=None, figtitle=None,
     if display:
         plt.show()
     return
+
+def plot_maze_stats(data, datatype):
+    '''
+    :param data: 1 x 127 array of values (a value for all 127 nodes in the maze)
+    :param datatype: 'states' or 'state_values'
+    '''
+    ma = NewMaze()
+    if datatype == 'states':
+        fr,_=np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
+    if datatype == 'state_values':
+        fr = data
+    col=np.array([[0,1,1,1],[1,.8,.8,1],[2,.6,.6,1],[3,.4,.4,1]])
+    ax=PlotMazeFunction(fr,ma,mode='nodes',numcol=None,figsize=4,col=col);
+    re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
+       [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
+       [13.5,12.5,1,1],[13.5,8.5,1,1],[13.5,4.5,1,1],[13.5,0.5,1,1],
+       [10.5,-0.5,1,1],[6.5,-0.5,1,1],[2.5,-0.5,1,1],
+       [6.5,1.5,1,1],[6.5,11.5,1,1],[10.5,5.5,1,1],[10.5,7.5,1,1],
+       [5.5,4.5,1,1],[5.5,8.5,1,1],[7.5,4.5,1,1],[7.5,8.5,1,1],[2.5,5.5,1,1],[2.5,7.5,1,1],
+       [-0.5,2.5,3,1],[-0.5,10.5,3,1],[11.5,10.5,3,1],[11.5,2.5,3,1],[5.5,0.5,3,1],[5.5,12.5,3,1],
+       [7.5,6.5,7,1]]
+    for r in re:
+        rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
+        ax.add_patch(rect)
+    plt.axis('off'); # turn off the axes
