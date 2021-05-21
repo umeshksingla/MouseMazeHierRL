@@ -26,7 +26,7 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
             episode_traj.append(s)  # Record current state
 
             if s != RewardNode:
-                print(c * np.sqrt(np.log(t)/N))
+                #print(c * np.sqrt(np.log(t)/N))
                 action_prob = self.get_action_probabilities(s, beta, V + c * np.sqrt(np.log(t)/N))
                 a = np.random.choice(range(self.A), 1, p=action_prob)[0]  # Choose action
                 s_next = int(self.nodemap[s, a])           # Take action
@@ -55,12 +55,12 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
                 V[s] = np.sign(V[s]) * 1e5
 
             if s == RewardNode:
-                # print('Reward Reached. Recording episode.')
+                print('Reward Reached. Recording episode.')
                 valid_episode = True
                 break
 
             if len(episode_traj) > MAX_LENGTH:
-                # print('Trajectory too long. Aborting episode.')
+                print('Trajectory too long. Aborting episode.')
                 valid_episode = False
                 break
 
@@ -133,7 +133,8 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
                 # Back-up a copy of state-values to use in case the next episode has to be discarded
                 V_backup = np.copy(V)
                 e_backup = np.copy(e)
-                c_backup = np.copy(c)
+                t_backup = np.copy(t)
+                N_backup = np.copy(N)
 
                 # Begin generating episode
                 episode_attempt = 0
@@ -148,8 +149,9 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
                     else:   # retry
                         V = np.copy(V_backup)   # TODO: maybe not discard invalid trajs?
                         e = np.copy(e_backup)
-                        c = np.copy(c_backup)
-                        invalid_episodes.append(episode_traj)
+                        t = np.copy(t_backup)
+                        N = np.copy(N_backup)
+                        invalid_episodes.extend(episode_traj)
                     print("===")
                 if not count_valid:
                     print('Failed to generate episodes for mouse ', mouseID)
