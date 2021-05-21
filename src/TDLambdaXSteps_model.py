@@ -104,6 +104,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
         s = self.get_initial_state()
         episode_traj = []
+        LL = 0.0
         valid_episode = False
         while s not in self.terminal_nodes:
 
@@ -113,6 +114,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 action_prob = self.get_action_probabilities(s, beta, V)
                 a = np.random.choice(range(self.A), 1, p=action_prob)[0]  # Choose action
                 s_next = int(self.nodemap[s, a])           # Take action
+                LL += np.log(action_prob[a])
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
                 s_next = WaterPortNode
@@ -147,7 +149,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
             s = s_next
 
-        return valid_episode, [episode_traj]
+        return valid_episode, [episode_traj], LL
 
     def simulate(self, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=100):
         """
@@ -197,7 +199,6 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
             V = np.random.rand(self.S+1)  # Initialize state-action values
             V[HomeNode] = 0     # setting action-values of maze entry to 0
-            V[RewardNode] = 0   # setting action-values of reward port to 0
 
             e = np.zeros(self.S+1)    # eligibility trace vector for all states
 
