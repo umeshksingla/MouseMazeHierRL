@@ -18,7 +18,7 @@ if module_path not in sys.path:
     sys.path.append(module_path)
 
 from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
-from model_plot_utils import plot_trajectory
+from plot_utils import plot_trajectory
 
 
 # Load the parameters fitted by stan for each mouse

@@ -23,7 +23,7 @@ if module_path not in sys.path:
     sys.path.append(module_path)
 
 from TDLambdaXStepsPrevNode_model import TDLambdaXStepsPrevNodeRewardReceived
-from model_plot_utils import plot_trajectory
+from plot_utils import plot_trajectory
 from parameters import HomeNode, RewardNode
 
 
