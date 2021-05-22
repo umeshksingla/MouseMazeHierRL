@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from numpy import ones
 
 from MM_Maze_Utils import *
-from parameters import HOME_NODE, RWD_NODE, FRAME_RATE
+from parameters import HOME_NODE, RWD_NODE, FRAME_RATE, NODE_LVL
 from utils import get_node_visit_times, get_all_night_nodes_and_times, get_wp_visit_times_and_rwd_times
 
 
@@ -254,3 +254,104 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     if init_time is not None and time_window is not None:
         plt.xlim(init_time, init_time + time_window)
     return plt.gcf(), plt.gca()
+
+
+def PlotMazeFunction_statevalues(f, m, numcol='cyan', figsize=4, axes=None):
+    '''
+    Plot the maze defined in m with a function f overlaid in color
+    :param f: 1-by-127 array of state values for nodes on the maze
+    :param m: maze structure
+    :param numcol: color for the numbers. If numcol is None the numbers are omitted
+    :param figsize: in inches
+    :return: the axes of the plot with maze cells color-coded with state-values
+    '''
+
+    def nodes2cell_statevalues(f):
+        '''
+        Interpolate between node state-values to have a smoother transition of state-values across maze cells
+        :param f: 1-by-127 array of state-values
+        :return: 1-by-176 array of state-values on maze cells
+        '''
+
+        ma = NewMaze(6)
+        cells = []
+
+        for lvl in NODE_LVL:
+            for j in NODE_LVL[lvl]:
+                if j == 0:
+                    root = HOME_NODE
+                elif j % 2 == 0:
+                    root = (j - 2) // 2
+                elif j % 2 == 1:
+                    root = (j - 1) // 2
+
+                if j == 0:
+                    values = np.linspace(f[root], f[j], len(ma.ru[j]))
+                    cells.extend(values)
+                else:
+                    values = np.linspace(f[root], f[j], len(ma.ru[j]) + 1)
+                    cells.extend(values[1:])
+        return cells
+
+    def generate_colors(f_cells):
+        '''
+        Convert numbers in array f to a color array, col where col[0,:] = f and col[1:3, :] = RGB values corresponding to f
+        :param f_cells: array of state values for each maze cell
+        :return: color array, col
+        '''
+        from matplotlib import colors
+
+        cmap = plt.cm.plasma
+        norm = colors.Normalize()
+        color_list = cmap(norm(f_cells))[:, :-1]  # Retrieving RGB array
+        col = np.concatenate((np.reshape(f_cells, (len(f_cells), 1)), color_list), axis=1)
+
+        return col
+
+    if axes:
+        ax=axes
+        PlotMazeWall(m,axes=ax,figsize=figsize)
+    else:
+        ax=PlotMazeWall(m,axes=None,figsize=figsize)
+
+    f_cells = nodes2cell_statevalues(f)
+    col = generate_colors(f_cells)
+
+    for j in range(len(m.xc)):
+        x = m.xc[j];
+        y = m.yc[j]
+        if not (f is None):
+            ax.add_patch(patches.Rectangle((x-0.5,y-0.5),1,1,lw=0,
+                                       color=col[j,1:])) # draw with color f[]
+        if numcol:
+            plt.text(x - .35, y + .15, '{:d}'.format(j), color=numcol)  # number the cells
+
+    return ax
+
+
+def plot_maze_stats(data, datatype):
+    '''
+    :param data: list of maze nodes, cells or 1-by-127 array of state-values
+    :param datatype: 'states' or 'state_values'
+    '''
+    ma = NewMaze()
+    if datatype == 'states':
+        fr,_= np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
+        if col is None:
+            col = np.array([[0, 1, 1, 1], [1, .8, .8, 1], [2, .6, .6, 1], [3, .4, .4, 1]])
+        ax = PlotMazeFunction(fr, ma, mode='nodes', numcol=None, figsize=4, col=col)
+
+    if datatype == 'state_values':
+        ax = PlotMazeFunction_statevalues(data, ma, numcol=None, figsize=4)
+    re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
+       [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
+       [13.5,12.5,1,1],[13.5,8.5,1,1],[13.5,4.5,1,1],[13.5,0.5,1,1],
+       [10.5,-0.5,1,1],[6.5,-0.5,1,1],[2.5,-0.5,1,1],
+       [6.5,1.5,1,1],[6.5,11.5,1,1],[10.5,5.5,1,1],[10.5,7.5,1,1],
+       [5.5,4.5,1,1],[5.5,8.5,1,1],[7.5,4.5,1,1],[7.5,8.5,1,1],[2.5,5.5,1,1],[2.5,7.5,1,1],
+       [-0.5,2.5,3,1],[-0.5,10.5,3,1],[11.5,10.5,3,1],[11.5,2.5,3,1],[5.5,0.5,3,1],[5.5,12.5,3,1],
+       [7.5,6.5,7,1]]
+    for r in re:
+        rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
+        ax.add_patch(rect)
+    plt.axis('off'); # turn off the axes
