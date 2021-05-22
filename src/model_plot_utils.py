@@ -164,7 +164,7 @@ def plot_maze_stats(data, datatype, save_file_name=None, display=True):
     return
 
 
-def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=None):
+def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=None, include_grid=False, separate_quadrants=True):
     """
     Plot traversed nodes (y-axis) over time (x-axis) for the selected time interval
     :param tf: trajectory file
@@ -186,22 +186,55 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
         for node in range(127):
             plt.plot(node_visit_times[node], node * ones(len(node_visit_times[node])), 'o')
 
-    # Plot stars when the animal gets a reward
-    plt.plot(times_to_rwd, RWD_NODE * ones(len(times_to_rwd)), linestyle='None', marker='^', label='rwd', markersize=8, color='#edc61c')
-
-    # Have visual separation for different node levels
+    # Have visual separation for different node levels and quadrants
+    if separate_quadrants:
+        label_shades="Color shades: levels 1 to 6\nColor intensity: quadrants"
+    else:
+        label_shades = "Color shades: levels 1 to 6"
+    plt.plot([], [], ' ', label="Color shades: levels 1 to 6\nColor intensity: quadrants")
     plt.axhline(0.5, color='brown', linestyle='--', linewidth='.8')
     plt.axhline(2.5, color='brown', linestyle='--', linewidth='.8')
     plt.axhline(6.5, color='brown', linestyle='--', linewidth='.8')
     plt.axhline(14.5, color='brown', linestyle='--', linewidth='.8')
     plt.axhline(30.5, color='brown', linestyle='--', linewidth='.8')
     plt.axhline(62.5, color='brown', linestyle='--', linewidth='.8')
-    plt.fill_betweenx([0.6, 2.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='gray')
-    plt.fill_betweenx([2.6, 6.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='red')
-    plt.fill_betweenx([6.6, 14.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='green')
-    plt.fill_betweenx([14.6, 30.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='orange')
-    plt.fill_betweenx([30.6, 62.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='yellow')
-    plt.fill_betweenx([62.6, 126.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='blue')
+    end_time = all_night_nodes_and_times[:, 1][-1]
+    plt.fill_betweenx([0.6, 2.4], 0, end_time, alpha=.1, color='gray')
+    if separate_quadrants:
+        plt.fill_betweenx([2.6, 3.4], 0, end_time, alpha=.05, color='red')
+        plt.fill_betweenx([3.6, 4.4], 0, end_time, alpha=.1, color='red')
+        plt.fill_betweenx([4.6, 5.4], 0, end_time, alpha=.15, color='red')
+        plt.fill_betweenx([5.6, 6.4], 0, end_time, alpha=.2, color='red')
+
+        plt.fill_betweenx([6.6, 8.4], 0, end_time, alpha=.05, color='green')
+        plt.fill_betweenx([8.6, 10.4], 0, end_time, alpha=.1, color='green')
+        plt.fill_betweenx([10.6, 12.4], 0, end_time, alpha=.15, color='green')
+        plt.fill_betweenx([12.6, 14.4], 0, end_time, alpha=.2, color='green')
+
+        plt.fill_betweenx([14.6, 18.4], 0, end_time, alpha=.05, color='orange')
+        plt.fill_betweenx([18.6, 22.4], 0, end_time, alpha=.1, color='orange')
+        plt.fill_betweenx([22.6, 26.4], 0, end_time, alpha=.15, color='orange')
+        plt.fill_betweenx([26.6, 30.4], 0, end_time, alpha=.2, color='orange')
+
+        plt.fill_betweenx([30.6, 38.4], 0, end_time, alpha=.05, color='yellow')
+        plt.fill_betweenx([38.6, 46.4], 0, end_time, alpha=.15, color='yellow')
+        plt.fill_betweenx([46.6, 54.4], 0, end_time, alpha=.25, color='yellow')
+        plt.fill_betweenx([54.6, 62.4], 0, end_time, alpha=.35, color='yellow')
+
+        plt.fill_betweenx([62.6, 78.4], 0, end_time, alpha=.05, color='blue')
+        plt.fill_betweenx([78.6, 94.4], 0, end_time, alpha=.1, color='blue')
+        plt.fill_betweenx([94.6, 110.4], 0, end_time, alpha=.15, color='blue')
+        plt.fill_betweenx([110.6, 126.4], 0, end_time, alpha=.2, color='blue')
+    else:
+        plt.fill_betweenx([2.6, 6.4], 0, end_time, alpha=.1, color='red')
+        plt.fill_betweenx([6.6, 14.4], 0, end_time, alpha=.1, color='green')
+        plt.fill_betweenx([14.6, 30.4], 0, end_time, alpha=.1, color='orange')
+        plt.fill_betweenx([30.6, 62.4], 0, end_time, alpha=.1, color='yellow')
+        plt.fill_betweenx([62.6, 126.4], 0, end_time, alpha=.1, color='blue')
+
+    # Plot stars when the animal gets a reward
+    plt.plot(times_to_rwd, RWD_NODE * ones(len(times_to_rwd)) - .2, linestyle='None', marker='^', label='rwd',
+             markersize=10, markerfacecolor='yellow', color='red')
 
     # plot times at home
     START_IDX = 0
@@ -212,7 +245,7 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
 
     # TODO: use fill_betweenx to colored ribbon similar to the representing time at home, but to represent the quadrant the animal is at
 
-    plt.grid()
+    if include_grid: plt.grid()
     plt.title("All night trajectory")
     plt.ylabel("Node number")
     plt.xlabel("Time (s)")
