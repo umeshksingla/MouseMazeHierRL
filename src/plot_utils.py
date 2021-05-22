@@ -221,7 +221,7 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     return plt.gcf(), plt.gca()
 
 
-def PlotMazeFunction_statevalues(f, m, colormap_name, numcol=None, figsize=4, axes=None):
+def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, figsize=4, axes=None):
     '''
     Plot the maze defined in m with a function f overlaid in color
     :param f: 1-by-127 array of state values for nodes on the maze
@@ -258,7 +258,7 @@ def PlotMazeFunction_statevalues(f, m, colormap_name, numcol=None, figsize=4, ax
                     cells.extend(values[1:])
         return cells
 
-    def generate_colors(f_cells, colormap_name):
+    def generate_colors(fgrad, colormap_name):
         '''
         Convert numbers in array f to a color array, col where col[0,:] = f and col[1:3, :] = RGB values corresponding to f
         :param f_cells: array of state values for each maze cell
@@ -271,8 +271,8 @@ def PlotMazeFunction_statevalues(f, m, colormap_name, numcol=None, figsize=4, ax
         cmap = plt.cm.get_cmap(colormap_name)
         cmappable = ScalarMappable(norm=Normalize(0, 1), cmap=cmap)
         norm = Normalize()
-        cmap_norm = cmap(norm(f_cells))[:, :-1]  # Retrieving RGB array
-        col = np.concatenate((np.reshape(f_cells, (len(f_cells), 1)), cmap_norm), axis=1)
+        cmap_norm = cmap(norm(fgrad))[:, :-1]  # Retrieving RGB array
+        col = np.concatenate((np.reshape(fgrad, (len(fgrad), 1)), cmap_norm), axis=1)
 
         return col, cmappable
 
@@ -282,17 +282,30 @@ def PlotMazeFunction_statevalues(f, m, colormap_name, numcol=None, figsize=4, ax
     else:
         ax=PlotMazeWall(m,axes=None,figsize=figsize)
 
-    f_cells = nodes2cell_statevalues(f)
-    col, cmappable = generate_colors(f_cells, colormap_name)
+    if datatype == 'state_values':
+        f_cells = nodes2cell_statevalues(f)
+        col, cmappable = generate_colors(f_cells, colormap_name)
 
-    for j in range(len(m.xc)):
-        x = m.xc[j];
-        y = m.yc[j]
-        if not (f is None):
-            ax.add_patch(patches.Rectangle((x-0.5,y-0.5),1,1,lw=0,
-                                       color=col[j,1:])) # draw with color f[]
-        if numcol:
-            plt.text(x - .35, y + .15, '{:d}'.format(j), color=numcol)  # number the cells
+        for j in range(len(m.xc)):
+            x = m.xc[j];
+            y = m.yc[j]
+            if not (f is None):
+                ax.add_patch(patches.Rectangle((x - 0.5, y - 0.5), 1, 1, lw=0,
+                                               color=col[j, 1:]))  # draw with color f[]
+            if numcol:
+                plt.text(x - .35, y + .15, '{:d}'.format(j), color=numcol)  # number the cells
+
+    elif datatype == 'states':
+        fr, _ = np.histogram(f, bins=np.arange(2 ** (m.le + 1)) - 0.5)
+        col, cmappable = generate_colors(fr, colormap_name)
+
+        for j,r in enumerate(m.ru):
+            x = m.xc[r[-1]]; y=m.yc[r[-1]]
+            if not(f is None):
+                ax.add_patch(patches.Rectangle((x-0.5,y-0.5),1,1,lw=0,
+                                           color=col[j, 1:])) # draw with color f[]
+            if numcol:
+                plt.text(x-.35,y+.15,'{:d}'.format(j),color=numcol) # number the ends of a run
 
     return ax, cmappable
 
@@ -303,15 +316,23 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
     :param datatype: 'states' or 'state_values'
     :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
     '''
-    ma = NewMaze()
-    if datatype == 'states':
-        fr,_= np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
-        col = np.array([[0, 1, 1, 1], [1, .8, .8, 1], [2, .6, .6, 1], [3, .4, .4, 1]])
-        ax = PlotMazeFunction(fr, ma, mode='nodes', numcol=None, col=col, axes=axes)
+    # ma = NewMaze()
+    # if datatype == 'states':
+        # fr,_= np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
+        # col = np.array([[0, 1, 1, 1], [1, .8, .8, 1], [2, .6, .6, 1], [3, .4, .4, 1]])
+        # ax = PlotMazeFunction(fr, ma, mode='nodes', numcol=None, col=col, axes=axes)
 
-    if datatype == 'state_values':
-        ax, cmappable = PlotMazeFunction_statevalues(data, ma, colormap_name, axes=axes)
-        plt.colorbar(cmappable, shrink=0.5)  # draw the colorbar
+    # if datatype == 'state_values':
+    #     ax, cmappable = PlotMazeFunction_gradientcmap(data, ma, datatype, colormap_name, axes=axes)
+    #     plt.colorbar(cmappable, shrink=0.5)  # draw the colorbar
+
+    ma = NewMaze()
+    ax, cmappable = PlotMazeFunction_gradientcmap(data, ma, datatype, colormap_name, axes=axes)
+    plt.colorbar(cmappable, shrink=0.5)
+    # if datatype == 'state':
+    #     plt.colorbar(cmappable, location='left', shrink=0.5)  # draw the colorbar
+    # elif datatype == 'state_values':
+    #     plt.colorbar(cmappable, shrink=0.5)
 
     re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
        [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],

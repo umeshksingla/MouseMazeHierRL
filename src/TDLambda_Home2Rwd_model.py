@@ -189,17 +189,11 @@ class TDLambda_Home2Rwd():
                 else:
                     valid_episode = True
 
-            if len(episode_traj) == 2:
-                fail_rate += 1
-                valid_episode = False
-                if fail_rate == MAX_BOUT_ATTEMPT:
-                    print('Trajectory of 127 -> 0 -> 127 is too short. Aborting episode... Fail rate: ', fail_rate)
-            else:
-                episode_traj.append(s)  # Record terminal state which ended the bout
+            episode_traj.append(s)  # Record terminal state which ended the bout
 
         return episode_traj, V, e, fail_rate
 
-    def simulate(self, sub_fits, MAX_LENGTH=1000, MAX_BOUT_ATTEMPT=10, N_BOUTS_TO_GENERATE=100):
+    def simulate(self, sub_fits, N_BOUTS_TO_GENERATE, MAX_LENGTH=1000, MAX_BOUT_ATTEMPT=10):
         """
         Simulate the agent with given set of parameters sub_fits.
         """
@@ -224,7 +218,7 @@ class TDLambda_Home2Rwd():
             e = np.zeros(self.S)     # eligibility trace vector for all states
             episodes = []
 
-            for boutID in np.arange(N_BOUTS_TO_GENERATE):
+            for boutID in np.arange(N_BOUTS_TO_GENERATE[mouseID]):
                 episode_traj, V_return, e_return, fail_rate = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, MAX_BOUT_ATTEMPT, V, e)
                 if fail_rate < MAX_BOUT_ATTEMPT:
                     episodes.append(episode_traj)
