@@ -3,9 +3,12 @@ Plot the node trajectories on maze
 """
 
 from matplotlib.collections import LineCollection
+import matplotlib.pyplot as plt
+from numpy import ones
 
 from MM_Maze_Utils import *
-from parameters import HomeNode
+from parameters import HOME_NODE, RWD_NODE, FRAME_RATE
+from utils import get_node_visit_times, get_all_night_nodes_and_times, get_wp_visit_times_and_rwd_times
 
 
 def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=None, display=True):
@@ -34,7 +37,7 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
             if not epi:
                 continue
             for id,node in enumerate(epi):
-                if id != 0 and node != HomeNode:
+                if id != 0 and node != HOME_NODE:
                     if node > epi[id-1]:
                         # if going to a deeper node
                         cells.extend(ma.ru[node])
@@ -43,7 +46,7 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
                         reverse_path = list(reversed(ma.ru[epi[id-1]]))
                         reverse_path = reverse_path + [ma.ru[node][-1]]
                         cells.extend(reverse_path[1:])
-            if node==HomeNode:
+            if node==HOME_NODE:
                 home_path = list(reversed(ma.ru[0]))
                 cells.extend(home_path[1:])  # cells from node 0 to maze exit
             state_hist_cell.append(cells)
@@ -159,3 +162,63 @@ def plot_maze_stats(data, datatype, save_file_name=None, display=True):
     if display:
         plt.show()
     return
+
+
+def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=None):
+    """
+    Plot traversed nodes (y-axis) over time (x-axis) for the selected time interval
+    :param tf: trajectory file
+    :param all_night_nodes_and_times: ndarray (n_nodes_traversed, 2) nodes and the time the animal was there
+    :param times_to_rwd: times of reward delivery
+    :returns: fig, axes
+    """
+    plt.figure(figsize=(15, 13))
+    HOME_NODE_PLOTTING = -10
+    all_night_nodes_and_times = get_all_night_nodes_and_times(tf)
+    _, times_to_rwd = get_wp_visit_times_and_rwd_times(tf)
+    all_night_nodes_and_times[all_night_nodes_and_times[:, 0] == HOME_NODE, 0] = HOME_NODE
+    plt.plot(all_night_nodes_and_times[:, 1], all_night_nodes_and_times[:, 0], '.-')
+
+    # Plot stars when the animal gets a reward
+    plt.plot(times_to_rwd, RWD_NODE * ones(len(times_to_rwd)), linestyle='None', marker='^', label='rwd', markersize=6,
+             color='#edc61c')
+
+    if colored_markers:
+        node_visit_times = list()
+        for node in range(127):
+            node_visit_times.append(get_node_visit_times(tf, node))
+        for node in range(127):
+            plt.plot(node_visit_times[node], node * ones(len(node_visit_times[node])), 'o')
+
+    # Have visual separation for different node levels
+    plt.axhline(0.5, color='brown', linestyle='--', linewidth='.8')
+    plt.axhline(2.5, color='brown', linestyle='--', linewidth='.8')
+    plt.axhline(6.5, color='brown', linestyle='--', linewidth='.8')
+    plt.axhline(14.5, color='brown', linestyle='--', linewidth='.8')
+    plt.axhline(30.5, color='brown', linestyle='--', linewidth='.8')
+    plt.axhline(62.5, color='brown', linestyle='--', linewidth='.8')
+    plt.fill_betweenx([0.6, 2.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='gray')
+    plt.fill_betweenx([2.6, 6.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='red')
+    plt.fill_betweenx([6.6, 14.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='green')
+    plt.fill_betweenx([14.6, 30.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='orange')
+    plt.fill_betweenx([30.6, 62.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='yellow')
+    plt.fill_betweenx([62.6, 126.4], 0, all_night_nodes_and_times[:, 1][-1], alpha=.1, color='blue')
+
+    # plot times at home
+    START_IDX = 0
+    END_IDX = 1
+    for bout in range(len(tf.no) - 1):
+        plt.fill_betweenx([-13, -12], tf.fr[bout][END_IDX] / FRAME_RATE, tf.fr[bout + 1][START_IDX] / FRAME_RATE,
+                          alpha=.2, color='black', label='at home' if bout == 0 else None)
+
+    # TODO: use fill_betweenx to colored ribbon similar to the representing time at home, but to represent the quadrant the animal is at
+
+    plt.grid()
+    plt.title("All night trajectory")
+    plt.ylabel("Node number")
+    plt.xlabel("Time (s)")
+    plt.legend()
+
+    if init_time is not None and time_window is not None:
+        plt.xlim(init_time, init_time + time_window)
+    return plt.gcf(), plt.gca()

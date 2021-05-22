@@ -1,6 +1,14 @@
+from MM_Traj_Utils import add_node_times_to_tf
 from parameters import FRAME_RATE, RWD_NODE
 import numpy as np
 
+def get_all_night_nodes_and_times(tf):
+    """
+    Get the nodes the animal visited across all night and the corresponding times
+    :returns: ndarray (n_nodes_traversed, 2) nodes and the time the animal was there
+    """
+    tf_new = add_node_times_to_tf(tf)
+    return np.vstack(tf_new.node_times)
 
 def get_node_visit_times(tf, node_id):
     """
