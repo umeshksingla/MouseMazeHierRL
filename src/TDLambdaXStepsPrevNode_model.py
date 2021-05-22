@@ -25,12 +25,10 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         self.h, self.inv_h = dict(), dict()
         self.construct_node_tuples_to_number_map()
 
-        self.terminal_nodes = {
-            self.get_number_from_node_tuple((HomeNode, InvalidState)),
-            self.get_number_from_node_tuple((RewardNode, WaterPortNode))
-        }
-
+        self.home_terminal_state = self.get_number_from_node_tuple((HomeNode, InvalidState))
+        self.reward_terminal_state = self.get_number_from_node_tuple((RewardNode, WaterPortNode))
         self.RewardTupleState = self.get_number_from_node_tuple((57, RewardNode))
+        self.terminal_nodes = {self.home_terminal_state, self.reward_terminal_state}
 
     def get_action_probabilities(self, state, beta, V):
         # Use softmax policy to select action, a at current state, s
@@ -106,6 +104,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
         s = self.get_initial_state()
         LL = 0.0
+        first_reward = -1
         episode_traj = []
         # valid_episode = False
         # while s not in self.terminal_nodes:
@@ -127,7 +126,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 LL += np.log(action_prob[a])
                 # print("s, s_next, a, action_prob", self.get_node_tuple_from_number(s), self.get_node_tuple_from_number(s_next), a, action_prob)
             else:
-                s_next = self.get_number_from_node_tuple((RewardNode, WaterPortNode))
+                s_next = self.reward_terminal_state
 
             R = 1 if s == self.RewardTupleState else 0   # Observe reward
 
@@ -141,7 +140,8 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 V[n] += alpha * td_error * e[n]
                 e[n] = gamma * lamda * e[n]
 
-            # print("V[s]", s, V[s])
+            # print("V reward", V[self.RewardTupleState])
+
             if np.isnan(V[s]):
                 print('Warning invalid state-value: ', s, s_next, V[s], V[s_next], alpha, beta, gamma, R)
             elif np.isinf(V[s]):
@@ -152,10 +152,13 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
             if s == self.RewardTupleState:
                 print('Reward Reached!')
+                if first_reward == -1:
+                    first_reward = len(episode_traj)
+                    print("First reward:", len(episode_traj))
             #     episode_traj.append("r")
                 # valid_episode = True
 
-            if len(episode_traj) > MAX_LENGTH:
+            if len(episode_traj) > MAX_LENGTH + first_reward:
                 print('Trajectory too long. Aborting episode.')
                 # valid_episode = True
                 break
@@ -190,6 +193,62 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         # else:
         #     return False, maze_episode_traj
         return True, episodes, LL
+
+    def simulate(self, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+
+        stats = {}
+        episodes_all_mice = defaultdict(dict)
+        loglikelihoods = defaultdict(int)
+        episode_cap = 500   # max attempts at generating a bout episode
+        success = 1
+
+        for mouseID in sub_fits:
+
+            alpha = sub_fits[mouseID][0]    # learning rate
+            beta = sub_fits[mouseID][1]     # softmax exploration - exploitation
+            gamma = sub_fits[mouseID][2]    # discount factor
+            lamda = sub_fits[mouseID][3]    # eligibility trace
+
+            print("alpha, beta, gamma, lamda, mouseID, nick",
+                  alpha, beta, gamma, lamda, mouseID, RewNames[mouseID])
+
+            # V = np.ones(self.S+1)*0.1  # Initialize state-action values
+            V = np.random.rand(self.S + 1)
+            V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
+            V[self.reward_terminal_state] = 0
+
+            e = np.zeros(self.S+1)    # eligibility trace vector for all states
+
+            episodes = []
+            invalid_episodes = []
+            count_valid, count_total = 0, 1
+            LL = 0.0
+            while len(episodes) < N_BOUTS_TO_GENERATE:
+
+                # Begin generating episode
+                episode_attempt = 0
+                valid_episode = False
+                while not valid_episode and episode_attempt <= episode_cap:
+                    episode_attempt += 1
+                    valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
+                    if valid_episode:
+                        episodes.extend(episode_traj)
+                        LL += episode_ll
+                    else:   # retry
+                        raise Exception("Inside invalid episode")
+                    print("===")
+                # print("=============")
+            episodes_all_mice[mouseID] = episodes
+            loglikelihoods[mouseID] = LL
+            stats[mouseID] = {
+                "mouse": RewNames[mouseID],
+                "MAX_LENGTH": MAX_LENGTH,
+                "count_total": count_total,
+                "V": V,
+            }
+            print(V)
+            print(len(V))
+        return episodes_all_mice, [], loglikelihoods, success, stats
 
 
 def test1():

@@ -23,8 +23,13 @@ if module_path not in sys.path:
     sys.path.append(module_path)
 
 from TDLambdaXStepsPrevNode_model import TDLambdaXStepsPrevNodeRewardReceived
-from plot_utils import plot_trajectory
-from parameters import HomeNode, RewardNode
+from plot_utils import plot_trajectory, plot_maze_stats
+from parameters import HomeNode, RewardNode, InvalidState
+
+
+def info(title):
+    print(title)
+    print('>>> module name:', __name__, 'parent process id:', os.getppid(), 'process id:', os.getpid())
 
 
 def analyse(episodes_mouse, save_file_path, params):
@@ -191,7 +196,7 @@ def main(params):
     # with open('/Volumes/ssrde-home/run2/TDlambdaXsteps_best_sub_fits.p', 'rb') as f:
     #     sub_fits = pickle.load(f)
 
-    MAX_LENGTH = 10000
+    MAX_LENGTH = 20000
     N_BOUTS_TO_GENERATE = 1
 
     # Import the model class you are interested in
@@ -203,28 +208,32 @@ def main(params):
     save_file_path = f'/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH={MAX_LENGTH}/{params.__str__()}_rand{random.randint(1, 10000)}/'
     print(save_file_path)
     Path(save_file_path).mkdir(parents=True, exist_ok=True)
-    episodes_all_mice, invalid_episodes_all_mice, loglikelihoods, success, stats = model.simulate({mouse: params}, MAX_LENGTH, N_BOUTS_TO_GENERATE)
-    total_valid = len(episodes_all_mice[mouse])
-    total_invalid = len(invalid_episodes_all_mice[mouse])
-    print("Total valid", total_valid, "Total invalid", total_invalid)
+    episodes_all_mice, _, loglikelihoods, success, stats = model.simulate({mouse: params}, MAX_LENGTH, N_BOUTS_TO_GENERATE)
 
     episodes_mouse = episodes_all_mice[mouse]
     LL = loglikelihoods[mouse]
-    if success:
-        print(len(episodes_mouse))
-        with open(os.path.join(save_file_path,
-                               f'episodes_{mouse + 1}_{params.__str__()}_LL={LL}.json'),
-                  'w') as f:
-            json.dump(episodes_mouse, f)
-        print(episodes_mouse)
-        analyse(episodes_mouse, save_file_path, params)
-        print(">>> Done with param_set!", params)
+    V = stats[mouse]["V"]
+    state_values = np.zeros(127)
+    for n in range(127):
+        pos_states = model.get_SAnodemap()[n, :]
+        # print(n, pos_states)
+        pos_state_values = [V[model.get_number_from_node_tuple((n, p))] for p in pos_states if p != InvalidState]
+        print(n, pos_states, pos_state_values)
+        state_values[n] = np.mean(pos_state_values)
+
+    print(state_values)
+    plot_maze_stats(state_values, "state_values")
+    
+    # if success:
+    #     print(len(episodes_mouse))
+    #     with open(os.path.join(save_file_path,
+    #                            f'episodes_{mouse + 1}_{params.__str__()}_LL={LL}.json'),
+    #               'w') as f:
+    #         json.dump(episodes_mouse, f)
+    #     print(episodes_mouse)
+    #     analyse(episodes_mouse, save_file_path, params)
+    #     print(">>> Done with param_set!", params)
     return f"Finished {params}"
-
-
-def info(title):
-    print(title)
-    print('>>> module name:', __name__, 'parent process id:', os.getppid(), 'process id:', os.getpid())
 
 
 def load(save_file_dir, epi_dir, epi_file_name, params=None):
@@ -244,15 +253,16 @@ if __name__ == '__main__':
     #     for beta in [10, 50]:
     #         for lamda in [0.2, 0.4]:
     #             param_sets.append([alpha, beta, 0.89, lamda])
-    # param_sets = [[0.75, 50, 0.89, 0.2]]
+    param_sets = [[0.1, 3, 0.89, 0.7]]
+    main(param_sets[0])
     # print(param_sets)
     # print(len(param_sets))
     # with Pool(4) as p:
     #     print(p.map(main, param_sets))
 
     # load episodes file if you want to analyse prev run data
-    save_file_dir = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=20000"
-    epi_dir = "[0.3, 3, 0.89, 0.3]_rand8227"
-    epi_file_name = "episodes_1_[0.3, 3, 0.89, 0.3]_LL=-16122.135425940007.json"
-    load(save_file_dir, epi_dir, epi_file_name)
+    # save_file_dir = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=20000"
+    # epi_dir = "[0.3, 3, 0.89, 0.3]_rand8227"
+    # epi_file_name = "episodes_1_[0.3, 3, 0.89, 0.3]_LL=-16122.135425940007.json"
+    # load(save_file_dir, epi_dir, epi_file_name)
     pass
