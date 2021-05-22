@@ -176,12 +176,8 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     HOME_NODE_PLOTTING = -10
     all_night_nodes_and_times = get_all_night_nodes_and_times(tf)
     _, times_to_rwd = get_wp_visit_times_and_rwd_times(tf)
-    all_night_nodes_and_times[all_night_nodes_and_times[:, 0] == HOME_NODE, 0] = HOME_NODE
+    all_night_nodes_and_times[all_night_nodes_and_times[:, 0] == HOME_NODE, 0] = HOME_NODE_PLOTTING
     plt.plot(all_night_nodes_and_times[:, 1], all_night_nodes_and_times[:, 0], '.-')
-
-    # Plot stars when the animal gets a reward
-    plt.plot(times_to_rwd, RWD_NODE * ones(len(times_to_rwd)), linestyle='None', marker='^', label='rwd', markersize=6,
-             color='#edc61c')
 
     if colored_markers:
         node_visit_times = list()
@@ -189,6 +185,9 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
             node_visit_times.append(get_node_visit_times(tf, node))
         for node in range(127):
             plt.plot(node_visit_times[node], node * ones(len(node_visit_times[node])), 'o')
+
+    # Plot stars when the animal gets a reward
+    plt.plot(times_to_rwd, RWD_NODE * ones(len(times_to_rwd)), linestyle='None', marker='^', label='rwd', markersize=8, color='#edc61c')
 
     # Have visual separation for different node levels
     plt.axhline(0.5, color='brown', linestyle='--', linewidth='.8')
