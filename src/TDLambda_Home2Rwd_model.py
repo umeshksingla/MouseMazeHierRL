@@ -14,7 +14,7 @@ import numpy as np
 import pickle
 from pathlib import Path
 
-from parameters import *
+from parameters import HOME_NODE, WATER_PORT_STATE, INVALID_STATE, NODE_LVL, RWD_NODE
 
 class TDLambda_Home2Rwd():
     def __init__(self, file_suffix='BaseModel'):
@@ -41,7 +41,7 @@ class TDLambda_Home2Rwd():
         B = max([len(n) for n in data])
         BL = max([len(b) for n in data for b in n])
 
-        TrajS = np.ones((N, B, BL)) * InvalidState
+        TrajS = np.ones((N, B, BL)) * INVALID_STATE
 
         # over mouse
         for n in np.arange(len(data)):
@@ -71,7 +71,7 @@ class TDLambda_Home2Rwd():
         for n in np.arange(N):
             for b in np.arange(B):
                 for bl in np.arange(BL - 1):
-                    if TrajS[n, b, bl + 1] == InvalidState or TrajS[n, b, bl + 1] == WaterPortNode:
+                    if TrajS[n, b, bl + 1] == INVALID_STATE or TrajS[n, b, bl + 1] == WATER_PORT_STATE:
                         break
                     TrajA[n, b, bl] = np.where(
                         nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
@@ -102,16 +102,18 @@ class TDLambda_Home2Rwd():
                 SAnodemap[node,1] = node*2 + 1
                 SAnodemap[node,2] = node*2 + 2
 
-        # Nodes available from entry point
+        # Nodes available at HOME_NODE
         SAnodemap[HOME_NODE,0] = INVALID_STATE
         SAnodemap[HOME_NODE,1] = 0
         SAnodemap[HOME_NODE,2] = INVALID_STATE
 
-        # Nodes at WaterPortState
-        SAnodemap[WATER_PORT_STATE, 0] = INVALID_STATE
-        SAnodemap[WATER_PORT_STATE, 1] = INVALID_STATE
-        SAnodemap[WATER_PORT_STATE, 2] = INVALID_STATE
+        # Nodes available at WATER_PORT_STATE
+        SAnodemap[WATER_PORT_STATE, :] = INVALID_STATE
+
+        # Nodes available at RWD_NODE
+        SAnodemap[RWD_NODE, 0] = INVALID_STATE
         SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
+
         return SAnodemap
 
     def softmax(self, s, V, beta):
@@ -181,7 +183,8 @@ class TDLambda_Home2Rwd():
                 if len(episode_traj) > MAX_LENGTH:
                     fail_rate += 1
                     valid_episode = False
-                    print('Trajectory too long. Aborting episode... Fail rate: ', fail_rate)
+                    if fail_rate == MAX_BOUT_ATTEMPT:
+                        print('Trajectory too long. Aborting episode... Fail rate: ', fail_rate)
                     break
                 else:
                     valid_episode = True
@@ -189,7 +192,8 @@ class TDLambda_Home2Rwd():
             if len(episode_traj) == 2:
                 fail_rate += 1
                 valid_episode = False
-                print('Trajectory of 127 -> 0 -> 127 is too short. Aborting episode... Fail rate: ', fail_rate)
+                if fail_rate == MAX_BOUT_ATTEMPT:
+                    print('Trajectory of 127 -> 0 -> 127 is too short. Aborting episode... Fail rate: ', fail_rate)
             else:
                 episode_traj.append(s)  # Record terminal state which ended the bout
 
@@ -211,8 +215,8 @@ class TDLambda_Home2Rwd():
             gamma = sub_fits[mouseID][2]    # discount factor
             lamda = sub_fits[mouseID][3]    # decay parameter for eligibility trace
 
-            print("alpha, beta, gamma, lamda, mouseID, nick",
-                  alpha, beta, gamma, lamda, mouseID)
+            # print("alpha, beta, gamma, lamda, mouseID, nick",
+            #       alpha, beta, gamma, lamda, mouseID)
 
             V = np.ones(self.S) * V0mag
             V[WATER_PORT_STATE] = 0  # setting state-values of terminal nodes to 0
@@ -228,12 +232,44 @@ class TDLambda_Home2Rwd():
                     e = e_return
 
                 # Print stats
-                if fail_rate:
+                if fail_rate == MAX_BOUT_ATTEMPT:
                     print('Fail rate: ', fail_rate, ' with parameters: ', sub_fits[mouseID])
 
             episodes_all_mice[mouseID] = episodes
             V_all_mice[mouseID] = V
 
         return episodes_all_mice, V_all_mice
+
+    def simulate_avg(self, sub_fits, RUNS, N_BOUTS_TO_GENERATE):
+        '''
+        Average model predictions across multiple simulations (i.e. RUNS)
+        :param sub_fits: dictionary of parameter lists eg. {0:[alpha, beta, lambda, gamma], 1:....}
+        :param RUNS: number of times to repeat the model simulation
+        :return: Average state-value map, avg_state_value_hist and a combined list of all traces for each mouse, total_pred_traj
+        '''
+
+        # Initialization
+        avg_state_value_hist = [np.zeros(self.S)] * len(sub_fits)
+        total_pred_traj = [[] for _ in range(len(sub_fits))]
+
+        for i in np.arange(RUNS):
+            print('Running simulation ', i)
+
+            # Simulate the model
+            pred_traj, state_value_hist = self.simulate(sub_fits, N_BOUTS_TO_GENERATE)
+
+            # Averaging state values for each mouse after every model simulation
+            for mouseID in state_value_hist:
+                avg_state_value_hist[mouseID] = avg_state_value_hist[mouseID] + state_value_hist[mouseID]
+
+            # For each mouse, combining all trajectories explored during the model simulations so far
+            for mouseID in pred_traj:
+                for traj in pred_traj[mouseID]:
+                    total_pred_traj[mouseID].extend(traj)
+
+        for mouseID in sub_fits:
+            avg_state_value_hist[mouseID] /= RUNS
+
+        return avg_state_value_hist, total_pred_traj
 
 

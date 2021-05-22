@@ -221,7 +221,7 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     return plt.gcf(), plt.gca()
 
 
-def PlotMazeFunction_statevalues(f, m, colormap_name, numcol='cyan', figsize=4, axes=None):
+def PlotMazeFunction_statevalues(f, m, colormap_name, numcol=None, figsize=4, axes=None):
     '''
     Plot the maze defined in m with a function f overlaid in color
     :param f: 1-by-127 array of state values for nodes on the maze
@@ -297,7 +297,7 @@ def PlotMazeFunction_statevalues(f, m, colormap_name, numcol='cyan', figsize=4, 
     return ax, cmappable
 
 
-def plot_maze_stats(data, datatype, colormap_name=None, save_file_name=None, display=True):
+def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True):
     '''
     :param data: list of maze nodes, cells or 1-by-127 array of state-values
     :param datatype: 'states' or 'state_values'
@@ -306,12 +306,13 @@ def plot_maze_stats(data, datatype, colormap_name=None, save_file_name=None, dis
     ma = NewMaze()
     if datatype == 'states':
         fr,_= np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
-        if col is None:
-            col = np.array([[0, 1, 1, 1], [1, .8, .8, 1], [2, .6, .6, 1], [3, .4, .4, 1]])
-        ax = PlotMazeFunction(fr, ma, mode='nodes', numcol=None, figsize=4, col=col)
+        col = np.array([[0, 1, 1, 1], [1, .8, .8, 1], [2, .6, .6, 1], [3, .4, .4, 1]])
+        ax = PlotMazeFunction(fr, ma, mode='nodes', numcol=None, col=col, axes=axes)
 
     if datatype == 'state_values':
-        ax, cmappable = PlotMazeFunction_statevalues(data, ma, colormap_name, numcol=None, figsize=4)
+        ax, cmappable = PlotMazeFunction_statevalues(data, ma, colormap_name, axes=axes)
+        plt.colorbar(cmappable, shrink=0.5)  # draw the colorbar
+
     re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
        [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
        [13.5,12.5,1,1],[13.5,8.5,1,1],[13.5,4.5,1,1],[13.5,0.5,1,1],
@@ -324,11 +325,10 @@ def plot_maze_stats(data, datatype, colormap_name=None, save_file_name=None, dis
         rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
         ax.add_patch(rect)
     plt.axis('off'); # turn off the axes
-    plt.colorbar(cmappable)  # draw the colorbar
 
     fig = plt.gcf()
     if save_file_name:
         fig.savefig(save_file_name)
     if display:
         plt.show()
-    return
+    return ax
