@@ -221,7 +221,7 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     return plt.gcf(), plt.gca()
 
 
-def PlotMazeFunction_statevalues(f, m, numcol='cyan', figsize=4, axes=None):
+def PlotMazeFunction_statevalues(f, m, colormap_name, numcol='cyan', figsize=4, axes=None):
     '''
     Plot the maze defined in m with a function f overlaid in color
     :param f: 1-by-127 array of state values for nodes on the maze
@@ -258,20 +258,23 @@ def PlotMazeFunction_statevalues(f, m, numcol='cyan', figsize=4, axes=None):
                     cells.extend(values[1:])
         return cells
 
-    def generate_colors(f_cells):
+    def generate_colors(f_cells, colormap_name):
         '''
         Convert numbers in array f to a color array, col where col[0,:] = f and col[1:3, :] = RGB values corresponding to f
         :param f_cells: array of state values for each maze cell
+        :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
         :return: color array, col
         '''
-        from matplotlib import colors
+        from matplotlib.colors import Normalize
+        from matplotlib.cm import ScalarMappable
 
-        cmap = plt.cm.plasma
-        norm = colors.Normalize()
-        color_list = cmap(norm(f_cells))[:, :-1]  # Retrieving RGB array
-        col = np.concatenate((np.reshape(f_cells, (len(f_cells), 1)), color_list), axis=1)
+        cmap = plt.cm.get_cmap(colormap_name)
+        cmappable = ScalarMappable(norm=Normalize(0, 1), cmap=cmap)
+        norm = Normalize()
+        cmap_norm = cmap(norm(f_cells))[:, :-1]  # Retrieving RGB array
+        col = np.concatenate((np.reshape(f_cells, (len(f_cells), 1)), cmap_norm), axis=1)
 
-        return col
+        return col, cmappable
 
     if axes:
         ax=axes
@@ -280,7 +283,7 @@ def PlotMazeFunction_statevalues(f, m, numcol='cyan', figsize=4, axes=None):
         ax=PlotMazeWall(m,axes=None,figsize=figsize)
 
     f_cells = nodes2cell_statevalues(f)
-    col = generate_colors(f_cells)
+    col, cmappable = generate_colors(f_cells, colormap_name)
 
     for j in range(len(m.xc)):
         x = m.xc[j];
@@ -291,13 +294,14 @@ def PlotMazeFunction_statevalues(f, m, numcol='cyan', figsize=4, axes=None):
         if numcol:
             plt.text(x - .35, y + .15, '{:d}'.format(j), color=numcol)  # number the cells
 
-    return ax
+    return ax, cmappable
 
 
-def plot_maze_stats(data, datatype, save_file_name=None, display=True):
+def plot_maze_stats(data, datatype, colormap_name=None, save_file_name=None, display=True):
     '''
     :param data: list of maze nodes, cells or 1-by-127 array of state-values
     :param datatype: 'states' or 'state_values'
+    :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
     '''
     ma = NewMaze()
     if datatype == 'states':
@@ -307,7 +311,7 @@ def plot_maze_stats(data, datatype, save_file_name=None, display=True):
         ax = PlotMazeFunction(fr, ma, mode='nodes', numcol=None, figsize=4, col=col)
 
     if datatype == 'state_values':
-        ax = PlotMazeFunction_statevalues(data, ma, numcol=None, figsize=4)
+        ax, cmappable = PlotMazeFunction_statevalues(data, ma, colormap_name, numcol=None, figsize=4)
     re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
        [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
        [13.5,12.5,1,1],[13.5,8.5,1,1],[13.5,4.5,1,1],[13.5,0.5,1,1],
@@ -320,6 +324,7 @@ def plot_maze_stats(data, datatype, save_file_name=None, display=True):
         rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
         ax.add_patch(rect)
     plt.axis('off'); # turn off the axes
+    plt.colorbar(cmappable)  # draw the colorbar
 
     fig = plt.gcf()
     if save_file_name:
