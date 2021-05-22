@@ -86,30 +86,31 @@ class BaseModel:
                  Also saves SAnodemap in the main_dir as 'nodemap.p'
         Return type: ndarray[(S, A), int]
         """
-        SAnodemap = np.ones((self.S, self.A), dtype=int) * InvalidState
-        for node in np.arange(self.S-1):
+        SAnodemap = np.ones((self.S, self.A), dtype=int) * INVALID_STATE
+        for node in np.arange(self.S - 1):
             # Shallow level node available from current node
-            if node%2 == 0:
-                SAnodemap[node,0] = (node - 2) / 2
-            elif node%2 == 1:
-                SAnodemap[node,0] = (node - 1) / 2
-            if SAnodemap[node,0] == InvalidState:
-                SAnodemap[node,0] = HomeNode
+            if node % 2 == 0:
+                SAnodemap[node, 0] = (node - 2) / 2
+            elif node % 2 == 1:
+                SAnodemap[node, 0] = (node - 1) / 2
+            if SAnodemap[node, 0] == INVALID_STATE:
+                SAnodemap[node, 0] = HOME_NODE
 
-            if node not in lvl6_nodes:
+            if node not in NODE_LVL[6]:
                 # Deeper level nodes available from current node
-                SAnodemap[node,1] = node*2 + 1
-                SAnodemap[node,2] = node*2 + 2
+                SAnodemap[node, 1] = node * 2 + 1
+                SAnodemap[node, 2] = node * 2 + 2
 
         # Nodes available from entry point
-        SAnodemap[HomeNode,0] = InvalidState
-        SAnodemap[HomeNode,1] = 0
-        SAnodemap[HomeNode,2] = InvalidState
+        SAnodemap[HOME_NODE, 0] = INVALID_STATE
+        SAnodemap[HOME_NODE, 1] = 0
+        SAnodemap[HOME_NODE, 2] = INVALID_STATE
 
         # Nodes at WaterPortState
-        SAnodemap[WaterPortNode, 0] = InvalidState
-        SAnodemap[WaterPortNode, 1] = InvalidState
-        SAnodemap[WaterPortNode, 2] = InvalidState
+        SAnodemap[WATER_PORT_STATE, 0] = INVALID_STATE
+        SAnodemap[WATER_PORT_STATE, 1] = INVALID_STATE
+        SAnodemap[WATER_PORT_STATE, 2] = INVALID_STATE
+        SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
         return SAnodemap
 
     def simulate(self, sub_fits):
