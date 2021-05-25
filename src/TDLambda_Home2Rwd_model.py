@@ -195,7 +195,10 @@ class TDLambda_Home2Rwd():
 
     def simulate(self, sub_fits, N_BOUTS_TO_GENERATE, MAX_LENGTH=1000, MAX_BOUT_ATTEMPT=10):
         """
-        Simulate the agent with given set of parameters sub_fits.
+        Predict trajectories for agents (this is for ONE run)
+        :param sub_fits: dictionary of parameter lists eg. {0:[alpha, beta, lambda, gamma], 1:....}
+        :param N_BOUTS_TO_GENERATE: number of bouts for the simulated agent to learn over. Pass a list of numbers for a set of agents
+                            eg. bout list equal to the number of corresponding real mice bouts
         """
         V0mag = 0.1        # initial state-value for all nodes
         episodes_all_mice = {}
@@ -239,12 +242,16 @@ class TDLambda_Home2Rwd():
         Average model predictions across multiple simulations (i.e. RUNS)
         :param sub_fits: dictionary of parameter lists eg. {0:[alpha, beta, lambda, gamma], 1:....}
         :param RUNS: number of times to repeat the model simulation
+        :param N_BOUTS_TO_GENERATE: number of bouts for the simulated agent to learn over. Pass a list of numbers for a set of agents
+                                    eg. bout list equal to the number of corresponding real mice bouts
         :return: Average state-value map, avg_state_value_hist and a combined list of all traces for each mouse, total_pred_traj
         '''
 
         # Initialization
         avg_state_value_hist = [np.zeros(self.S)] * len(sub_fits)
         total_pred_traj = [[] for _ in range(len(sub_fits))]
+        total_rwds = np.zeros(len(sub_fits))
+        pred_rwd_rate = [[[] for _ in range(RUNS)] for _ in range(len(sub_fits))]
 
         for i in np.arange(RUNS):
             print('Running simulation ', i)
@@ -254,16 +261,18 @@ class TDLambda_Home2Rwd():
 
             # Averaging state values for each mouse after every model simulation
             for mouseID in state_value_hist:
-                avg_state_value_hist[mouseID] = avg_state_value_hist[mouseID] + state_value_hist[mouseID]
+                avg_state_value_hist[mouseID] += state_value_hist[mouseID]
 
             # For each mouse, combining all trajectories explored during the model simulations so far
             for mouseID in pred_traj:
+                total_pred_traj[mouseID].append(pred_traj[mouseID])
                 for traj in pred_traj[mouseID]:
-                    total_pred_traj[mouseID].extend(traj)
+                    pred_rwd_rate[mouseID][i].extend([len(np.where(np.array(traj)==RWD_NODE)[0])])
+                    total_rwds[mouseID] += len(np.where(np.array(traj)==RWD_NODE)[0])
 
         for mouseID in sub_fits:
             avg_state_value_hist[mouseID] /= RUNS
 
-        return avg_state_value_hist, total_pred_traj
+        return avg_state_value_hist, total_pred_traj, total_rwds/RUNS, pred_rwd_rate
 
 

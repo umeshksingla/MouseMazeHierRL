@@ -224,7 +224,7 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
 def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, figsize=4, axes=None):
     '''
     Plot the maze defined in m with a function f overlaid in color
-    :param f: 1-by-127 array of state values for nodes on the maze
+    :param f: 1-by-128 array of state values for nodes on the maze
     :param m: maze structure
     :param numcol: color for the numbers. If numcol is None the numbers are omitted
     :param figsize: in inches
@@ -234,7 +234,7 @@ def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, fi
     def nodes2cell_statevalues(f):
         '''
         Interpolate between node state-values to have a smoother transition of state-values across maze cells
-        :param f: 1-by-127 array of state-values
+        :param f: 1-by-128 array of state-values
         :return: 1-by-176 array of state-values on maze cells
         '''
 
@@ -294,7 +294,6 @@ def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, fi
                                                color=col[j, 1:]))  # draw with color f[]
             if numcol:
                 plt.text(x - .35, y + .15, '{:d}'.format(j), color=numcol)  # number the cells
-
     elif datatype == 'states':
         fr, _ = np.histogram(f, bins=np.arange(2 ** (m.le + 1)) - 0.5)
         col, cmappable = generate_colors(fr, colormap_name)
@@ -310,9 +309,9 @@ def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, fi
     return ax, cmappable
 
 
-def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True):
+def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True, cbar=True):
     '''
-    :param data: list of maze nodes, cells or 1-by-127 array of state-values
+    :param data: list of maze nodes, cells or 1-by-128 array of state-values
     :param datatype: 'states' or 'state_values'
     :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
     '''
@@ -328,11 +327,6 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
 
     ma = NewMaze()
     ax, cmappable = PlotMazeFunction_gradientcmap(data, ma, datatype, colormap_name, axes=axes)
-    plt.colorbar(cmappable, shrink=0.5)
-    # if datatype == 'state':
-    #     plt.colorbar(cmappable, location='left', shrink=0.5)  # draw the colorbar
-    # elif datatype == 'state_values':
-    #     plt.colorbar(cmappable, shrink=0.5)
 
     re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
        [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
@@ -346,6 +340,10 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
         rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
         ax.add_patch(rect)
     plt.axis('off'); # turn off the axes
+
+    if cbar:
+        plt.colorbar(cmappable, shrink=0.4)
+        # plt.colorbar(cmappable, ax=[ax], location='left', shrink=0.5)  # draw the colorbar
 
     fig = plt.gcf()
     if save_file_name:
