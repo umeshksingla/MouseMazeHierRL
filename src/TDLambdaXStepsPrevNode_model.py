@@ -4,11 +4,7 @@ Take only the last X steps before a reward as training data and each state is
 a combination of current node and prev node (in an attempt to include direction)
 """
 
-import numpy as np
-import pickle
-import os
-import sys
-from collections import defaultdict
+from multiprocessing import Pool
 
 from parameters import *
 from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
@@ -19,8 +15,8 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
     def __init__(self, X = 20, file_suffix='_XStepsRewardReceivedTrajectories'):
         TDLambdaXStepsRewardReceived.__init__(self, X, file_suffix)
-        self.nodes = 130
-        self.S = self.nodes * self.nodes
+        self.nodes = 129
+        self.S = (self.nodes+1) * (self.nodes+1) # +1 for invalid state
 
         self.h, self.inv_h = dict(), dict()
         self.construct_node_tuples_to_number_map()
@@ -108,6 +104,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         episode_traj = []
         # valid_episode = False
         # while s not in self.terminal_nodes:
+        prev_sum = np.nansum(V)
         while True:
             if len(episode_traj)%100 == 0:
                 print("current state", self.get_node_tuple_from_number(s)[1], "step", len(episode_traj))
@@ -136,7 +133,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             # Update state-values
             td_error = R + gamma * V[s_next] - V[s]
             e[s] += 1
-            for n in np.arange(self.S):
+            for n in np.arange(self.S+1):
                 V[n] += alpha * td_error * e[n]
                 e[n] = gamma * lamda * e[n]
 
@@ -164,6 +161,11 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 break
 
             s = s_next
+            new_sum = np.nansum(V)
+            if abs(prev_sum-new_sum) <= 0.0001:
+                print("State values have converged.")
+                break
+            prev_sum = new_sum
 
         # print(episode_traj)
         maze_episode_traj = self.convert_state_traj_to_node(episode_traj)
@@ -194,61 +196,71 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         #     return False, maze_episode_traj
         return True, episodes, LL
 
-    def simulate(self, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+    def simulate(self, agentId, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
 
-        stats = {}
-        episodes_all_mice = defaultdict(dict)
-        loglikelihoods = defaultdict(int)
+        info([">>> Simulating:", agentId, sub_fits, MAX_LENGTH, N_BOUTS_TO_GENERATE])
+
         episode_cap = 500   # max attempts at generating a bout episode
         success = 1
 
-        for mouseID in sub_fits:
+        alpha = sub_fits[0]    # learning rate
+        beta = sub_fits[1]     # softmax exploration - exploitation
+        gamma = sub_fits[2]    # discount factor
+        lamda = sub_fits[3]    # eligibility trace
 
-            alpha = sub_fits[mouseID][0]    # learning rate
-            beta = sub_fits[mouseID][1]     # softmax exploration - exploitation
-            gamma = sub_fits[mouseID][2]    # discount factor
-            lamda = sub_fits[mouseID][3]    # eligibility trace
+        print("alpha, beta, gamma, lamda, agentId",
+              alpha, beta, gamma, lamda, agentId)
 
-            print("alpha, beta, gamma, lamda, mouseID, nick",
-                  alpha, beta, gamma, lamda, mouseID, RewNames[mouseID])
+        V = np.random.rand(self.S+1)
+        V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
+        V[self.reward_terminal_state] = 0
 
-            # V = np.ones(self.S+1)*0.1  # Initialize state-action values
-            V = np.random.rand(self.S + 1)
-            V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
-            V[self.reward_terminal_state] = 0
+        e = np.zeros(self.S+1)    # eligibility trace vector for all states
 
-            e = np.zeros(self.S+1)    # eligibility trace vector for all states
+        episodes = []
+        count_valid, count_total = 0, 1
+        LL = 0.0
+        while len(episodes) < N_BOUTS_TO_GENERATE:
 
-            episodes = []
-            invalid_episodes = []
-            count_valid, count_total = 0, 1
-            LL = 0.0
-            while len(episodes) < N_BOUTS_TO_GENERATE:
+            # Begin generating episode
+            episode_attempt = 0
+            valid_episode = False
+            while not valid_episode and episode_attempt <= episode_cap:
+                episode_attempt += 1
+                valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
+                if valid_episode:
+                    episodes.extend(episode_traj)
+                    LL += episode_ll
+                else:   # retry
+                    raise Exception("Inside invalid episode")
+                print("===")
+            # print("=============")
+        stats = {
+            "agentId": agentId,
+            "episodes": episodes,
+            "LL": LL,
+            "MAX_LENGTH": MAX_LENGTH,
+            "count_total": count_total,
+            "V": V,
+        }
+        print(V)
+        print(len(V))
+        return success, stats
 
-                # Begin generating episode
-                episode_attempt = 0
-                valid_episode = False
-                while not valid_episode and episode_attempt <= episode_cap:
-                    episode_attempt += 1
-                    valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
-                    if valid_episode:
-                        episodes.extend(episode_traj)
-                        LL += episode_ll
-                    else:   # retry
-                        raise Exception("Inside invalid episode")
-                    print("===")
-                # print("=============")
-            episodes_all_mice[mouseID] = episodes
-            loglikelihoods[mouseID] = LL
-            stats[mouseID] = {
-                "mouse": RewNames[mouseID],
-                "MAX_LENGTH": MAX_LENGTH,
-                "count_total": count_total,
-                "V": V,
-            }
-            print(V)
-            print(len(V))
-        return episodes_all_mice, [], loglikelihoods, success, stats
+    def simulate_multiple(self, sub_fits, n=1, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+        print("sub_fits", sub_fits)
+        tasks = []
+        for agentId in range(n):
+            tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
+        with Pool(4) as p:
+            simulation_results = p.starmap(self.simulate, tasks)
+        return simulation_results
+
+
+def info(title):
+    print(*title)
+    print('>>> module name:', __name__, 'parent process id:', os.getppid(),
+          'process id:', os.getpid())
 
 
 def test1():
