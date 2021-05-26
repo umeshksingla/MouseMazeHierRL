@@ -309,7 +309,7 @@ def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, fi
     return ax, cmappable
 
 
-def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True, cbar=True):
+def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True, cbar=True, figtitle=''):
     '''
     :param data: list of maze nodes, cells or 1-by-128 array of state-values
     :param datatype: 'states' or 'state_values'
@@ -346,6 +346,7 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
         # plt.colorbar(cmappable, ax=[ax], location='left', shrink=0.5)  # draw the colorbar
 
     fig = plt.gcf()
+    fig.suptitle(figtitle)
     if save_file_name:
         fig.savefig(save_file_name)
     if display:
