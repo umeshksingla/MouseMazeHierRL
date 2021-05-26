@@ -106,9 +106,6 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         # while s not in self.terminal_nodes:
         prev_sum = np.nansum(V)
         while True:
-            if len(episode_traj)%100 == 0:
-                print("current state", self.get_node_tuple_from_number(s)[1], "step", len(episode_traj))
-
             episode_traj.append(s)  # Record current state
 
             if s in self.terminal_nodes:
@@ -161,8 +158,15 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 break
 
             s = s_next
+
             new_sum = np.nansum(V)
-            if abs(prev_sum-new_sum) <= 0.0001:
+            diff = abs(prev_sum-new_sum)
+            if len(episode_traj)%100 == 0:
+                print("current state", self.get_node_tuple_from_number(s)[1], "step", len(episode_traj))
+                print("current diff", diff)
+
+            if diff <= 0.000001:
+                print("current diff", diff)
                 print("State values have converged.")
                 break
             prev_sum = new_sum

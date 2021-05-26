@@ -130,83 +130,6 @@ def analyse_episodes(model, episodes_mouse, save_file_path, params):
     # plt.show()
 
     plot_trajs(episodes_mouse, save_file_path, title_params)
-
-    # plt.plot(episodes_all_mice[mouse].keys(), [len(path) for e, path in episodes_all_mice[mouse].items()], 'b*')
-    # plt.ylabel("Reward Path length")
-    # plt.xlabel("time")
-    # # plt.savefig(os.path.join(save_file_path, f'pathlength_vs_time_{mouse+1}.png'))
-    # # plt.show()
-    # plt.clf()
-    # plt.close()
-    #
-    # bins = MAX_LENGTH
-    # plt.hist([len(path) for e, path in episodes_all_mice[mouse].items()], bins, density=True)
-    # plt.ylabel("Fraction")
-    # plt.xlabel("Path length")
-    # plt.title("Valid episodes: path length")
-    # # plt.savefig(os.path.join(save_file_path, f'valid_epi_pathlength_dist_{mouse + 1}.png'))
-    # # plt.show()
-    # plt.clf()
-    # plt.close()
-    #
-    # plt.hist([len(path) for e, path in invalid_episodes_all_mice[mouse].items()], bins, density=True)
-    # plt.ylabel("Fraction")
-    # plt.xlabel("Path length")
-    # plt.title("Invalid episodes: path length")
-    # # plt.savefig(os.path.join(save_file_path, f'invalid_epi_pathlength_dist_{mouse + 1}.png'))
-    # # plt.show()
-    # plt.clf()
-    # plt.close()
-    #
-    # bins = MAX_LENGTH//5
-    # plt.hist([len(path) for e, path in episodes_all_mice[mouse].items()], bins, density=True)
-    # plt.ylabel("Fraction")
-    # plt.xlabel("Path length")
-    # plt.title("Valid episodes: path length")
-    # # plt.savefig(os.path.join(save_file_path, f'valid_epi_pathlength_dist_zoomout_{mouse + 1}.png'))
-    # # plt.show()
-    # plt.clf()
-    # plt.close()
-    #
-    # plt.hist([len(path) for e, path in invalid_episodes_all_mice[mouse].items()], bins, density=True)
-    # plt.ylabel("Fraction")
-    # plt.xlabel("Path length")
-    # plt.title("Invalid episodes: path length")
-    # # plt.savefig(os.path.join(save_file_path, f'invalid_epi_pathlength_dist_zoomout_{mouse + 1}.png'))
-    # # plt.show()
-    # plt.clf()
-    # plt.close()
-    #
-    # print(stats)
-    # total = stats[mouse]['count_total']
-    #
-    # initial_state_valid_counts = defaultdict(int)
-    # for i, epi in episodes_all_mice[mouse].items():
-    #     if epi:
-    #         initial_state_valid_counts[epi[0]] += 1
-    # initial_state_valid_counts = dict([(s, round(c/total * 100)) for s, c in initial_state_valid_counts.items()])
-    # print("Led to valid episodes:", initial_state_valid_counts)
-    # plt.plot(initial_state_valid_counts.keys(),
-    #          initial_state_valid_counts.values(), 'b.', label='valid')
-    #
-    # initial_state_invalid_counts = defaultdict(int)
-    # for i, epi in invalid_episodes_all_mice[mouse].items():
-    #     if epi:
-    #         initial_state_invalid_counts[epi[0]] += 1
-    # initial_state_invalid_counts = dict([(s, round(c/total * 100)) for s, c in initial_state_invalid_counts.items()])
-    # print("Led to invalid episodes:", initial_state_invalid_counts)
-    #
-    # plt.plot(initial_state_invalid_counts.keys(),
-    #          initial_state_invalid_counts.values(), 'r.', label='invalid')
-    # plt.title("Percent of valid or invalid episodes for an initial state")
-    # plt.xlabel("initial state")
-    # # plt.savefig(os.path.join(save_file_path, f'initial_state_valid_percent_{mouse + 1}.png'))
-    # plt.legend()
-    # # plt.show()
-    # plt.clf()
-    # plt.close()
-    #
-    # print("========================================")
     return
 
 
@@ -244,11 +167,11 @@ def analyse_state_values(model, V, save_file_path, title_params):
     return
 
 
-def analyse_avg(model, V_all, reward_lengths_all, save_file_path, params):
+def analyse_avg(model, V_all, reward_lengths_all, save_file_dir, params):
     median = np.nanmedian(reward_lengths_all, axis=0)
     for arr in reward_lengths_all:
         plt.plot(arr[arr > 0], 'c.')
-    plot_reward_path_lengths(median[median > 0], save_file_path, params,
+    plot_reward_path_lengths(median[median > 0], save_file_dir, params,
                              only_dots=True)
 
     V_avg = np.nanmedian(V_all, axis=0)
@@ -261,7 +184,7 @@ def run(params_all):
     # with open('/Volumes/ssrde-home/run2/TDlambdaXsteps_best_sub_fits.p', 'rb') as f:
     #     params_all = pickle.load(f)
 
-    MAX_LENGTH = 31000
+    MAX_LENGTH = 310000
     N_BOUTS_TO_GENERATE = 1
 
     # Import the model class you are interested in
@@ -337,10 +260,10 @@ if __name__ == '__main__':
     #     for beta in [10, 50]:
     #         for lamda in [0.2, 0.4]:
     #             param_sets.append([alpha, beta, 0.89, lamda])
-    param_sets = dict([(i, [0.1, 3, 0.89, 0.7]) for i in range(10)])
+    param_sets = dict([(i, [0.3, 3, 0.89, 0.3]) for i in range(10)])
     # param_sets = dict([(0, [0.1, 3, 0.89, 0.7]), (1, [0.3, 3, 0.89, 0.3])])
-    # run(param_sets)
+    run(param_sets)
 
     # load episodes file if you want to analyse prev run data
-    save_file_dir = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=31000/1"
-    load_multiple(save_file_dir)
+    # save_file_dir = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=31000"
+    # load_multiple(save_file_dir)
