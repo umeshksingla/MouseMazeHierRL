@@ -26,6 +26,7 @@ if module_path not in sys.path:
 from TDLambdaXStepsPrevNode_model import TDLambdaXStepsPrevNodeRewardReceived
 from plot_utils import plot_trajectory, plot_maze_stats
 from parameters import HomeNode, RewardNode, InvalidState, WaterPortNode
+import evaluation_metrics as em
 
 
 def get_reward_times(episodes_mouse):
@@ -57,9 +58,12 @@ def plot_visits(visit_home_node, visit_reward_node, save_file_path, title_params
     return
 
 
-def plot_reward_path_lengths(time_reward_node, save_file_path, title_params, only_dots=False):
+def plot_reward_path_lengths(time_reward_node, save_file_path, title_params, dots=True):
     # print("time_reward_node", time_reward_node)
-    plt.plot(time_reward_node, 'b-', label='Steps to reward')
+    if dots:
+        plt.plot(time_reward_node, 'b.', label='Steps to reward')
+    else:
+        plt.plot(time_reward_node, 'b-', label='Steps to reward')
     plt.legend()
     plt.title(f'alpha, beta, gamma, lambda = {title_params}')
     plt.xlabel("reward")
@@ -68,9 +72,6 @@ def plot_reward_path_lengths(time_reward_node, save_file_path, title_params, onl
     # plt.show()
     plt.clf()
     plt.close()
-
-    if only_dots:
-        return
     plt.bar(range(len(time_reward_node)), time_reward_node, label='Steps to reward')
     plt.legend()
     plt.title(f'alpha, beta, gamma, lambda = {title_params}')
@@ -117,10 +118,11 @@ def analyse_episodes(model, episodes_mouse, save_file_path, params):
     title_params = [round(p, 3) for p in params]
 
     visit_home_node, visit_reward_node, time_reward_node = get_reward_times(episodes_mouse)
-
+    new_end_nodes_found = em.exploration_efficiency(episodes_mouse)
     plot_visits(visit_home_node, visit_reward_node, save_file_path, title_params)
     plot_reward_path_lengths(time_reward_node, save_file_path, title_params)
     plot_bout_lengths(episodes_mouse, save_file_path, title_params)
+    plot_exploration_efficiency(new_end_nodes_found, save_file_path, title_params)
 
     # try fitting an exp decay on reward times
     # x = np.arange(len(actual_reward_times))
@@ -167,15 +169,43 @@ def analyse_state_values(model, V, save_file_path, title_params):
     return
 
 
-def analyse_avg(model, V_all, reward_lengths_all, save_file_dir, params):
+def plot_exploration_efficiency(new_end_nodes_found, save_file_path, title_params):
+    """
+    new_end_nodes_found: dict() of how many steps -> how many distinct end nodes
+    """
+    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
+    plt.xscale('log', base=10)
+
+    plt.title(f'alpha, beta, gamma, lambda = {title_params}')
+    plt.xlabel("end nodes visited")
+    plt.ylabel("new end nodes found")
+    plt.legend()
+    plt.savefig(os.path.join(save_file_path, f'new_end_nodes_found.png'))
+
+    # plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+def analyse_avg(model, V_all, reward_lengths_all, new_end_nodes_found_all, save_file_path, params):
+    print(">>> Onto average analysis")
     median = np.nanmedian(reward_lengths_all, axis=0)
     for arr in reward_lengths_all:
         plt.plot(arr[arr > 0], 'c.')
-    plot_reward_path_lengths(median[median > 0], save_file_dir, params,
-                             only_dots=True)
+    plot_reward_path_lengths(median[median > 0], save_file_path, params, dots=False)
+
+    new_end_nodes_found_avg = dict([
+        (s, np.nanmean([new_end_nodes_found_all[agent_id][s]
+                       for agent_id in new_end_nodes_found_all]))
+        for s in new_end_nodes_found_all[0]]
+    )
+    print("new_end_nodes_found_avg", new_end_nodes_found_avg)
+    plot_exploration_efficiency(new_end_nodes_found_avg, save_file_path, params)
 
     V_avg = np.nanmedian(V_all, axis=0)
-    analyse_state_values(model, V_avg, save_file_dir, params)
+    analyse_state_values(model, V_avg, save_file_path, params)
+
     return
 
 
@@ -213,7 +243,7 @@ def run(params_all):
                                    f'episodes_{mouse}_{params.__str__()}_LL={LL}.pkl'),
                       'wb') as f:
                 pickle.dump(stats, f)
-            print(episodes_mouse)
+            # print(episodes_mouse)
             analyse_state_values(model, V, save_file_path, params)
             analyse_episodes(model, episodes_mouse, save_file_path, params)
         print(">>> Done with params!", params)
@@ -221,14 +251,15 @@ def run(params_all):
     return
 
 
-def load_multiple(save_file_dir):
+def load_multiple(save_file_path):
     model = TDLambdaXStepsPrevNodeRewardReceived()
     import glob
-    episode_files_list = glob.glob(save_file_dir + '/*_rand*/episodes*')
+    episode_files_list = glob.glob(save_file_path + '/*_rand*/episodes*')
 
     max_rewards = 200
     reward_lengths_all_matrix = np.ones((len(episode_files_list), max_rewards)) * -1
     V_all = np.ones((len(episode_files_list), model.S+1))
+    new_end_nodes_found_all = dict()
     for each in episode_files_list:
         print("Loading", each)
         match = re.search(r'episodes_(\d+)_(\[.*])_LL', each)
@@ -248,9 +279,9 @@ def load_multiple(save_file_dir):
             time_reward_node, (0, max_rewards-len(time_reward_node)),
             'constant', constant_values=-1)
         V_all[agent_id, :] = V
-        print(len(V))
+        new_end_nodes_found_all[agent_id] = em.exploration_efficiency(episodes_mouse)
 
-    analyse_avg(model, V_all, reward_lengths_all_matrix, save_file_dir, [])
+    analyse_avg(model, V_all, reward_lengths_all_matrix, new_end_nodes_found_all, save_file_path, [])
     return
 
 
@@ -260,10 +291,10 @@ if __name__ == '__main__':
     #     for beta in [10, 50]:
     #         for lamda in [0.2, 0.4]:
     #             param_sets.append([alpha, beta, 0.89, lamda])
-    param_sets = dict([(i, [0.3, 3, 0.89, 0.3]) for i in range(10)])
+    # param_sets = dict([(i, [0.1, 3, 0.89, 0.7]) for i in range(10)])
     # param_sets = dict([(0, [0.1, 3, 0.89, 0.7]), (1, [0.3, 3, 0.89, 0.3])])
-    run(param_sets)
+    # run(param_sets)
 
     # load episodes file if you want to analyse prev run data
-    # save_file_dir = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=31000"
-    # load_multiple(save_file_dir)
+    save_file_path = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=310000/2"
+    load_multiple(save_file_path)

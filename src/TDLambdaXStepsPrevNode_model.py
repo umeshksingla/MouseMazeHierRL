@@ -165,9 +165,8 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 print("current state", self.get_node_tuple_from_number(s)[1], "step", len(episode_traj))
                 print("current diff", diff)
 
-            if diff <= 0.000001:
-                print("current diff", diff)
-                print("State values have converged.")
+            if diff <= 0.0000001:
+                print("State values have converged.", "current diff", diff, "step", len(episode_traj))
                 break
             prev_sum = new_sum
 
