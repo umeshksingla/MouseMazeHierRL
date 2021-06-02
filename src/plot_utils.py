@@ -8,7 +8,8 @@ from numpy import ones
 
 from MM_Maze_Utils import *
 from parameters import HOME_NODE, RWD_NODE, FRAME_RATE, NODE_LVL
-from utils import get_node_visit_times, get_all_night_nodes_and_times, get_wp_visit_times_and_rwd_times
+from utils import get_node_visit_times, get_all_night_nodes_and_times, \
+    get_wp_visit_times_and_rwd_times, nodes2cell
 
 
 def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=None, display=True):
@@ -23,38 +24,6 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
     Plots One maze figure with plotted trajectories and a color bar indicating nodes from entry to exit
     Returns: None
     '''
-
-    def nodes2cell(state_hist_all):
-        '''
-        simulated trajectories, state_hist_all: {mouseID: [[TrajID x TrajSize]]}
-        '''
-        # print("state_hist_all", state_hist_all)
-        state_hist_cell = []
-        state_hist_xy = {}
-        ma=NewMaze(6)
-        for epID, epi in enumerate(state_hist_all):
-            cells = []
-            if not epi:
-                continue
-            for id,node in enumerate(epi):
-                if id != 0 and node != HOME_NODE:
-                    if node > epi[id-1]:
-                        # if going to a deeper node
-                        cells.extend(ma.ru[node])
-                    elif node < epi[id-1]:
-                        # if going to a shallower node
-                        reverse_path = list(reversed(ma.ru[epi[id-1]]))
-                        reverse_path = reverse_path + [ma.ru[node][-1]]
-                        cells.extend(reverse_path[1:])
-            if node==HOME_NODE:
-                home_path = list(reversed(ma.ru[0]))
-                cells.extend(home_path[1:])  # cells from node 0 to maze exit
-            state_hist_cell.append(cells)
-            state_hist_xy[epID] = np.zeros((len(cells),2))
-            state_hist_xy[epID][:,0] = ma.xc[cells] + np.random.choice([-1,1],len(ma.xc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.xc[cells]))/2
-            state_hist_xy[epID][:,1] = ma.yc[cells] + np.random.choice([-1,1],len(ma.yc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.yc[cells]))/2
-        return state_hist_cell, state_hist_xy
-    
     state_hist_cell, state_hist_xy = nodes2cell(state_hist_all)
     
     ma=NewMaze(6)
