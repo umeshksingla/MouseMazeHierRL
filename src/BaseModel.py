@@ -15,6 +15,7 @@ import pickle
 from pathlib import Path
 
 from parameters import *
+from MM_Traj_Utils import *
 
 
 class BaseModel:
@@ -24,13 +25,29 @@ class BaseModel:
         self.file_suffix = file_suffix
         self.nodemap = self.get_SAnodemap()
 
-    def extract_trajectory_data(self):
+    def extract_trajectory_data(self, orig_data_dir='../outdata/', save_dir=None):
         """
-        Extracts the required trajectory data and pickle-dumps on the disk.
+        save_dir: path to the directory where you want to save the pickled
+        data object.
         """
-        raise NotImplementedError(
-            "You need to define your own data extract function. "
-            "Base model doesn't have any.")
+        trajectory_data = []
+        for mouseId, nickname in enumerate(RewNames):
+            trajectory_data.append(self.__get_trajectory_data_by_nickname__(orig_data_dir, nickname))
+        if save_dir:
+            with open(os.path.join(save_dir, f'{self.file_suffix}.p'), 'wb') as f:
+                pickle.dump(trajectory_data, f)
+        return trajectory_data
+
+    def __get_trajectory_data_by_nickname__(self, orig_data_dir, nickname):
+        """
+        Returns ALL trajectory data for a mouse
+        """
+        print(f"Returning all the trajectories for {nickname}.")
+        tf = LoadTrajFromPath(os.path.join(orig_data_dir, nickname + '-tf'))
+        trajectory_data = []
+        for boutId, bout in enumerate(tf.no):
+            trajectory_data.append(bout[:, 0].tolist())
+        return trajectory_data
 
     @staticmethod
     def __load_trajectories__(data):

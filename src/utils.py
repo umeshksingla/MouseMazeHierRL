@@ -1,5 +1,5 @@
-from MM_Traj_Utils import add_node_times_to_tf, NewMaze
-from parameters import FRAME_RATE, RWD_NODE, HOME_NODE
+from MM_Traj_Utils import add_node_times_to_tf, NewMaze, Traj
+from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE
 import numpy as np
 
 
@@ -130,17 +130,15 @@ def nodes2cell(state_hist_all):
     '''
     simulated trajectories, state_hist_all: {mouseID: [[TrajID x TrajSize]]}
     '''
-    # print("state_hist_all", state_hist_all)
     state_hist_cell = []
     state_hist_xy = {}
     ma=NewMaze(6)
-    # state_hist_all = [epi.tolist() for epi in state_hist_all if isinstance(epi, np.ndarray)]
     for epID, epi in enumerate(state_hist_all):
         cells = []
         if not epi:
             continue
         for id,node in enumerate(epi):
-            if id != 0 and node != HOME_NODE:
+            if id != 0 and node != HOME_NODE and node != WATER_PORT_STATE:
                 if node > epi[id-1]:
                     # if going to a deeper node
                     cells.extend(ma.ru[node])
@@ -157,3 +155,20 @@ def nodes2cell(state_hist_all):
         state_hist_xy[epID][:,0] = ma.xc[cells] + np.random.choice([-1,1],len(ma.xc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.xc[cells]))/2
         state_hist_xy[epID][:,1] = ma.yc[cells] + np.random.choice([-1,1],len(ma.yc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.yc[cells]))/2
     return state_hist_cell, state_hist_xy
+
+
+def convert_episodes_to_traj_class(episodes):
+    """
+    Convert list of lists to Traj class with tf.no containing episode information.
+    At the moment, simply using the index as time. This is so that simulated episodes
+    can use some of the functions provided original authors that operate on Traj
+    class instances.
+
+    episodes: [[], [], ..]
+    Returns tf: Traj
+    """
+
+    tf = Traj(fr=None,ce=None,ke=None,no=[],re=None)
+    for e in episodes:
+        tf.no.append(np.stack([np.array(e), np.arange(len(e))], axis=1))
+    return tf

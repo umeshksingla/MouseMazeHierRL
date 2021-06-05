@@ -21,20 +21,11 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         self.X = X
         self.terminal_nodes = {HomeNode, WaterPortNode}
 
-    def extract_trajectory_data(self, orig_data_dir='../outdata/', save_dir=None):
-        """
-        save_dir: path to the directory where you want to save the pickled
-        data object.
-        """
-        trajectory_data = []
-        for mouseId, nickname in enumerate(RewNames):
-            trajectory_data.append(self.__get_trajectory_data_by_nickname__(orig_data_dir, nickname))
-        if save_dir:
-            with open(os.path.join(save_dir, f'{self.file_suffix}.p'), 'wb') as f:
-                pickle.dump(trajectory_data, f)
-        return trajectory_data
-
     def __get_trajectory_data_by_nickname__(self, orig_data_dir, nickname):
+        """
+        Returns only the last X steps before a reward as training data.
+        """
+        print(f"Returning only the last X steps before every reward for {nickname}.")
         tf = LoadTrajFromPath(os.path.join(orig_data_dir, nickname + '-tf'))
         trajectory_data = []
 
@@ -62,7 +53,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 # And append WaterPortNode at the end to denote the receipt of a reward.
                 traj = np.append(traj, WaterPortNode)
 
-                trajectory_data.append(traj)
+                trajectory_data.append(traj.tolist())
                 prev_idx = idx
         return trajectory_data
 

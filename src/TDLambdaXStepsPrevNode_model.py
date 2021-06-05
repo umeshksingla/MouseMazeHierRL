@@ -56,7 +56,10 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return action_prob
 
     def get_initial_state(self) -> int:
-        return self.get_number_from_node_tuple((HomeNode, 0))
+        from_ = np.random.randint(0, HomeNode)
+        to_ = np.random.choice([c for c in self.nodemap[from_] if c != INVALID_STATE])
+        print("from_, to_", from_, to_)
+        return self.get_number_from_node_tuple((from_, to_))
         # a=list(range(self.S))
         # a.remove(28)
         # a.remove(57)
@@ -102,15 +105,12 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         LL = 0.0
         first_reward = -1
         episode_traj = []
-        # valid_episode = False
-        # while s not in self.terminal_nodes:
-        prev_sum = np.nansum(V)
+        # prev_sum = np.nansum(V)
         while True:
             episode_traj.append(s)  # Record current state
 
             if s in self.terminal_nodes:
-                # print("entering again", s, self.get_node_tuple_from_number(s))
-                # episode_traj.append("e")
+                print("entering again", s, self.get_node_tuple_from_number(s))
                 s = self.get_initial_state()
 
             if s != self.RewardTupleState:
@@ -149,26 +149,23 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 if first_reward == -1:
                     first_reward = len(episode_traj)
                     print("First reward:", len(episode_traj))
-            #     episode_traj.append("r")
-                # valid_episode = True
 
             if len(episode_traj) > MAX_LENGTH + first_reward:
                 print('Trajectory too long. Aborting episode.')
-                # valid_episode = True
                 break
 
             s = s_next
 
-            new_sum = np.nansum(V)
-            diff = abs(prev_sum-new_sum)
+            # new_sum = np.nansum(V)
+            # diff = abs(prev_sum-new_sum)
             if len(episode_traj)%100 == 0:
                 print("current state", self.get_node_tuple_from_number(s)[1], "step", len(episode_traj))
-                print("current diff", diff)
-
-            if diff <= 0.0000001:
-                print("State values have converged.", "current diff", diff, "step", len(episode_traj))
-                break
-            prev_sum = new_sum
+            #     print("current diff", diff)
+            #
+            # if diff <= 0.0000001:
+            #     print("State values have converged.", "current diff", diff, "step", len(episode_traj))
+            #     break
+            # prev_sum = new_sum
 
         # print(episode_traj)
         maze_episode_traj = self.convert_state_traj_to_node(episode_traj)

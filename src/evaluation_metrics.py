@@ -6,10 +6,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from parameters import NODE_LVL
-from utils import nodes2cell
+from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips
+from utils import nodes2cell, convert_episodes_to_traj_class
 
 
-def exploration_efficiency(episodes):
+def exploration_efficiency_sequential(episodes):
     step = 0
     steps_taken = dict([(2**i, np.nan) for i in range(0, 15)])
     nodes_explored = defaultdict(int)
@@ -20,9 +21,32 @@ def exploration_efficiency(episodes):
                 nodes_explored[n] += 1
                 if step in steps_taken:
                     steps_taken[step] = len(nodes_explored)
+    return steps_taken
 
-    # print(nodes_explored)
-    # print(steps_taken)
+
+def exploration_efficiency(episodes):
+    leave, drink, explore = 0, 1, 2
+    ma = NewMaze(6)
+    tf = convert_episodes_to_traj_class(episodes)
+    cl = SplitModeClips(tf, ma, re=True)  # find the clips; no drink mode for unrewarded animals
+    ti = np.array([tf.no[c[0]][c[1] + c[2], 1] - tf.no[c[0]][c[1], 1] for c in cl])  # duration in frames of each clip
+    nn = np.array([np.sum(cl[np.where(cl[:, 3] == leave)][:, 2]),
+                   np.sum(cl[np.where(cl[:, 3] == drink)][:, 2]),
+                   np.sum(cl[np.where(cl[:, 3] == explore)][:, 2])])  # number of node steps in each mode
+    nf = np.array([np.sum(ti[np.where(cl[:, 3] == leave)]),
+                   np.sum(ti[np.where(cl[:, 3] == drink)]),
+                   np.sum(ti[np.where(cl[:, 3] == explore)])])  # number of frames in each mode
+    tr = np.zeros((3, 3))  # number of transitions between the 3 modes
+    for i in range(1, len(cl)):
+        tr[cl[i - 1, 3], cl[i, 3]] += 1
+    ce = cl[np.where(cl[:, 3] == explore)]  # clips of exploration
+    ne = np.concatenate([tf.no[c[0]][c[1]:c[1] + c[2], 0] for c in ce])  # nodes excluding the last state in each clip
+    le = 6  # end nodes only
+    ln = list(range(2 ** le - 1, 2 ** (le + 1) - 1))  # list of node numbers in level le
+    ns = ne[np.isin(ne, ln)]  # restricted to desired nodes
+    _, c, n = NewNodes4(ns, nf[2] / len(ns))  # compute new nodes vs all nodes for exploration mode only
+    steps_taken = dict(zip(c, n))
+    print(steps_taken)
     return steps_taken
 
 
@@ -34,18 +58,14 @@ def rotational_velocity(traj, d=3):
     entirety of a trajectory.
     Reference: William John de Cothi, 2020
     """
-    # print(traj)
-    # print(len(traj))
     angles_sum = 0.0
     for t in range(len(traj) - d):
         angles_sum += np.arctan2(
             traj[t + d][0] - traj[t][0],
             traj[t + d][1] - traj[t][1]
         )
-        # print(traj[t][0], traj[t+d][0], angles_sum)
     normalization_constant = d*(len(traj) - d) if len(traj) > d else 0.5
     vel = angles_sum/normalization_constant
-    # print(vel)
     return vel
 
 
@@ -57,15 +77,12 @@ def diffusivity(traj, d=3):
     the trajectory.
     Reference: William John de Cothi, 2020
     """
-    # print(traj)
-    # print(len(traj))
     sum = 0.0
     for t in range(len(traj) - d):
         sum += np.power(traj[t + d][0] - traj[t][0], 2) +\
                np.power(traj[t + d][1] - traj[t][1], 2)
     normalization_constant = d*(len(traj) - d) if len(traj) > d else 0.5
     value = sum/normalization_constant
-    # print(vel)
     return value
 
 
@@ -85,7 +102,6 @@ def tortuosity(traj):
         np.power(traj[-1][1]-traj[0][1], 2)
     )
     value = numerator/denominator
-    # print(vel)
     return value
 
 
