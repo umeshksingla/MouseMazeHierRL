@@ -4,11 +4,7 @@ Take only the last X steps before a reward as training data and each state is
 a combination of current node and prev node (in an attempt to include direction)
 """
 
-import numpy as np
-import pickle
-import os
-import sys
-from collections import defaultdict
+from multiprocessing import Pool
 
 from parameters import *
 from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
@@ -19,18 +15,16 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
     def __init__(self, X = 20, file_suffix='_XStepsRewardReceivedTrajectories'):
         TDLambdaXStepsRewardReceived.__init__(self, X, file_suffix)
-        self.nodes = 130
-        self.S = self.nodes * self.nodes
+        self.nodes = 129
+        self.S = (self.nodes+1) * (self.nodes+1) # +1 for invalid state
 
         self.h, self.inv_h = dict(), dict()
         self.construct_node_tuples_to_number_map()
 
-        self.terminal_nodes = {
-            self.get_number_from_node_tuple((HomeNode, InvalidState)),
-            self.get_number_from_node_tuple((RewardNode, WaterPortNode))
-        }
-
+        self.home_terminal_state = self.get_number_from_node_tuple((HomeNode, InvalidState))
+        self.reward_terminal_state = self.get_number_from_node_tuple((RewardNode, WaterPortNode))
         self.RewardTupleState = self.get_number_from_node_tuple((57, RewardNode))
+        self.terminal_nodes = {self.home_terminal_state, self.reward_terminal_state}
 
     def get_action_probabilities(self, state, beta, V):
         # Use softmax policy to select action, a at current state, s
@@ -62,7 +56,10 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return action_prob
 
     def get_initial_state(self) -> int:
-        return self.get_number_from_node_tuple((HomeNode, 0))
+        from_ = np.random.randint(0, HomeNode)
+        to_ = np.random.choice([c for c in self.nodemap[from_] if c != INVALID_STATE])
+        print("from_, to_", from_, to_)
+        return self.get_number_from_node_tuple((from_, to_))
         # a=list(range(self.S))
         # a.remove(28)
         # a.remove(57)
@@ -106,18 +103,14 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
         s = self.get_initial_state()
         LL = 0.0
+        first_reward = -1
         episode_traj = []
-        # valid_episode = False
-        # while s not in self.terminal_nodes:
+        # prev_sum = np.nansum(V)
         while True:
-            if len(episode_traj)%100 == 0:
-                print("current state", self.get_node_tuple_from_number(s)[1], "step", len(episode_traj))
-
             episode_traj.append(s)  # Record current state
 
             if s in self.terminal_nodes:
-                # print("entering again", s, self.get_node_tuple_from_number(s))
-                # episode_traj.append("e")
+                print("entering again", s, self.get_node_tuple_from_number(s))
                 s = self.get_initial_state()
 
             if s != self.RewardTupleState:
@@ -127,7 +120,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 LL += np.log(action_prob[a])
                 # print("s, s_next, a, action_prob", self.get_node_tuple_from_number(s), self.get_node_tuple_from_number(s_next), a, action_prob)
             else:
-                s_next = self.get_number_from_node_tuple((RewardNode, WaterPortNode))
+                s_next = self.reward_terminal_state
 
             R = 1 if s == self.RewardTupleState else 0   # Observe reward
 
@@ -137,11 +130,12 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             # Update state-values
             td_error = R + gamma * V[s_next] - V[s]
             e[s] += 1
-            for n in np.arange(self.S):
+            for n in np.arange(self.S+1):
                 V[n] += alpha * td_error * e[n]
                 e[n] = gamma * lamda * e[n]
 
-            # print("V[s]", s, V[s])
+            # print("V reward", V[self.RewardTupleState])
+
             if np.isnan(V[s]):
                 print('Warning invalid state-value: ', s, s_next, V[s], V[s_next], alpha, beta, gamma, R)
             elif np.isinf(V[s]):
@@ -152,15 +146,26 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
             if s == self.RewardTupleState:
                 print('Reward Reached!')
-            #     episode_traj.append("r")
-                # valid_episode = True
+                if first_reward == -1:
+                    first_reward = len(episode_traj)
+                    print("First reward:", len(episode_traj))
 
-            if len(episode_traj) > MAX_LENGTH:
+            if len(episode_traj) > MAX_LENGTH + first_reward:
                 print('Trajectory too long. Aborting episode.')
-                # valid_episode = True
                 break
 
             s = s_next
+
+            # new_sum = np.nansum(V)
+            # diff = abs(prev_sum-new_sum)
+            if len(episode_traj)%100 == 0:
+                print("current state", self.get_node_tuple_from_number(s)[1], "step", len(episode_traj))
+            #     print("current diff", diff)
+            #
+            # if diff <= 0.0000001:
+            #     print("State values have converged.", "current diff", diff, "step", len(episode_traj))
+            #     break
+            # prev_sum = new_sum
 
         # print(episode_traj)
         maze_episode_traj = self.convert_state_traj_to_node(episode_traj)
@@ -190,6 +195,72 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         # else:
         #     return False, maze_episode_traj
         return True, episodes, LL
+
+    def simulate(self, agentId, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+
+        info([">>> Simulating:", agentId, sub_fits, MAX_LENGTH, N_BOUTS_TO_GENERATE])
+
+        episode_cap = 500   # max attempts at generating a bout episode
+        success = 1
+
+        alpha = sub_fits[0]    # learning rate
+        beta = sub_fits[1]     # softmax exploration - exploitation
+        gamma = sub_fits[2]    # discount factor
+        lamda = sub_fits[3]    # eligibility trace
+
+        print("alpha, beta, gamma, lamda, agentId",
+              alpha, beta, gamma, lamda, agentId)
+
+        V = np.random.rand(self.S+1)
+        V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
+        V[self.reward_terminal_state] = 0
+
+        e = np.zeros(self.S+1)    # eligibility trace vector for all states
+
+        episodes = []
+        count_valid, count_total = 0, 1
+        LL = 0.0
+        while len(episodes) < N_BOUTS_TO_GENERATE:
+
+            # Begin generating episode
+            episode_attempt = 0
+            valid_episode = False
+            while not valid_episode and episode_attempt <= episode_cap:
+                episode_attempt += 1
+                valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
+                if valid_episode:
+                    episodes.extend(episode_traj)
+                    LL += episode_ll
+                else:   # retry
+                    raise Exception("Inside invalid episode")
+                print("===")
+            # print("=============")
+        stats = {
+            "agentId": agentId,
+            "episodes": episodes,
+            "LL": LL,
+            "MAX_LENGTH": MAX_LENGTH,
+            "count_total": count_total,
+            "V": V,
+        }
+        print(V)
+        print(len(V))
+        return success, stats
+
+    def simulate_multiple(self, sub_fits, n=1, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+        print("sub_fits", sub_fits)
+        tasks = []
+        for agentId in range(n):
+            tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
+        with Pool(4) as p:
+            simulation_results = p.starmap(self.simulate, tasks)
+        return simulation_results
+
+
+def info(title):
+    print(*title)
+    print('>>> module name:', __name__, 'parent process id:', os.getppid(),
+          'process id:', os.getpid())
 
 
 def test1():

@@ -4,11 +4,6 @@ src/__pycache__
 *.py[cod]
 .ipynb_checkpoints
 fit.pkl
-stan/Utility.py
-stan/param_recover_diag.py
-stan/stan_results
-!stan/stan_results/TD0
-stan/traj_data
 figures
 .DS_Store
 TDlambdaXsteps_stan/logs/

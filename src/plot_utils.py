@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 from numpy import ones
 
 from MM_Maze_Utils import *
-from parameters import HOME_NODE, RWD_NODE, FRAME_RATE
-from utils import get_node_visit_times, get_all_night_nodes_and_times, get_wp_visit_times_and_rwd_times
+from parameters import HOME_NODE, RWD_NODE, FRAME_RATE, NODE_LVL
+from utils import get_node_visit_times, get_all_night_nodes_and_times, \
+    get_wp_visit_times_and_rwd_times, nodes2cell
 
 
 def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=None, display=True):
@@ -23,38 +24,6 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
     Plots One maze figure with plotted trajectories and a color bar indicating nodes from entry to exit
     Returns: None
     '''
-
-    def nodes2cell(state_hist_all):
-        '''
-        simulated trajectories, state_hist_all: {mouseID: [[TrajID x TrajSize]]}
-        '''
-        # print("state_hist_all", state_hist_all)
-        state_hist_cell = []
-        state_hist_xy = {}
-        ma=NewMaze(6)
-        for epID, epi in enumerate(state_hist_all):
-            cells = []
-            if not epi:
-                continue
-            for id,node in enumerate(epi):
-                if id != 0 and node != HOME_NODE:
-                    if node > epi[id-1]:
-                        # if going to a deeper node
-                        cells.extend(ma.ru[node])
-                    elif node < epi[id-1]:
-                        # if going to a shallower node
-                        reverse_path = list(reversed(ma.ru[epi[id-1]]))
-                        reverse_path = reverse_path + [ma.ru[node][-1]]
-                        cells.extend(reverse_path[1:])
-            if node==HOME_NODE:
-                home_path = list(reversed(ma.ru[0]))
-                cells.extend(home_path[1:])  # cells from node 0 to maze exit
-            state_hist_cell.append(cells)
-            state_hist_xy[epID] = np.zeros((len(cells),2))
-            state_hist_xy[epID][:,0] = ma.xc[cells] + np.random.choice([-1,1],len(ma.xc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.xc[cells]))/2
-            state_hist_xy[epID][:,1] = ma.yc[cells] + np.random.choice([-1,1],len(ma.yc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.yc[cells]))/2
-        return state_hist_cell, state_hist_xy
-    
     state_hist_cell, state_hist_xy = nodes2cell(state_hist_all)
     
     ma=NewMaze(6)
@@ -121,41 +90,6 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
     cbar.set_ticklabels(['Entry','Exit'])
     cbar.ax.tick_params(labelsize=18)
     fig.suptitle(figtitle)
-    fig = plt.gcf()
-    if save_file_name:
-        fig.savefig(save_file_name)
-    if display:
-        plt.show()
-    return
-
-
-def plot_maze_stats(data, datatype, save_file_name=None, display=True):
-    """
-    :param data: 1 x 127 array of values (a value for all 127 nodes in the maze
-    from 0 to 126)
-    :param datatype:
-        'states': to just highlight nodes with same color, or
-        'state_values': to see the gradient in color nodes based on the state values.
-    """
-    ma = NewMaze()
-    if datatype == 'states':
-        fr,_=np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
-    if datatype == 'state_values':
-        fr = data
-    col=np.array([[0,1,1,1],[1,.8,.8,1],[2,.6,.6,1],[3,.4,.4,1]])
-    ax=PlotMazeFunction(fr,ma,mode='nodes',numcol=None,figsize=4,col=col);
-    re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
-       [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
-       [13.5,12.5,1,1],[13.5,8.5,1,1],[13.5,4.5,1,1],[13.5,0.5,1,1],
-       [10.5,-0.5,1,1],[6.5,-0.5,1,1],[2.5,-0.5,1,1],
-       [6.5,1.5,1,1],[6.5,11.5,1,1],[10.5,5.5,1,1],[10.5,7.5,1,1],
-       [5.5,4.5,1,1],[5.5,8.5,1,1],[7.5,4.5,1,1],[7.5,8.5,1,1],[2.5,5.5,1,1],[2.5,7.5,1,1],
-       [-0.5,2.5,3,1],[-0.5,10.5,3,1],[11.5,10.5,3,1],[11.5,2.5,3,1],[5.5,0.5,3,1],[5.5,12.5,3,1],
-       [7.5,6.5,7,1]]
-    for r in re:
-        rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
-        ax.add_patch(rect)
-    plt.axis('off'); # turn off the axes
     fig = plt.gcf()
     if save_file_name:
         fig.savefig(save_file_name)
@@ -254,3 +188,136 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     if init_time is not None and time_window is not None:
         plt.xlim(init_time, init_time + time_window)
     return plt.gcf(), plt.gca()
+
+
+def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, figsize=4, axes=None):
+    '''
+    Plot the maze defined in m with a function f overlaid in color
+    :param f: 1-by-128 array of state values for nodes on the maze
+    :param m: maze structure
+    :param numcol: color for the numbers. If numcol is None the numbers are omitted
+    :param figsize: in inches
+    :return: the axes of the plot with maze cells color-coded with state-values
+    '''
+
+    def nodes2cell_statevalues(f):
+        '''
+        Interpolate between node state-values to have a smoother transition of state-values across maze cells
+        :param f: 1-by-128 array of state-values
+        :return: 1-by-176 array of state-values on maze cells
+        '''
+
+        ma = NewMaze(6)
+        cells = []
+
+        for lvl in NODE_LVL:
+            for j in NODE_LVL[lvl]:
+                if j == 0:
+                    root = HOME_NODE
+                elif j % 2 == 0:
+                    root = (j - 2) // 2
+                elif j % 2 == 1:
+                    root = (j - 1) // 2
+
+                if j == 0:
+                    values = np.linspace(f[root], f[j], len(ma.ru[j]))
+                    cells.extend(values)
+                else:
+                    values = np.linspace(f[root], f[j], len(ma.ru[j]) + 1)
+                    cells.extend(values[1:])
+        return cells
+
+    def generate_colors(fgrad, colormap_name):
+        '''
+        Convert numbers in array f to a color array, col where col[0,:] = f and col[1:3, :] = RGB values corresponding to f
+        :param f_cells: array of state values for each maze cell
+        :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
+        :return: color array, col
+        '''
+        from matplotlib.colors import Normalize
+        from matplotlib.cm import ScalarMappable
+
+        cmap = plt.cm.get_cmap(colormap_name)
+        cmappable = ScalarMappable(norm=Normalize(0, 1), cmap=cmap)
+        norm = Normalize()
+        cmap_norm = cmap(norm(fgrad))[:, :-1]  # Retrieving RGB array
+        col = np.concatenate((np.reshape(fgrad, (len(fgrad), 1)), cmap_norm), axis=1)
+
+        return col, cmappable
+
+    if axes:
+        ax=axes
+        PlotMazeWall(m,axes=ax,figsize=figsize)
+    else:
+        ax=PlotMazeWall(m,axes=None,figsize=figsize)
+
+    if datatype == 'state_values':
+        f_cells = nodes2cell_statevalues(f)
+        col, cmappable = generate_colors(f_cells, colormap_name)
+
+        for j in range(len(m.xc)):
+            x = m.xc[j];
+            y = m.yc[j]
+            if not (f is None):
+                ax.add_patch(patches.Rectangle((x - 0.5, y - 0.5), 1, 1, lw=0,
+                                               color=col[j, 1:]))  # draw with color f[]
+            if numcol:
+                plt.text(x - .35, y + .15, '{:d}'.format(j), color=numcol)  # number the cells
+    elif datatype == 'states':
+        fr, _ = np.histogram(f, bins=np.arange(2 ** (m.le + 1)) - 0.5)
+        col, cmappable = generate_colors(fr, colormap_name)
+
+        for j,r in enumerate(m.ru):
+            x = m.xc[r[-1]]; y=m.yc[r[-1]]
+            if not(f is None):
+                ax.add_patch(patches.Rectangle((x-0.5,y-0.5),1,1,lw=0,
+                                           color=col[j, 1:])) # draw with color f[]
+            if numcol:
+                plt.text(x-.35,y+.15,'{:d}'.format(j),color=numcol) # number the ends of a run
+
+    return ax, cmappable
+
+
+def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True, cbar=True, figtitle=''):
+    '''
+    :param data: list of maze nodes, cells or 1-by-128 array of state-values
+    :param datatype: 'states' or 'state_values'
+    :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
+    '''
+    # ma = NewMaze()
+    # if datatype == 'states':
+        # fr,_= np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
+        # col = np.array([[0, 1, 1, 1], [1, .8, .8, 1], [2, .6, .6, 1], [3, .4, .4, 1]])
+        # ax = PlotMazeFunction(fr, ma, mode='nodes', numcol=None, col=col, axes=axes)
+
+    # if datatype == 'state_values':
+    #     ax, cmappable = PlotMazeFunction_gradientcmap(data, ma, datatype, colormap_name, axes=axes)
+    #     plt.colorbar(cmappable, shrink=0.5)  # draw the colorbar
+
+    ma = NewMaze()
+    ax, cmappable = PlotMazeFunction_gradientcmap(data, ma, datatype, colormap_name, axes=axes)
+
+    re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
+       [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
+       [13.5,12.5,1,1],[13.5,8.5,1,1],[13.5,4.5,1,1],[13.5,0.5,1,1],
+       [10.5,-0.5,1,1],[6.5,-0.5,1,1],[2.5,-0.5,1,1],
+       [6.5,1.5,1,1],[6.5,11.5,1,1],[10.5,5.5,1,1],[10.5,7.5,1,1],
+       [5.5,4.5,1,1],[5.5,8.5,1,1],[7.5,4.5,1,1],[7.5,8.5,1,1],[2.5,5.5,1,1],[2.5,7.5,1,1],
+       [-0.5,2.5,3,1],[-0.5,10.5,3,1],[11.5,10.5,3,1],[11.5,2.5,3,1],[5.5,0.5,3,1],[5.5,12.5,3,1],
+       [7.5,6.5,7,1]]
+    for r in re:
+        rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
+        ax.add_patch(rect)
+    plt.axis('off'); # turn off the axes
+
+    if cbar:
+        plt.colorbar(cmappable, shrink=0.4)
+        # plt.colorbar(cmappable, ax=[ax], location='left', shrink=0.5)  # draw the colorbar
+
+    fig = plt.gcf()
+    fig.suptitle(figtitle)
+    if save_file_name:
+        fig.savefig(save_file_name)
+    if display:
+        plt.show()
+    return ax

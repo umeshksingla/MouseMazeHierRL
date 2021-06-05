@@ -21,6 +21,10 @@ Google notebook link [here](https://docs.google.com/document/d/1FG4x-Lj7eFH-U-M5
     any params you need and call the python job basically. Pass the various
     configuration options like directory paths, log output etc here.
     Refer to `submit_stan_fit` in `<model>stan` folder.
+    Use this command to run the model: 
+    ```bash
+    $ submit_stan_fit <model>run_model.py
+    ```
     
     To simulate:
     * To simulate an agent based on the fitted parameters you got in train step,

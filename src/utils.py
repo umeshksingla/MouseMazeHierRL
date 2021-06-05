@@ -1,6 +1,7 @@
-from MM_Traj_Utils import add_node_times_to_tf
-from parameters import FRAME_RATE, RWD_NODE
+from MM_Traj_Utils import add_node_times_to_tf, NewMaze, Traj
+from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE
 import numpy as np
+
 
 def get_all_night_nodes_and_times(tf):
     """
@@ -9,6 +10,7 @@ def get_all_night_nodes_and_times(tf):
     """
     tf_new = add_node_times_to_tf(tf)
     return np.vstack(tf_new.node_times)
+
 
 def get_node_visit_times(tf, node_id):
     """
@@ -122,3 +124,51 @@ def get_SAnodemap():
     SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
 
     return SAnodemap
+
+
+def nodes2cell(state_hist_all):
+    '''
+    simulated trajectories, state_hist_all: {mouseID: [[TrajID x TrajSize]]}
+    '''
+    state_hist_cell = []
+    state_hist_xy = {}
+    ma=NewMaze(6)
+    for epID, epi in enumerate(state_hist_all):
+        cells = []
+        if not epi:
+            continue
+        for id,node in enumerate(epi):
+            if id != 0 and node != HOME_NODE and node != WATER_PORT_STATE:
+                if node > epi[id-1]:
+                    # if going to a deeper node
+                    cells.extend(ma.ru[node])
+                elif node < epi[id-1]:
+                    # if going to a shallower node
+                    reverse_path = list(reversed(ma.ru[epi[id-1]]))
+                    reverse_path = reverse_path + [ma.ru[node][-1]]
+                    cells.extend(reverse_path[1:])
+        if node==HOME_NODE:
+            home_path = list(reversed(ma.ru[0]))
+            cells.extend(home_path[1:])  # cells from node 0 to maze exit
+        state_hist_cell.append(cells)
+        state_hist_xy[epID] = np.zeros((len(cells),2))
+        state_hist_xy[epID][:,0] = ma.xc[cells] + np.random.choice([-1,1],len(ma.xc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.xc[cells]))/2
+        state_hist_xy[epID][:,1] = ma.yc[cells] + np.random.choice([-1,1],len(ma.yc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.yc[cells]))/2
+    return state_hist_cell, state_hist_xy
+
+
+def convert_episodes_to_traj_class(episodes):
+    """
+    Convert list of lists to Traj class with tf.no containing episode information.
+    At the moment, simply using the index as time. This is so that simulated episodes
+    can use some of the functions provided original authors that operate on Traj
+    class instances.
+
+    episodes: [[], [], ..]
+    Returns tf: Traj
+    """
+
+    tf = Traj(fr=None,ce=None,ke=None,no=[],re=None)
+    for e in episodes:
+        tf.no.append(np.stack([np.array(e), np.arange(len(e))], axis=1))
+    return tf

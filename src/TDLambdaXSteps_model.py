@@ -21,20 +21,11 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         self.X = X
         self.terminal_nodes = {HomeNode, WaterPortNode}
 
-    def extract_trajectory_data(self, orig_data_dir='../outdata/', save_dir=None):
-        """
-        save_dir: path to the directory where you want to save the pickled
-        data object.
-        """
-        trajectory_data = []
-        for mouseId, nickname in enumerate(RewNames):
-            trajectory_data.append(self.__get_trajectory_data_by_nickname__(orig_data_dir, nickname))
-        if save_dir:
-            with open(os.path.join(save_dir, f'{self.file_suffix}.p'), 'wb') as f:
-                pickle.dump(trajectory_data, f)
-        return trajectory_data
-
     def __get_trajectory_data_by_nickname__(self, orig_data_dir, nickname):
+        """
+        Returns only the last X steps before a reward as training data.
+        """
+        print(f"Returning only the last X steps before every reward for {nickname}.")
         tf = LoadTrajFromPath(os.path.join(orig_data_dir, nickname + '-tf'))
         trajectory_data = []
 
@@ -62,7 +53,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 # And append WaterPortNode at the end to denote the receipt of a reward.
                 traj = np.append(traj, WaterPortNode)
 
-                trajectory_data.append(traj)
+                trajectory_data.append(traj.tolist())
                 prev_idx = idx
         return trajectory_data
 
@@ -104,6 +95,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
         s = self.get_initial_state()
         episode_traj = []
+        LL = 0.0
         valid_episode = False
         while s not in self.terminal_nodes:
 
@@ -113,6 +105,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 action_prob = self.get_action_probabilities(s, beta, V)
                 a = np.random.choice(range(self.A), 1, p=action_prob)[0]  # Choose action
                 s_next = int(self.nodemap[s, a])           # Take action
+                LL += np.log(action_prob[a])
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
                 s_next = WaterPortNode
@@ -147,7 +140,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
             s = s_next
 
-        return valid_episode, [episode_traj]
+        return valid_episode, [episode_traj], LL
 
     def simulate(self, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=100):
         """
@@ -197,7 +190,6 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
             V = np.random.rand(self.S+1)  # Initialize state-action values
             V[HomeNode] = 0     # setting action-values of maze entry to 0
-            V[RewardNode] = 0   # setting action-values of reward port to 0
 
             e = np.zeros(self.S+1)    # eligibility trace vector for all states
 
