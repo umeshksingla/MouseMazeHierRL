@@ -16,11 +16,18 @@ from MM_Traj_Utils import *
 
 class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
     
+    def get_initial_state(self):
+        return 0
+    
     def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, e, c, t, N):
 
         s = self.get_initial_state()
         episode_traj = []
         valid_episode = False
+        
+        #start from the home node
+        N[HomeNode] += 1
+        t[0] += 1
         while s not in self.terminal_nodes:
 
             episode_traj.append(s)  # Record current state
@@ -65,6 +72,12 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
                 break
 
             s = s_next
+            
+        if s == HomeNode:
+            episode_traj.append(s)
+        
+        e[s] += 1
+        N[s] += 1
 
         return valid_episode, [episode_traj]
     
@@ -111,20 +124,23 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
             beta = sub_fits[mouseID][1]     # softmax exploration - exploitation
             gamma = sub_fits[mouseID][2]    # discount factor
             lamda = sub_fits[mouseID][3]    # eligibility trace
-            c = sub_fits[mouseID][4]
+            c = sub_fits[mouseID][4]        # degree of exploration
 
             print("alpha, beta, gamma, lamda, mouseID, c, nick",
                   alpha, beta, gamma, lamda, mouseID, c, RewNames[mouseID])
 
             V = np.random.rand(self.S+1)  # Initialize state-action values
+            #V = np.zeros(self.S+1)
             V[HomeNode] = 0     # setting action-values of maze entry to 0
             V[RewardNode] = 0   # setting action-values of reward port to 0
+            V[WaterPortNode] = 0
 
             e = np.zeros(self.S+1)    # eligibility trace vector for all states
             
             t = np.ones(1)
             N = np.ones(self.S+1)
 
+            valid_index = []
             episodes = []
             invalid_episodes = []
             count_valid, count_total = 0, 1
@@ -146,12 +162,14 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
                     count_total += 1
                     if valid_episode:
                         episodes.extend(episode_traj)
+                        valid_index.append(1)
                     else:   # retry
-                        V = np.copy(V_backup)   # TODO: maybe not discard invalid trajs?
-                        e = np.copy(e_backup)
-                        t = np.copy(t_backup)
-                        N = np.copy(N_backup)
+                        #V = np.copy(V_backup)   # TODO: maybe not discard invalid trajs?
+                        #e = np.copy(e_backup)
+                        #t = np.copy(t_backup)
+                        #N = np.copy(N_backup)
                         invalid_episodes.extend(episode_traj)
+                        valid_index.append(0)
                     print("===")
                 if not count_valid:
                     print('Failed to generate episodes for mouse ', mouseID)
@@ -166,6 +184,9 @@ class TDLambdaXStepsUCBRewardReceived(TDLambdaXStepsRewardReceived):
                 "count_valid": count_valid,
                 "count_total": count_total,
                 "fraction_valid": round(count_valid/count_total, 3) * 100,
+                "valid_index": np.array(valid_index),
+                "V": V.round(4),
+                "N": N.round(4)
                 # "invalid_initial_state_counts": invalid_initial_state_counts
             }
         return episodes_all_mice, invalid_episodes_all_mice, success, stats
