@@ -16,6 +16,9 @@ def info(title):
           'process id:', os.getpid())
 
 class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
+    """TD lambda model to fit trajectories starting X (parameter) steps before the reward was received
+    This agent incorporates the current and the previous node in its state representation 
+    """  # TODO: check if this description is accurate
 
     def __init__(self, X = 20, file_suffix='_XStepsRewardReceivedTrajectories'):
         TDLambdaXStepsRewardReceived.__init__(self, X, file_suffix)
@@ -239,7 +242,6 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         V = np.random.rand(self.S+1)
         V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
         V[self.reward_terminal_state] = 0
-
         et = np.zeros(self.S+1)    # eligibility trace vector for all states
 
         episodes = []
@@ -268,8 +270,8 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             "count_total": count_total,
             "V": V,
         }
-        print(V)
-        print(len(V))
+        print("V=", V)
+        print("len(V)=", len(V))
         return success, stats
 
     def simulate_multiple(self, sub_fits, n=1, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
