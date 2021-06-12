@@ -38,7 +38,7 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
        [6.5,1.5,1,1],[6.5,11.5,1,1],[10.5,5.5,1,1],[10.5,7.5,1,1],
        [5.5,4.5,1,1],[5.5,8.5,1,1],[7.5,4.5,1,1],[7.5,8.5,1,1],[2.5,5.5,1,1],[2.5,7.5,1,1],
        [-0.5,2.5,3,1],[-0.5,10.5,3,1],[11.5,10.5,3,1],[11.5,2.5,3,1],[5.5,0.5,3,1],[5.5,12.5,3,1],
-       [7.5,6.5,7,1]]
+       [7.5,6.5,7,1]]  # coordinates of gray rectangles, the inaccessible regions of the maze
     for r in re:
         rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
         ax.add_patch(rect)
@@ -63,6 +63,9 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
             # make the collection of segments
             lc = LineCollection(segs, cmap=plt.get_cmap('viridis'),linewidths=2) # jet, viridis hot
             lc.set_array(t) # color the segments by our parameter
+
+            plt.plot(points[ 0, 0, 0], points[ 0, 0, 1], "*", markersize=10, color="blue")
+            plt.plot(points[-1, 0, 0], points[-1, 0, 1], "*", markersize=10, color="yellow")
 
             # plot the collection
             lines=ax.add_collection(lc); # add the collection to the plot
@@ -194,11 +197,13 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     return plt.gcf(), plt.gca()
 
 
-def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, figsize=4, axes=None):
+def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name=None, numcol=None, figsize=4, axes=None):
     '''
     Plot the maze defined in m with a function f overlaid in color
     :param f: 1-by-128 array of state values for nodes on the maze
     :param m: maze structure
+    :param datatype: 'states' or 'state_values'
+    :param colormap_name:
     :param numcol: color for the numbers. If numcol is None the numbers are omitted
     :param figsize: in inches
     :return: the axes of the plot with maze cells color-coded with state-values
@@ -278,7 +283,6 @@ def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name, numcol=None, fi
                                            color=col[j, 1:])) # draw with color f[]
             if numcol:
                 plt.text(x-.35,y+.15,'{:d}'.format(j),color=numcol) # number the ends of a run
-
     return ax, cmappable
 
 
@@ -308,7 +312,7 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
        [6.5,1.5,1,1],[6.5,11.5,1,1],[10.5,5.5,1,1],[10.5,7.5,1,1],
        [5.5,4.5,1,1],[5.5,8.5,1,1],[7.5,4.5,1,1],[7.5,8.5,1,1],[2.5,5.5,1,1],[2.5,7.5,1,1],
        [-0.5,2.5,3,1],[-0.5,10.5,3,1],[11.5,10.5,3,1],[11.5,2.5,3,1],[5.5,0.5,3,1],[5.5,12.5,3,1],
-       [7.5,6.5,7,1]]
+       [7.5,6.5,7,1]]  # coordinates of gray rectangles, the inaccessible regions of the maze
     for r in re:
         rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
         ax.add_patch(rect)
