@@ -16,6 +16,8 @@ import random
 import numpy as np
 import re
 from multiprocessing import Pool
+from functools import reduce
+from sklearn.manifold import TSNE
 
 
 import sys
@@ -27,6 +29,7 @@ from TDLambdaXStepsPrevNode_model import TDLambdaXStepsPrevNodeRewardReceived
 from plot_utils import plot_trajectory, plot_maze_stats
 from parameters import HomeNode, RewardNode, InvalidState, WaterPortNode
 import evaluation_metrics as em
+from BaseModel import BaseModel
 
 
 def get_reward_times(episodes_mouse):
@@ -179,33 +182,98 @@ def plot_exploration_efficiency(new_end_nodes_found, save_file_path, title_param
     plt.title(f'alpha, beta, gamma, lambda = {title_params}')
     plt.xlabel("end nodes visited")
     plt.ylabel("new end nodes found")
-    plt.legend()
-    plt.savefig(os.path.join(save_file_path, f'new_end_nodes_found.png'))
+    plt.savefig(os.path.join(save_file_path, f'exp_efficiency.png'))
 
-    # plt.show()
+    plt.show()
     plt.clf()
     plt.close()
     return
 
 
-def analyse_avg(model, V_all, reward_lengths_all, new_end_nodes_found_all, save_file_path, params):
+def compare_mouse_and_simulated(real_episodes, simulated_episodes):
+
+    simulated_features = em.get_feature_vectors(simulated_episodes)
+    print("simulated_features", simulated_features.shape)
+    print(simulated_features)
+
+    mouse_features = em.get_feature_vectors(real_episodes)
+    print("mouse_features", mouse_features.shape)
+    print(mouse_features)
+
+    tsne = TSNE()
+    tsne_results = tsne.fit_transform(simulated_features)
+    plt.scatter(tsne_results[:, 0], tsne_results[:, 1], label='TDlambda')
+
+    tsne_1 = TSNE()
+    tsne_results_1 = tsne_1.fit_transform(mouse_features)
+    plt.scatter(tsne_results_1[:, 0], tsne_results_1[:, 1], label='Real mouse')
+    plt.xlabel('t-sne1')
+    plt.ylabel('t-sne2')
+
+    plt.legend()
+    plt.show()
+    plt.close()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    # ax = fig.add_subplot()
+    # f = 1
+    ax.scatter(
+        simulated_features[:, 0],
+               simulated_features[:, 1],
+        #         np.arange(len(simulated_features[:, f])),
+               simulated_features[:, 2],
+               color='r', label='TDlambda')
+    ax.scatter(
+        mouse_features[:, 0],
+               mouse_features[:, 1],
+        # np.arange(len(mouse_features[:, f])),
+               mouse_features[:, 2],
+               color='y', label='Mouse')
+    # ax.set_xlabel('episodes')
+    ax.set_xlabel('mean rotational_velocity')
+    ax.set_ylabel('mean diffusivity')
+    ax.set_zlabel('tortuosity')
+    plt.legend()
+    plt.show()
+    return
+
+
+def analyse_avg(model, V_all, reward_lengths_all, new_end_nodes_found_all, simulated_episodes, save_file_path, params):
     print(">>> Onto average analysis")
     median = np.nanmedian(reward_lengths_all, axis=0)
-    for arr in reward_lengths_all:
-        plt.plot(arr[arr > 0], 'c.')
-    plot_reward_path_lengths(median[median > 0], save_file_path, params, dots=False)
+    # for arr in reward_lengths_all:
+    #     plt.plot(arr[arr > 0], 'c.')
+    # plot_reward_path_lengths(median[median > 0], save_file_path, params, dots=False)
+    plt.clf()
+    plt.close()
 
-    new_end_nodes_found_avg = dict([
-        (s, np.nanmean([new_end_nodes_found_all[agent_id][s]
-                       for agent_id in new_end_nodes_found_all]))
-        for s in new_end_nodes_found_all[0]]
-    )
-    print("new_end_nodes_found_avg", new_end_nodes_found_avg)
+    new_end_nodes_found_avg = dict()
+    for s, l in new_end_nodes_found_all.items():
+        new_end_nodes_found_avg[s] = np.nanmean(l)
+
     plot_exploration_efficiency(new_end_nodes_found_avg, save_file_path, params)
 
-    V_avg = np.nanmedian(V_all, axis=0)
-    analyse_state_values(model, V_avg, save_file_path, params)
+    real_episodes = model.extract_trajectory_data()
+    print(len(real_episodes))
+    real_episodes = reduce(lambda x, y: x+y, real_episodes)
+    # print(len(real_episodes))
+    print(len(simulated_episodes))
+    simulated_episodes = reduce(lambda x, y: x+y, simulated_episodes)
+    # print(len(simulated_episodes)
+    # print(simulated_episodes)
+    # for r, s in zip([real_episodes], [simulated_episodes]):
+    #     print("mouse i")
+    #     compare_mouse_and_simulated([e[:model.X] for e in r], [e[:model.X] for e in s if e[-1] == RewardNode])
+        # break
 
+    # V_avg = np.nanmedian(V_all, axis=0)
+    # analyse_state_values(model, V_avg, save_file_path, params)
+    # analyse_state_values(model, V_avg, save_file_path, params)
+    # from MM_Traj_Utils import PlotMazeFunction
+    # from MM_Maze_Utils import  NewMaze
+    # ma = NewMaze()
+    # plot_maze_stats([e[:model.X] for e in simulated_episodes if e[-1] == RewardNode], 'states', plt.cm.get_cmap())
     return
 
 
@@ -214,14 +282,14 @@ def run(params_all):
     # with open('/Volumes/ssrde-home/run2/TDlambdaXsteps_best_sub_fits.p', 'rb') as f:
     #     params_all = pickle.load(f)
 
-    MAX_LENGTH = 310000
+    MAX_LENGTH = 500000
     N_BOUTS_TO_GENERATE = 1
 
     # Import the model class you are interested in
     model = TDLambdaXStepsPrevNodeRewardReceived()
     simulation_results = model.simulate_multiple(params_all,
                                                  n=len(params_all),
-                                                 MAX_LENGTH=MAX_LENGTH,
+                                                 MAX_LENGTH=MAX_LENGTH/10,
                                                  N_BOUTS_TO_GENERATE=N_BOUTS_TO_GENERATE)
     # analyse results
     for mouse, params in params_all.items():
@@ -259,29 +327,33 @@ def load_multiple(save_file_path):
     max_rewards = 200
     reward_lengths_all_matrix = np.ones((len(episode_files_list), max_rewards)) * -1
     V_all = np.ones((len(episode_files_list), model.S+1))
-    new_end_nodes_found_all = dict()
-    for each in episode_files_list:
+    new_end_nodes_found_all = defaultdict(list)
+    data = episode_files_list
+    all_episodes_agents = []
+    for each in data:
         print("Loading", each)
         match = re.search(r'episodes_(\d+)_(\[.*])_LL', each)
         print(match.groups())
         agent_id = int(match.group(1))
         params = json.loads(match.group(2))
-        print("load params", params)
+        print("agent_id", agent_id, "load params", params)
         with open(os.path.join(each), 'rb') as f:
             stats = pickle.load(f)
-        episodes_mouse = stats["episodes"]
+        episodes = stats["episodes"]
         LL = stats["LL"]
         V = stats["V"]
-        print(len(episodes_mouse))
-        visit_home_node, visit_reward_node, time_reward_node = get_reward_times(episodes_mouse)
+        print(len(episodes))
+        visit_home_node, visit_reward_node, time_reward_node = get_reward_times(episodes)
         print(">>> Number of rewards", len(time_reward_node))
         reward_lengths_all_matrix[agent_id, :] = np.pad(
             time_reward_node, (0, max_rewards-len(time_reward_node)),
             'constant', constant_values=-1)
         V_all[agent_id, :] = V
-        new_end_nodes_found_all[agent_id] = em.exploration_efficiency(episodes_mouse)
 
-    analyse_avg(model, V_all, reward_lengths_all_matrix, new_end_nodes_found_all, save_file_path, [])
+        for s, v in em.exploration_efficiency(episodes).items():
+            new_end_nodes_found_all[s].append(v)
+        all_episodes_agents.append(episodes)
+    analyse_avg(model, V_all, reward_lengths_all_matrix, new_end_nodes_found_all, all_episodes_agents, save_file_path, [])
     return
 
 

@@ -172,3 +172,19 @@ def convert_episodes_to_traj_class(episodes):
     for e in episodes:
         tf.no.append(np.stack([np.array(e), np.arange(len(e))], axis=1))
     return tf
+
+
+def convert_traj_to_episodes(tf):
+    """
+    Convert a Traj to list of lists with tf.no containing episode information.
+    At the moment, simply using the index as time. This is so that simulated episodes
+    can use some of the functions provided original authors that operate on Traj
+    class instances.
+
+    tf: Traj
+    Returns episodes: [[], [], ..]
+    """
+    episodes = []
+    for e in tf.no:
+        episodes.append(e[:, 0].tolist())
+    return episodes
