@@ -98,7 +98,8 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
     return
 
 
-def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=None, include_grid=False, separate_quadrants=True):
+def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=None, include_grid=False,
+                       separate_quadrants=True, custom_title=None):
     """
     Plot traversed nodes (y-axis) over time (x-axis) for the selected time interval
     :param tf: trajectory file
@@ -170,7 +171,7 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     plt.plot(times_to_rwd, RWD_NODE * ones(len(times_to_rwd)) - .2, linestyle='None', marker='^', label='rwd',
              markersize=10, markerfacecolor='yellow', color='red')
 
-    # plot times at home
+    # plot times at home # NOTE: apparently there is a bug in fill_betweenx function which unpredictably gives a wrong visualization sometimes
     START_IDX = 0
     END_IDX = 1
     for bout in range(len(tf.no) - 1):
@@ -180,7 +181,10 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     # TODO: use fill_betweenx to colored ribbon similar to the representing time at home, but to represent the quadrant the animal is at
 
     if include_grid: plt.grid()
-    plt.title("All night trajectory")
+    if custom_title:
+        plt.title(custom_title)
+    else:
+        plt.title("All night trajectory")
     plt.ylabel("Node number")
     plt.xlabel("Time (s)")
     plt.legend()
