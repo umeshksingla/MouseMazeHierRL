@@ -286,15 +286,11 @@ def load_multiple(save_file_path):
 
 
 if __name__ == '__main__':
-    # param_sets = []
-    # for alpha in [0.15, 0.75]:
-    #     for beta in [10, 50]:
-    #         for lamda in [0.2, 0.4]:
-    #             param_sets.append([alpha, beta, 0.89, lamda])
-    # param_sets = dict([(i, [0.1, 3, 0.89, 0.7]) for i in range(10)])
+    # UNCOMMENT THIS TO SIMULATE ONE OR MORE AGENTS
+    # # param_sets = dict([(i, [0.1, 3, 0.89, 0.7]) for i in range(10)])
     # param_sets = dict([(0, [0.1, 3, 0.89, 0.7]), (1, [0.3, 3, 0.89, 0.3])])
     # run(param_sets)
 
-    # load episodes file if you want to analyse prev run data
+    # load episodes file into the rl agent model. Used to analyse previous run data
     save_file_path = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=310000/2"
     load_multiple(save_file_path)

@@ -10,6 +10,10 @@ from parameters import *
 from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
 from MM_Traj_Utils import *
 
+def info(title):
+    print(*title)
+    print('>>> module name:', __name__, 'parent process id:', os.getppid(),
+          'process id:', os.getpid())
 
 class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
@@ -21,9 +25,9 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         self.h, self.inv_h = dict(), dict()
         self.construct_node_tuples_to_number_map()
 
-        self.home_terminal_state = self.get_number_from_node_tuple((HomeNode, InvalidState))
-        self.reward_terminal_state = self.get_number_from_node_tuple((RewardNode, WaterPortNode))
-        self.RewardTupleState = self.get_number_from_node_tuple((57, RewardNode))
+        self.home_terminal_state = self.get_number_from_node_tuple((HOME_NODE, INVALID_STATE))
+        self.reward_terminal_state = self.get_number_from_node_tuple((RWD_NODE, WATER_PORT_STATE))
+        self.RewardTupleState = self.get_number_from_node_tuple((57, RWD_NODE))
         self.terminal_nodes = {self.home_terminal_state, self.reward_terminal_state}
 
     def get_action_probabilities(self, state, beta, V):
@@ -95,6 +99,17 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                [self.get_node_tuple_from_number(l[-1])[1]]
 
     def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, e):
+        """
+
+        :param alpha:
+        :param beta:
+        :param gamma:
+        :param lamda:
+        :param MAX_LENGTH:
+        :param V:
+        :param e:
+        :return: True, episodes, LL
+        """
 
         def take_action(s: int, a: int) -> int:
             prev, curr = self.get_node_tuple_from_number(s)
@@ -197,7 +212,17 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return True, episodes, LL
 
     def simulate(self, agentId, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+        """
+        Simulate the agent.
+        Example usage: success, stats = agentObj.simulate(0, [0.3, 3, 0.89, 0.3])
 
+        :param agentId:
+        :param sub_fits: Subject fits, dictionary with agentIds as keys and value is a list of parameters that are going to be used in the model [alpha, beta, gamma, lambda]
+           I.e. {AgentId1: [alpha1, beta1, gamma1, lambda1], AgentId2: [alpha2, beta2, gamma2, lambda2]}
+        :param MAX_LENGTH:
+        :param N_BOUTS_TO_GENERATE:
+        :return: (success, stats). stats is a dict with keys "agentId", "episodes", "LL", "MAX_LENGTH", "count_total", "V" TODO: define what is success
+        """
         info([">>> Simulating:", agentId, sub_fits, MAX_LENGTH, N_BOUTS_TO_GENERATE])
 
         episode_cap = 500   # max attempts at generating a bout episode
@@ -215,7 +240,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
         V[self.reward_terminal_state] = 0
 
-        e = np.zeros(self.S+1)    # eligibility trace vector for all states
+        et = np.zeros(self.S+1)    # eligibility trace vector for all states
 
         episodes = []
         count_valid, count_total = 0, 1
@@ -227,7 +252,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             valid_episode = False
             while not valid_episode and episode_attempt <= episode_cap:
                 episode_attempt += 1
-                valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, e)
+                valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, et)
                 if valid_episode:
                     episodes.extend(episode_traj)
                     LL += episode_ll
@@ -248,19 +273,19 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return success, stats
 
     def simulate_multiple(self, sub_fits, n=1, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+        """
+        This function calls `simulate` in multiple processes
+        :param sub_fits: Subject fits, dictionary with agentIds as keys and value is a list of parameters that are going to be used in the model [alpha, beta, gamma, lambda].
+           I.e. {AgentId: [alpha, beta, gamma, lambda]}
+        Example usage: success, stats = agentObj.simulate_multiple(dict([(0, [0.3, 3, 0.89, 0.3])]))
+        """
         print("sub_fits", sub_fits)
         tasks = []
-        for agentId in range(n):
+        for agentId in sub_fits:
             tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
-        with Pool(4) as p:
+        with Pool(4) as p:  # running in parallel in 4 processes
             simulation_results = p.starmap(self.simulate, tasks)
         return simulation_results
-
-
-def info(title):
-    print(*title)
-    print('>>> module name:', __name__, 'parent process id:', os.getppid(),
-          'process id:', os.getpid())
 
 
 def test1():
