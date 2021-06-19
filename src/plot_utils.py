@@ -98,7 +98,7 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
         fig.savefig(save_file_name)
     if display:
         plt.show()
-    return
+    return fig
 
 
 def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=None, include_grid=False,
@@ -286,10 +286,11 @@ def PlotMazeFunction_gradientcmap(f, m, datatype, colormap_name=None, numcol=Non
     return ax, cmappable
 
 
-def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True, cbar=True, figtitle=''):
+def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True,
+                    cbar=True, colorbar_label="", figtitle=''):
     '''
     :param data: list of maze nodes, cells or 1-by-128 array of state-values
-    :param datatype: 'states' or 'state_values'
+    :param datatype (str): e.g. 'states' or 'state_values'
     :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
     '''
     # ma = NewMaze()
@@ -319,7 +320,7 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
     plt.axis('off'); # turn off the axes
 
     if cbar:
-        plt.colorbar(cmappable, shrink=0.4)
+        plt.colorbar(cmappable, shrink=0.4, label=colorbar_label)
         # plt.colorbar(cmappable, ax=[ax], location='left', shrink=0.5)  # draw the colorbar
 
     fig = plt.gcf()
