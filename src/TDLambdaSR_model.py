@@ -10,7 +10,7 @@ from BaseModel import BaseModel
 import os
 import numpy as np
 
-from parameters import RWD_NODE, WATER_PORT_STATE, lvl6_nodes, HOME_NODE
+from parameters import RWD_NODE, WATER_PORT_STATE, HOME_NODE, LVL_6_NODES
 from plot_utils import plot_trajectory, plot_maze_stats
 
 
@@ -36,7 +36,7 @@ class TDLambdaSR(BaseModel):
         :param V:
         :return: list of action_probabilities for three possible actions [return to shallower node, lower_idx_node, higher_idx_node]
         """
-        if state in lvl6_nodes:
+        if state in LVL_6_NODES:
             action_prob = [1, 0, 0]  # return is the only possible action at the end node
         else:  # this part implements softmax
             betaV = [np.exp(beta * V[int(future_state)]) for future_state in self.nodemap[state, :]]
@@ -80,7 +80,6 @@ class TDLambdaSR(BaseModel):
         s = self.get_initial_state()
         episode_traj = [s]  # initialize episode trajectory list with the initial state
         value_hist = [V]
-        print(V)
         LL = 0.0
 
         while s not in self.terminal_nodes and len(episode_traj) < max_length:
