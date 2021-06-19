@@ -7,12 +7,12 @@ UnrewNamesSub=['B5','B6','B7','D3','D4','D5','D7','D8','D9'] # excluding D6 whic
 
 RWD_NODE = 116
 HOME_NODE = 127
-INVALID_STATE = -1
 WATER_PORT_STATE = 128
+INVALID_STATE = -1
 FRAME_RATE = 30  # Hz
 
-
-# Parameters to transition out of
+# DEPRECATED: Parameters to transition out of
+# PLEASE PREFER USING THE UPPERCASE ONES
 HomeNode = HOME_NODE
 RewardNode = RWD_NODE
 InvalidState = INVALID_STATE

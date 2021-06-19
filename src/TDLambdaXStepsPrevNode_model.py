@@ -63,7 +63,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return action_prob
 
     def get_initial_state(self) -> int:
-        from_ = np.random.randint(0, HomeNode)
+        from_ = np.random.randint(0, HOME_NODE)
         to_ = np.random.choice([c for c in self.nodemap[from_] if c != INVALID_STATE])
         print("from_, to_", from_, to_)
         return self.get_number_from_node_tuple((from_, to_))
@@ -115,6 +115,13 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         """
 
         def take_action(s: int, a: int) -> int:
+            """
+            Function that returns the next state when given the current state and the action taken.
+            This function also takes care of the (prev, curr) state representation
+            :param s: state where the agent is at
+            :param a: action taken
+            :return s_: state at next time step
+            """
             prev, curr = self.get_node_tuple_from_number(s)
             s_ = self.get_number_from_node_tuple((curr, self.nodemap[curr, a]))
             return s_

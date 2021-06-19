@@ -1,26 +1,27 @@
 """
 Use this base class to define your model: from extracting data to loading states
 and actions, to simulating agents, etc.
-This is supposed to be only provide a skeleton, feel free to override any
+This is only supposed to provide a skeleton, feel free to override any
 function.
 
 For an example, refer to TDLambdaXSteps_model.py file that inherits from
 this class. Refer to TDlambda20.ipynb for an example usage.
 """
 
-import abc
 import os
 import numpy as np
 import pickle
-from pathlib import Path
 
-from parameters import *
-from MM_Traj_Utils import *
+from MM_Traj_Utils import LoadTrajFromPath
+from parameters import INVALID_STATE, WATER_PORT_STATE, RWD_NODE, RewNames, HOME_NODE, NODE_LVL
 
 
 class BaseModel:
     def __init__(self, file_suffix='BaseModel'):
-        self.S = 129  # Number of states, including WaterPortState
+        """
+        :param file_suffix: name used for saving model in a file #TODO: check if this description is correct
+        """
+        self.S = 129  # Number of states, including waterport state
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
         self.nodemap = self.get_SAnodemap()
@@ -57,7 +58,7 @@ class BaseModel:
         B = max([len(n) for n in data])
         BL = max([len(b) for n in data for b in n])
 
-        TrajS = np.ones((N, B, BL)) * InvalidState
+        TrajS = np.ones((N, B, BL)) * INVALID_STATE
 
         # over mouse
         for n in np.arange(len(data)):
@@ -87,7 +88,7 @@ class BaseModel:
         for n in np.arange(N):
             for b in np.arange(B):
                 for bl in np.arange(BL - 1):
-                    if TrajS[n, b, bl + 1] == InvalidState or TrajS[n, b, bl + 1] == WaterPortNode:
+                    if TrajS[n, b, bl + 1] == INVALID_STATE or TrajS[n, b, bl + 1] == WATER_PORT_STATE:
                         break
                     TrajA[n, b, bl] = np.where(
                         nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
@@ -96,16 +97,17 @@ class BaseModel:
 
     def get_SAnodemap(self):
         """
-        Creates a mapping based on the maze layout where current states are
-        linked to the next 3 future states.
+        Creates a mapping based on the maze layout where current states and actions
+        are linked to the 3 possible future states (the states that would be the result
+        of taking action A in state S).
 
-        Returns: SAnodemap, a 2D array of current state to future state mappings
+        Returns: SAnodemap, a 2D array of (current state, action) to future state mappings
                  Also saves SAnodemap in the main_dir as 'nodemap.p'
-        Return type: ndarray[(S, A), int]
+        Return type: ndarray[(S, A), int], the int is the next state after taking action A in state S
         """
         SAnodemap = np.ones((self.S, self.A), dtype=int) * INVALID_STATE
         for node in np.arange(self.S - 1):
-            # Shallow level node available from current node
+            # Shallow level node available from current node is accessed via action 0
             if node % 2 == 0:
                 SAnodemap[node, 0] = (node - 2) / 2
             elif node % 2 == 1:
