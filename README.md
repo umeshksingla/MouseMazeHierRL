@@ -12,11 +12,11 @@ Google notebook link [here](https://docs.google.com/document/d/1FG4x-Lj7eFH-U-M5
     * Stan File: Add your stan model file with name `<model>.stan` to this directory.
     * Python model class file: Add a model class with name `<model>model.py`.
 
-    To train:
+    To train model parameters in stan:
     * Add the python code to initialize your model class, call its various 
     functions such as extract traj data, get model configuration like number of states, 
     etc as relevant and call the stan script. Also, save your stan results. 
-    Refer to `<model>run_model.py` for an example.
+    Refer to `<model>stan/<model>run_model.py` for an example.
     * Add the bash script to run your job on ssrde server. Initialize
     any params you need and call the python job basically. Pass the various
     configuration options like directory paths, log output etc here.
