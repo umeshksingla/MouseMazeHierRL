@@ -104,8 +104,8 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return action_prob
 
     def get_initial_state(self) -> int:
-        from_ = np.random.randint(0, HOME_NODE)
-        to_ = np.random.choice([c for c in self.nodemap[from_] if c != INVALID_STATE])
+        from_ = np.random.randint(0, HomeNode)
+        to_ = np.random.choice([c for c in self.nodemap[from_] if c not in [INVALID_STATE, RWD_NODE, WATER_PORT_STATE]])
         print("from_, to_", from_, to_)
         return self.get_number_from_node_tuple((from_, to_))
         # a=list(range(self.S))
