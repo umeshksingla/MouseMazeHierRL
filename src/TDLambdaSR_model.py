@@ -1,7 +1,10 @@
 """
 TDLambdaSR model:
 Successor representation RL agent learned with TD-lambda
-#### WORK IN PROGRESS - THIS IS NOT USING S.R. YET ####
+#### WORK IN PROGRESS - THIS IS NOT WORKING YET ####
+TODO:
+* When it is implemented, I expect to see the gradient arise immediately after receiving the
+  first reward, and then just increase in magnitude
 """
 
 from multiprocessing import Pool
@@ -9,8 +12,9 @@ from multiprocessing import Pool
 from BaseModel import BaseModel
 import os
 import numpy as np
+from numpy import arange
 
-from parameters import RWD_NODE, WATER_PORT_STATE, HOME_NODE, LVL_6_NODES
+from parameters import RWD_NODE, WATER_PORT_STATE, HOME_NODE, LVL_6_NODES, ALL_MAZE_NODES, INVALID_STATE
 from plot_utils import plot_trajectory, plot_maze_stats
 
 
@@ -27,6 +31,20 @@ class TDLambdaSR(BaseModel):
     def __init__(self):
         super().__init__(self)
         self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
+        self.T = self.get_transition_matrix()
+
+    def get_transition_matrix(self):
+        n_states=len(ALL_MAZE_NODES)
+        T = np.zeros((n_states, n_states))
+        for state in arange(n_states):
+            mask_valid_next_states = np.logical_and(np.logical_and(self.nodemap[state] != INVALID_STATE, \
+                                                                   self.nodemap[state] != WATER_PORT_STATE), \
+                                                    self.nodemap[state] != HOME_NODE)
+            n_possibilities = float(sum(mask_valid_next_states))
+
+            for next_state in self.nodemap[state][mask_valid_next_states]:
+                T[state, next_state] = float(1 / n_possibilities)
+        return T
 
     def get_action_probabilities(self, state, beta, V):
         """
@@ -76,11 +94,14 @@ class TDLambdaSR(BaseModel):
         :param V (ndarray): state values
         :return: valid_episode, episode_traj, LL
         """
-        et = np.zeros(self.S + 1)  # eligibility trace vector for all states
+        et = np.zeros(self.S)  # eligibility trace vector for all states
         s = self.get_initial_state()
         episode_traj = [s]  # initialize episode trajectory list with the initial state
         value_hist = [V]
         LL = 0.0
+        M = np.linalg.inv(np.eye(self.S - 2) - gamma * self.T)  # S-2, bc I'm not using waterport nor homenode states
+        tau = .1
+        rwd = np.zeros(self.S)
 
         while s not in self.terminal_nodes and len(episode_traj) < max_length:
 
@@ -89,22 +110,21 @@ class TDLambdaSR(BaseModel):
                 a = np.random.choice(range(self.A), p=action_prob)  # Choose action
                 s_next = int(self.nodemap[s, a])           # Take action
                 LL += np.log(action_prob[a])
+                R = 0 # No reward
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
                 s_next = WATER_PORT_STATE
+                R = 1 # Observe reward
+                rwd[RWD_NODE] = 0 # reset the periodic drive to go to waterport
 
             episode_traj.append(s_next)  # Record next state
-            R = 1 if s == RWD_NODE else 0  # Observe reward
 
             # Update state-values
-            td_error = R + gamma * V[s_next] - V[s]
-            et[s] += 1
-            for node in np.arange(self.S):
-                V[node] += alpha * td_error * et[node]
-                et[node] = gamma * lamda * et[node]
+            rwd[RWD_NODE] = rwd[RWD_NODE] + tau*(1 - rwd[RWD_NODE])
+            V = np.pad(M @ rwd[:-2], 1)  # TODO: check if I should really pad this
             value_hist.append(V)
 
-            # print("V[s]", s, V[s])
+            # TODO: When would these happen? Add explanation
             if np.isnan(V[s]):
                 print('Warning invalid state-value: ', s, s_next, V[s], V[s_next], alpha, beta, gamma, R)
             elif np.isinf(V[s]):
@@ -114,9 +134,9 @@ class TDLambdaSR(BaseModel):
                 V[s] = np.sign(V[s]) * 1e5
 
             if s_next == WATER_PORT_STATE:
-                print('Reward reached. Recording episode.')
+                print('Reward reached.')
             elif s_next==HOME_NODE:
-                print('Home reached. Recording episode.')
+                print('Home reached.')
 
             s = s_next
 
@@ -126,7 +146,7 @@ class TDLambdaSR(BaseModel):
             print('Trajectory too long. Episode was aborted.')
             valid_episode = False
 
-        return valid_episode, episode_traj, value_hist, LL  # TODO: CHECK ABOUT VALIDITY OF EPISODE
+        return valid_episode, episode_traj, value_hist, LL
 
 
     def simulate(self, agent_id, agent_params, max_length=200, n_bouts_to_generate=1, debug=False):
@@ -141,7 +161,7 @@ class TDLambdaSR(BaseModel):
         :param n_bouts_to_generate: number of episodes to be generated. Default=1
         :return: (success, stats).
             stats is a dict with keys "agentId", "episodes", "LL", "MAX_LENGTH", "count_total", "V"
-            TODO: define what is success
+            success is currently always set to 1 TODO: why is that even here? Remove it? Or else improve this.
         """
         if debug:
             info([">>> Simulating:", agent_id, agent_params, max_length, n_bouts_to_generate])
@@ -157,17 +177,14 @@ class TDLambdaSR(BaseModel):
         if debug:
             print("alpha %.1f, beta %.1f, gamma %.2f, lambda %.1f, agentId %.0f" % (alpha, beta, gamma, lamda, agent_id))
 
-        V = np.zeros(self.S+1)  # initialize all state values at zero
-        # V[HOME_NODE] = 0     # setting action-values of maze entry to 0
-        # V[RWD_NODE] = 0
+        V = np.zeros(self.S)  # initialize all state values at zero
 
         episodes_trajs = []
         episodes_value_hists = []
         count_valid, count_total = 0, 1
         LL = 0.0
         while len(episodes_trajs) < n_bouts_to_generate:  # while haven't generated enough valid episodes
-            if debug:
-                print(len(episodes_trajs))
+            if debug: print(len(episodes_trajs))
             # Back-up a copy of state-values to use in case the next episode has to be discarded
             V_backup = np.copy(V)
 
@@ -176,9 +193,9 @@ class TDLambdaSR(BaseModel):
             valid_episode = False
             while not valid_episode:
                 episode_attempt += 1
-                if debug: print("= Start of episode generation attempt %d =" % episode_attempt)
+                if debug: print("  Start of episode generation attempt %d =" % episode_attempt)
                 valid_episode, episode_traj, value_hist, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, max_length, V)
-                if debug: print("= End of episode generation attempt %d =" % episode_attempt)
+                if debug: print("  End of episode generation attempt %d =" % episode_attempt)
                 if valid_episode:
                     episodes_trajs.append(episode_traj)
                     episodes_value_hists.append(value_hist)
@@ -220,10 +237,10 @@ class TDLambdaSR(BaseModel):
 
 if __name__ == '__main__':
     agnt = TDLambdaSR()
-    success, stats = agnt.simulate(0, [0.3, 3, 0.89, 0.3], max_length=2000, n_bouts_to_generate=15, debug=True)
+    success, stats = agnt.simulate(0, [0.3, 3, 0.89, 0.8], max_length=2000, n_bouts_to_generate=15, debug=True)
     plot_trajectory([stats["episodes"][0]], 'all')
 
-    episode_i=3
+    episode_i=8
     trial=0
     plot_maze_stats(stats["value_hists"][episode_i][trial], 'state_values', colorbar_label="state value V",
                     figtitle=f"Values at trial {trial} of episode {episode_i}")
