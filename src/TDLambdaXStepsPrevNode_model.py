@@ -33,7 +33,45 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         self.RewardTupleState = self.get_number_from_node_tuple((57, RWD_NODE))
         self.terminal_nodes = {self.home_terminal_state, self.reward_terminal_state}
 
-    def get_action_probabilities(self, state, beta, V):
+    def add_LoS(self, s, running_episode_traj, action_prob):
+        """
+        If at level 5, check if it came from opposite level 5 or level 3
+        If it came from level 3, then the nodes in direct line-of-sight is 80%
+        more probable. Otherwise, no change.
+        """
+        if len(running_episode_traj) < 3:
+            return action_prob
+
+        node_tuple = self.get_node_tuple_from_number(s)
+        current_node = node_tuple[1]
+        # print("LoS", s, node_tuple, current_node)
+
+        updated_action_prob = action_prob.copy()
+        if current_node in NODE_LVL[5]:
+            node_2_step_before = self.get_node_tuple_from_number(running_episode_traj[-3])[1]
+            # print("node_2_step_before", node_2_step_before, running_episode_traj[-5:])
+            if node_2_step_before in NODE_LVL[3]:   # apply LoS
+                # (lv*2+2)*2+1, (lv*2+2)*2+2 for right
+                # (lv*2+1)*2+1, (lv*2+1)*2+2 for left
+                # get direction
+                if (node_2_step_before*2+2)*2+1 == current_node or (node_2_step_before*2+2)*2+2 == current_node:
+                    los_action = 2
+                    non_los_action = 1
+                elif (node_2_step_before*2+1)*2+1 == current_node or (node_2_step_before*2+1)*2+2 == current_node:
+                    los_action = 1
+                    non_los_action = 2
+                else:
+                    raise Exception("Invalid node.")
+
+                updated_action_prob[0] = 0.0
+                updated_action_prob[los_action] = 0.8
+                updated_action_prob[non_los_action] = 0.2
+                print("Applied", node_2_step_before, node_tuple, action_prob, updated_action_prob)
+                assert np.isclose(sum(action_prob), sum(updated_action_prob))
+
+        return updated_action_prob
+
+    def get_action_probabilities(self, state, beta, V, episode_traj):
         # Use softmax policy to select action, a at current state, s
 
         curr = self.get_node_tuple_from_number(state)[1]
@@ -51,6 +89,9 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 else:
                     action_prob.append(betaV[action] / np.nansum(betaV))
 
+            updated_action_prob = self.add_LoS(state, episode_traj, action_prob)
+            action_prob = updated_action_prob
+
             # Check for invalid probabilities
             for i in action_prob:
                 if np.isnan(i):
@@ -63,8 +104,8 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return action_prob
 
     def get_initial_state(self) -> int:
-        from_ = np.random.randint(0, HOME_NODE)
-        to_ = np.random.choice([c for c in self.nodemap[from_] if c != INVALID_STATE])
+        from_ = np.random.randint(0, HomeNode)
+        to_ = np.random.choice([c for c in self.nodemap[from_] if c not in [INVALID_STATE, RWD_NODE, WATER_PORT_STATE]])
         print("from_, to_", from_, to_)
         return self.get_number_from_node_tuple((from_, to_))
         # a=list(range(self.S))
@@ -126,6 +167,11 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             s_ = self.get_number_from_node_tuple((curr, self.nodemap[curr, a]))
             return s_
 
+        def choose_action(s, beta, V, episode_traj):
+            action_prob = self.get_action_probabilities(s, beta, V, episode_traj)
+            action = np.random.choice(range(self.A), 1, p=action_prob)[0]
+            return action, action_prob[action]
+
         s = self.get_initial_state()
         LL = 0.0
         first_reward = -1
@@ -139,10 +185,9 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 s = self.get_initial_state()
 
             if s != self.RewardTupleState:
-                action_prob = self.get_action_probabilities(s, beta, V)
-                a = np.random.choice(range(self.A), 1, p=action_prob)[0]    # Choose action
+                a, a_prob = choose_action(s, beta, V, episode_traj)  # Choose action
                 s_next = take_action(s, a)  # Take action
-                LL += np.log(action_prob[a])
+                LL += np.log(a_prob)    # Update log likelihood
                 # print("s, s_next, a, action_prob", self.get_node_tuple_from_number(s), self.get_node_tuple_from_number(s_next), a, action_prob)
             else:
                 s_next = self.reward_terminal_state
@@ -246,7 +291,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         print("alpha, beta, gamma, lamda, agentId",
               alpha, beta, gamma, lamda, agentId)
 
-        V = np.random.rand(self.S+1)
+        V = np.ones(self.S+1) * 0.1
         V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
         V[self.reward_terminal_state] = 0
         et = np.zeros(self.S+1)    # eligibility trace vector for all states

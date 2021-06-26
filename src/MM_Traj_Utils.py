@@ -39,6 +39,23 @@ def add_node_times_to_tf(tf):
             tf.node_times[bout][step][1] = float(tf.no[bout][step][1] + bout_init_fr)/float(FRAME_RATE)
     return tf
 
+
+def add_node_times_to_tf_re(tf):
+    """
+    Adds a field `re_times` to tf with the time of reward gain, in place of the frame that was present at `tf.re`.
+    `tf.re_times` has nodes numbers and start times within the bout; list of (n_visited_nodes,2) ndarrays, one ndarray for each bout
+    """
+    tf.re_times = list()
+    n_bouts = len(tf.no)
+    for bout in range(n_bouts):
+        bout_init_fr = tf.fr[bout,0]
+        n_steps = len(tf.re[bout])
+        tf.re_times.append(tf.re[bout].astype('float'))
+        for step in range(n_steps):
+            tf.re_times[bout][step][1] = float(tf.re[bout][step][1] + bout_init_fr)/float(FRAME_RATE)
+    return tf
+
+
 def TestTrajModule():
 	return 'OK'
 

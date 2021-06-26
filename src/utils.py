@@ -1,4 +1,4 @@
-from MM_Traj_Utils import add_node_times_to_tf, NewMaze, Traj
+from MM_Traj_Utils import add_node_times_to_tf, add_node_times_to_tf_re, NewMaze, Traj
 from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE
 import numpy as np
 
@@ -6,10 +6,19 @@ import numpy as np
 def get_all_night_nodes_and_times(tf):
     """
     Get the nodes the animal visited across all night and the corresponding times
-    :returns: ndarray (n_nodes_traversed, 2) nodes and the time the animal was there
+    :returns: ndarray (n_nodes_traversed, 2) nodes and the time instant the animal was there
     """
     tf_new = add_node_times_to_tf(tf)
     return np.vstack(tf_new.node_times)
+
+
+def get_re_nodes_and_times(tf):
+    """
+    Get the nodes the animal visited across all night and the corresponding times
+    :returns: ndarray (n_nodes_traversed, 2) nodes and the time instant the animal was there
+    """
+    tf_new = add_node_times_to_tf_re(tf)
+    return np.vstack(tf_new.re_times)
 
 
 def get_node_visit_times(tf, node_id):
