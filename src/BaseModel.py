@@ -21,7 +21,7 @@ class BaseModel:
         """
         :param file_suffix: name used for saving model in a file #TODO: check if this description is correct
         """
-        self.S = 129  # Number of states, including waterport state
+        self.S = 129  # Number of states, including 127 nodes plus home and waterport states
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
         self.nodemap = self.get_SAnodemap()
@@ -101,13 +101,16 @@ class BaseModel:
         are linked to the 3 possible future states (the states that would be the result
         of taking action A in state S).
 
+        Action 0 returns to a shallower node, action 1 goes to deeper node with smaller index,
+        and action 2 goes to deeper node with higher index. Actions 1 and 2 *do not* map to left and right.
+
         Returns: SAnodemap, a 2D array of (current state, action) to future state mappings
                  Also saves SAnodemap in the main_dir as 'nodemap.p'
         Return type: ndarray[(S, A), int], the int is the next state after taking action A in state S
         """
         SAnodemap = np.ones((self.S, self.A), dtype=int) * INVALID_STATE
         for node in np.arange(self.S - 1):
-            # Shallow level node available from current node is accessed via action 0
+            # Shallow level node available from current node is accessed via action 0 (i.e. action 0 is the return)
             if node % 2 == 0:
                 SAnodemap[node, 0] = (node - 2) / 2
             elif node % 2 == 1:
@@ -116,7 +119,7 @@ class BaseModel:
                 SAnodemap[node, 0] = HOME_NODE
 
             if node not in NODE_LVL[6]:
-                # Deeper level nodes available from current node
+                # Deeper level nodes available from current node are accessed via action 1 and 2
                 SAnodemap[node, 1] = node * 2 + 1
                 SAnodemap[node, 2] = node * 2 + 2
 
@@ -129,6 +132,9 @@ class BaseModel:
         SAnodemap[WATER_PORT_STATE, 0] = INVALID_STATE
         SAnodemap[WATER_PORT_STATE, 1] = INVALID_STATE
         SAnodemap[WATER_PORT_STATE, 2] = INVALID_STATE
+
+        # Arbitrarily set action 1 to lead to waterport,
+        # but agent automatically goes from RWD_NODE to WATER_PORT_NODE without any action
         SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
         return SAnodemap
 
