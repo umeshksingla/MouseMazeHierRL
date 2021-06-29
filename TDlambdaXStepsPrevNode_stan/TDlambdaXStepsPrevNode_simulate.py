@@ -277,7 +277,7 @@ def analyse_avg(model, V_all, reward_lengths_all, new_end_nodes_found_all, simul
     return
 
 
-def run(params_all):
+def run(param_sets):
     # Load the parameters fitted by stan for each mouse
     # with open('/Volumes/ssrde-home/run2/TDlambdaXsteps_best_sub_fits.p', 'rb') as f:
     #     params_all = pickle.load(f)
@@ -287,12 +287,12 @@ def run(params_all):
 
     # Import the model class you are interested in
     model = TDLambdaXStepsPrevNodeRewardReceived()
-    simulation_results = model.simulate_multiple(params_all,
-                                                 n=len(params_all),
+    simulation_results = model.simulate_multiple(param_sets,
+                                                 n=len(param_sets),
                                                  MAX_LENGTH=MAX_LENGTH/10,
                                                  N_BOUTS_TO_GENERATE=N_BOUTS_TO_GENERATE)
     # analyse results
-    for mouse, params in params_all.items():
+    for mouse, params in param_sets.items():
         print("params:", params)
         save_file_path = f'/Users/usingla/mouse-maze/figs/' \
                          f'TDLambdaXStepsPrevNodeRewardReceived/' \
