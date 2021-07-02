@@ -197,3 +197,44 @@ def convert_traj_to_episodes(tf):
     for e in tf.no:
         episodes.append(e[:, 0].tolist())
     return episodes
+
+
+def break_simulated_traj_into_episodes(maze_episode_traj):
+    """
+    Break the simulated trajectory list at either home node or reward node
+    and return the list of episodes
+    param maze_episode_traj: list of nodes
+    returns:
+    episodes: list of lists (of nodes)
+    """
+    episodes = []
+    epi = []
+    for i in maze_episode_traj:
+        if i == HOME_NODE:
+            epi.append(i)
+            if len(epi) > 2:
+                episodes.append(epi)
+            epi = []
+        elif i == WATER_PORT_STATE:
+            # epi.append(i)
+            if len(epi) > 2:
+                episodes.append(epi)
+            epi = []
+        # elif i == WATER_PORT_STATE:
+        #     continue
+        else:
+            epi.append(i)
+    if epi:
+        episodes.append(epi)
+    return episodes
+
+
+def get_reward_times(episodes):
+    visit_reward_node = []
+    time_reward_node = []
+    for i, traj in enumerate(episodes):
+        if traj.count(RWD_NODE):
+            visit_reward_node.append(i)
+            time_reward_node.append(len(traj))
+    return visit_reward_node, time_reward_node
+

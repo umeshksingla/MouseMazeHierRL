@@ -11,6 +11,7 @@ this class. Refer to TDlambda20.ipynb for an example usage.
 import os
 import numpy as np
 import pickle
+from multiprocessing import Pool
 
 from MM_Traj_Utils import LoadTrajFromPath
 from parameters import INVALID_STATE, WATER_PORT_STATE, RWD_NODE, RewNames, HOME_NODE, NODE_LVL
@@ -25,6 +26,17 @@ class BaseModel:
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
         self.nodemap = self.get_SAnodemap()
+        self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
+
+    def get_initial_state(self):
+        a=list(range(self.S))
+        a.remove(28)
+        a.remove(57)
+        a.remove(115)
+        a.remove(HOME_NODE)
+        a.remove(RWD_NODE)
+        a.remove(WATER_PORT_STATE)
+        return np.random.choice(a)    # Random initial state
 
     def extract_trajectory_data(self, orig_data_dir='../outdata/', save_dir=None):
         """
@@ -138,11 +150,73 @@ class BaseModel:
         SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
         return SAnodemap
 
-    def simulate(self, sub_fits):
+    def get_action_probabilities(self, state, beta, V):
+        raise NotImplementedError(
+            "You need to define your own get_action_probabilities function."
+            " Base model doesn't have any.")
+
+    def is_valid_prob(self, action_prob):
+        """
+        Check for invalid action probability set
+        """
+        for i in action_prob:
+            if np.isnan(i):
+                raise Exception(f'Invalid action probabilities {action_prob}')
+        if np.sum(action_prob) < 0.999:
+            raise Exception(f'Invalid action probabilities, failed summing to 1: {action_prob}')
+
+    def take_action(self, s: int, a: int) -> int:
+        return int(self.nodemap[s, a])
+
+    def choose_action(self, s, beta, V, *args, **kwargs):
+        action_prob = self.get_action_probabilities(s, beta, V)
+        action = np.random.choice(range(self.A), 1, p=action_prob)[0]
+        return action, action_prob[action]
+
+    def is_valid_state_value(self, v):
+        if np.isnan(v):
+            raise Exception(f'Warning invalid state-value: {v}')
+        elif np.isinf(v):
+            raise Exception(f'Warning infinite state-value: {v}')
+        elif abs(v) >= 1e5:
+            print('Warning state value exceeded upper bound. Might approach infinity.')
+            v = np.sign(v) * 1e5
+            return v
+        return v
+
+    def simulate(self, agentId, sub_fits):
         """
         Simulate the agent with given set of parameters sub_fits.
         """
         raise NotImplementedError(
             "You need to define your own simulate function."
             " Base model doesn't have any.")
+
+    def simulate_multiple(self, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+        """
+        This function calls `simulate` in multiple processes
+        :param sub_fits:
+            Subject fits, dictionary with agentIds as keys and value is a dict
+            of parameters that are going to be used in the model
+            for example 0: {"alpha": 0.1, "gamma": 0.9, "epsilon": 0.5}.
+           i.e. {AgentId: {"alpha": 0.1, "gamma": 0.9, "epsilon": 0.5}}
+        Example usage:
+            success, stats = agentObj.simulate_multiple({0: {"alpha": 0.1, "gamma": 0.9, "epsilson": 0.5}})
+        """
+        print("sub_fits", sub_fits)
+        tasks = []
+        for agentId in sub_fits:
+            tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
+        with Pool(4) as p:  # running in parallel in 4 processes
+            simulation_results = p.starmap(self.simulate, tasks)
+        return simulation_results
+
+    def get_maze_state_values(self, V):
+        """
+        Get state values to plot against the nodes on the maze
+        """
+        raise NotImplementedError(
+            "You need to define your own state_values function. Base model "
+            "doesn't have any.If your states are the maze nodes, then it could"
+            " just be as simple as `return V`.")
 

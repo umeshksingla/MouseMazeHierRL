@@ -4,16 +4,16 @@ Take only the last X steps before a reward as training data and each state is
 a combination of current node and prev node (in an attempt to include direction)
 """
 
-from multiprocessing import Pool
-
 from parameters import *
 from TDLambdaXSteps_model import TDLambdaXStepsRewardReceived
 from MM_Traj_Utils import *
+
 
 def info(title):
     print(*title)
     print('>>> module name:', __name__, 'parent process id:', os.getppid(),
           'process id:', os.getpid())
+
 
 class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
     """TD lambda model to fit trajectories starting X (parameter) steps before the reward was received
@@ -66,16 +66,19 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
                 updated_action_prob[0] = 0.0
                 updated_action_prob[los_action] = 0.8
                 updated_action_prob[non_los_action] = 0.2
-                print("Applied", node_2_step_before, node_tuple, action_prob, updated_action_prob)
+                print("LoS Applied", node_2_step_before, node_tuple, action_prob, updated_action_prob)
                 assert np.isclose(sum(action_prob), sum(updated_action_prob))
 
         return updated_action_prob
 
-    def get_action_probabilities(self, state, beta, V, episode_traj):
+    def get_action_probabilities(self, state, beta, V, episode_traj=None, *args, **kwargs):
         # Use softmax policy to select action, a at current state, s
 
+        if episode_traj is None:
+            episode_traj = []
+
         curr = self.get_node_tuple_from_number(state)[1]
-        if curr in lvl6_nodes:
+        if curr in LVL_6_NODES:
             action_prob = [1, 0, 0]
         else:
             betaV = [np.exp(beta * V[self.get_number_from_node_tuple((curr, val))])
@@ -116,9 +119,6 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         # return np.random.choice(a)    # Random initial state
 
     def construct_node_tuples_to_number_map(self):
-        """
-        Transition i->j
-        """
         c = 0
         for i in range(-1, self.nodes):
             for j in range(-1, self.nodes):
@@ -142,51 +142,40 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         return [self.get_node_tuple_from_number(n)[0] for n in l] +\
                [self.get_node_tuple_from_number(l[-1])[1]]
 
-    def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, e):
+    def take_action(self, s: int, a: int) -> int:
         """
-
-        :param alpha:
-        :param beta:
-        :param gamma:
-        :param lamda:
-        :param MAX_LENGTH:
-        :param V:
-        :param e:
-        :return: True, episodes, LL
+        Function that returns the next state when given the current state and the action taken.
+        This function also takes care of the (prev, curr) state representation
+        :param s: state where the agent is at
+        :param a: action taken
+        :return s_: state at next time step
         """
+        prev, curr = self.get_node_tuple_from_number(s)
+        s_ = self.get_number_from_node_tuple((curr, self.nodemap[curr, a]))
+        return s_
 
-        def take_action(s: int, a: int) -> int:
-            """
-            Function that returns the next state when given the current state and the action taken.
-            This function also takes care of the (prev, curr) state representation
-            :param s: state where the agent is at
-            :param a: action taken
-            :return s_: state at next time step
-            """
-            prev, curr = self.get_node_tuple_from_number(s)
-            s_ = self.get_number_from_node_tuple((curr, self.nodemap[curr, a]))
-            return s_
+    def choose_action(self, s, beta, V, episode_traj):
+        action_prob = self.get_action_probabilities(s, beta, V, episode_traj)
+        action = np.random.choice(range(self.A), 1, p=action_prob)[0]
+        return action, action_prob[action]
 
-        def choose_action(s, beta, V, episode_traj):
-            action_prob = self.get_action_probabilities(s, beta, V, episode_traj)
-            action = np.random.choice(range(self.A), 1, p=action_prob)[0]
-            return action, action_prob[action]
-
+    def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V):
         s = self.get_initial_state()
         LL = 0.0
         first_reward = -1
         episode_traj = []
-        # prev_sum = np.nansum(V)
+        e = np.zeros(self.S)
         while True:
             episode_traj.append(s)  # Record current state
 
             if s in self.terminal_nodes:
                 print("entering again", s, self.get_node_tuple_from_number(s))
                 s = self.get_initial_state()
+                e = np.zeros(self.S)
 
             if s != self.RewardTupleState:
-                a, a_prob = choose_action(s, beta, V, episode_traj)  # Choose action
-                s_next = take_action(s, a)  # Take action
+                a, a_prob = self.choose_action(s, beta, V, episode_traj)  # Choose action
+                s_next = self.take_action(s, a)  # Take action
                 LL += np.log(a_prob)    # Update log likelihood
                 # print("s, s_next, a, action_prob", self.get_node_tuple_from_number(s), self.get_node_tuple_from_number(s_next), a, action_prob)
             else:
@@ -206,13 +195,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
             # print("V reward", V[self.RewardTupleState])
 
-            if np.isnan(V[s]):
-                print('Warning invalid state-value: ', s, s_next, V[s], V[s_next], alpha, beta, gamma, R)
-            elif np.isinf(V[s]):
-                print('Warning infinite state-value: ', V)
-            elif abs(V[s]) >= 1e5:
-                print('Warning state value exceeded upper bound. Might approach infinity.')
-                V[s] = np.sign(V[s]) * 1e5
+            V[s] = self.is_valid_state_value(V[s])
 
             if s == self.RewardTupleState:
                 print('Reward Reached!')
@@ -266,80 +249,63 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         #     return False, maze_episode_traj
         return True, episodes, LL
 
-    def simulate(self, agentId, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+    def simulate(self, agentId, params, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
         """
-        Simulate the agent.
-        Example usage: success, stats = agentObj.simulate(0, [0.3, 3, 0.89, 0.3])
-
-        :param agentId:
-        :param sub_fits: Subject fits, dictionary with agentIds as keys and value is a list of parameters that are going to be used in the model [alpha, beta, gamma, lambda]
-           I.e. {AgentId1: [alpha1, beta1, gamma1, lambda1], AgentId2: [alpha2, beta2, gamma2, lambda2]}
-        :param MAX_LENGTH:
-        :param N_BOUTS_TO_GENERATE:
-        :return: (success, stats). stats is a dict with keys "agentId", "episodes", "LL", "MAX_LENGTH", "count_total", "V" TODO: define what is success
+        Check base class for doc string.
         """
-        info([">>> Simulating:", agentId, sub_fits, MAX_LENGTH, N_BOUTS_TO_GENERATE])
+        info([">>> Simulating:", agentId, params, MAX_LENGTH, N_BOUTS_TO_GENERATE])
 
-        episode_cap = 500   # max attempts at generating a bout episode
         success = 1
 
-        alpha = sub_fits[0]    # learning rate
-        beta = sub_fits[1]     # softmax exploration - exploitation
-        gamma = sub_fits[2]    # discount factor
-        lamda = sub_fits[3]    # eligibility trace
+        alpha = params["alpha"]     # learning rate
+        beta = params["beta"]       # softmax exploration - exploitation
+        gamma = params["gamma"]     # discount factor
+        lamda = params["lamda"]     # eligibility trace
 
         print("alpha, beta, gamma, lamda, agentId",
               alpha, beta, gamma, lamda, agentId)
 
-        V = np.ones(self.S+1) * 0.1
+        V = np.zeros(self.S+1)
         V[self.home_terminal_state] = 0     # setting action-values of maze entry to 0
         V[self.reward_terminal_state] = 0
-        et = np.zeros(self.S+1)    # eligibility trace vector for all states
 
-        episodes = []
-        count_valid, count_total = 0, 1
+        all_episodes = []
         LL = 0.0
-        while len(episodes) < N_BOUTS_TO_GENERATE:
+        while len(all_episodes) < N_BOUTS_TO_GENERATE:
+            # Begin generating a bout
+            _, episodes, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V)
+            all_episodes.extend(episodes)
+            LL += episode_ll
 
-            # Begin generating episode
-            episode_attempt = 0
-            valid_episode = False
-            while not valid_episode and episode_attempt <= episode_cap:
-                episode_attempt += 1
-                valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, et)
-                if valid_episode:
-                    episodes.extend(episode_traj)
-                    LL += episode_ll
-                else:   # retry
-                    raise Exception("Inside invalid episode")
-                print("===")
-            # print("=============")
         stats = {
             "agentId": agentId,
-            "episodes": episodes,
+            "episodes": all_episodes,
             "LL": LL,
             "MAX_LENGTH": MAX_LENGTH,
-            "count_total": count_total,
+            "count_total": len(all_episodes),
             "V": V,
         }
         print("V=", V)
         print("len(V)=", len(V))
         return success, stats
 
-    def simulate_multiple(self, sub_fits, n=1, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+    def get_maze_state_values(self, V):
         """
-        This function calls `simulate` in multiple processes
-        :param sub_fits: Subject fits, dictionary with agentIds as keys and value is a list of parameters that are going to be used in the model [alpha, beta, gamma, lambda].
-           I.e. {AgentId: [alpha, beta, gamma, lambda]}
-        Example usage: success, stats = agentObj.simulate_multiple(dict([(0, [0.3, 3, 0.89, 0.3])]))
+        Get state values to plot against the nodes on the maze
         """
-        print("sub_fits", sub_fits)
-        tasks = []
-        for agentId in sub_fits:
-            tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
-        with Pool(4) as p:  # running in parallel in 4 processes
-            simulation_results = p.starmap(self.simulate, tasks)
-        return simulation_results
+        state_values = np.zeros(128)
+        for n in range(128):
+            possible_states = self.nodemap[n, :]
+            print(n, possible_states)
+            possible_states = list(filter(
+                lambda
+                    p: p != INVALID_STATE and p != WATER_PORT_STATE and p != HOME_NODE,
+                possible_states))
+            pos_state_values = [V[self.get_number_from_node_tuple((p, n))] for
+                                p in possible_states]
+            print(n, possible_states, pos_state_values)
+            state_values[n] = np.nanmean(pos_state_values)
+        return state_values
 
 
 def test1():
