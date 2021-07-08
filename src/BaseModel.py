@@ -123,7 +123,7 @@ class BaseModel:
                 SAnodemap[node, 1] = node * 2 + 1
                 SAnodemap[node, 2] = node * 2 + 2
 
-        # Nodes available from entry point
+        # Nodes available from home node
         SAnodemap[HOME_NODE, 0] = INVALID_STATE
         SAnodemap[HOME_NODE, 1] = 0
         SAnodemap[HOME_NODE, 2] = INVALID_STATE
