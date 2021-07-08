@@ -150,6 +150,9 @@ class BaseModel:
         SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
         return SAnodemap
 
+    def get_valid_actions(self, state):
+        return [i for i, s in enumerate(self.nodemap[state, :]) if s != INVALID_STATE]
+
     def get_action_probabilities(self, state, beta, V):
         raise NotImplementedError(
             "You need to define your own get_action_probabilities function."
@@ -203,9 +206,9 @@ class BaseModel:
         Example usage:
             success, stats = agentObj.simulate_multiple({0: {"alpha": 0.1, "gamma": 0.9, "epsilson": 0.5}})
         """
-        print("sub_fits", sub_fits)
         tasks = []
         for agentId in sub_fits:
+            print("agentId", agentId, sub_fits[agentId])
             tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
         with Pool(4) as p:  # running in parallel in 4 processes
             simulation_results = p.starmap(self.simulate, tasks)
