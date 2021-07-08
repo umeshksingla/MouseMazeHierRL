@@ -11,6 +11,13 @@ from utils import nodes2cell, convert_episodes_to_traj_class
 
 
 def exploration_efficiency_sequential(episodes):
+    """
+    Counts total and distinct end nodes
+
+    See also `exploration_efficiency` for implementation as was used in Rosenberg et al. (2021).
+    :param episodes:
+    :return:
+    """
     step = 0
     steps_taken = dict([(2**i, np.nan) for i in range(0, 15)])
     nodes_explored = defaultdict(int)
@@ -25,6 +32,11 @@ def exploration_efficiency_sequential(episodes):
 
 
 def exploration_efficiency(episodes):
+    """
+    Averages new and distinct nodes over various window sizes. Based on method from Rosenberg et al. (2021).
+    :param episodes:
+    :return:
+    """
     leave, drink, explore = 0, 1, 2
     ma = NewMaze(6)
     tf = convert_episodes_to_traj_class(episodes)
@@ -106,6 +118,7 @@ def tortuosity(traj):
 
 
 def get_feature_vectors(episodes):
+    """Rotational velocity, diffusivity and tortuosity"""
     _, xy_trajectories = nodes2cell(episodes)
     trajs = list(xy_trajectories.values())
     trajs = list(filter(lambda t: len(t) >= 4, trajs))
