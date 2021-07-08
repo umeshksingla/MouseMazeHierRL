@@ -1,7 +1,8 @@
 from MM_Traj_Utils import add_node_times_to_tf, add_node_times_to_tf_re, NewMaze, Traj
-from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE
+from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE, ALL_MAZE_NODES
 import numpy as np
 
+from collections import defaultdict
 
 def get_all_night_nodes_and_times(tf):
     """
@@ -197,3 +198,70 @@ def convert_traj_to_episodes(tf):
     for e in tf.no:
         episodes.append(e[:, 0].tolist())
     return episodes
+
+
+def break_simulated_traj_into_episodes(maze_episode_traj):
+    """
+    Break the simulated trajectory list at either home node or reward node
+    and return the list of episodes
+    param maze_episode_traj: list of nodes
+    returns:
+    episodes: list of lists (of nodes)
+    """
+    episodes = []
+    epi = []
+    counts = defaultdict(int)
+    for i in maze_episode_traj:
+        if i == HOME_NODE:
+            epi.append(i)
+            if len(epi) > 2:
+                episodes.append(epi)
+            epi = []
+            counts[HOME_NODE] += 1
+        elif i == WATER_PORT_STATE:
+            # epi.append(i)
+            if len(epi) > 2:
+                episodes.append(epi)
+            epi = []
+            counts[WATER_PORT_STATE] += 1
+        # elif i == WATER_PORT_STATE:
+        #     continue
+        else:
+            epi.append(i)
+    if epi:
+        episodes.append(epi)
+    assert WATER_PORT_STATE not in counts
+    print("Home and WP node visit counts in simulated episodes:", counts)
+    return episodes
+
+
+def get_reward_times(episodes):
+    """
+    Steps taken to reach the reward which is assumed to be the last node of an
+    episode
+
+    TODO: refactor this to accommodate continuous agent OR use original author's
+    implementation
+    """
+    visit_reward_node = []
+    time_reward_node = []
+    for i, traj in enumerate(episodes):
+        if traj.count(RWD_NODE):
+            visit_reward_node.append(i)
+            time_reward_node.append(len(traj))
+    return visit_reward_node, time_reward_node
+
+
+def calculate_visit_frequency(episodes):
+    """
+    episodes: [[], [], ...]
+
+    Returns a 127-length list of number of times each node was visited in all the
+    input episodes
+    """
+    node_visit_freq = np.zeros(len(ALL_MAZE_NODES)+1)
+    for each in episodes:
+        for node in each:
+            node_visit_freq[node] += 1
+    return node_visit_freq
+

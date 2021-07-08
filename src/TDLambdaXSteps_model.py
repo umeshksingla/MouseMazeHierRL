@@ -11,20 +11,19 @@ from collections import defaultdict
 
 from BaseModel import BaseModel
 from MM_Traj_Utils import LoadTrajFromPath
-from parameters import HOME_NODE, WATER_PORT_STATE, lvl6_nodes, RWD_NODE, RewNames
+from parameters import HOME_NODE, WATER_PORT_STATE, LVL_6_NODES, RWD_NODE, RewNames
+from utils import break_simulated_traj_into_episodes
 
 
 class TDLambdaXStepsRewardReceived(BaseModel):
 
     def __init__(self, X = 20, file_suffix='_XStepsRewardReceivedTrajectories'):
         """
-
         :param X (int): number of steps before the reward was consumed at the waterport
         :param file_suffix:  # TODO explain what this argument is for
         """
         BaseModel.__init__(self, file_suffix)
         self.X = X
-        self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
 
     def __get_trajectory_data_by_nickname__(self, orig_data_dir, nickname):
         """
@@ -68,9 +67,9 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         :param state:
         :param beta:
         :param V:
-        :return: list of action_probabilities for three possible actions []  #TODO specify which action is which
+        :return: list of action_probabilities for three possible actions []
         """
-        if state in lvl6_nodes:
+        if state in LVL_6_NODES:
             action_prob = [1, 0, 0]
         else:
             betaV = [np.exp(beta * V[int(future_state)]) for future_state in self.nodemap[state, :]]
@@ -94,14 +93,6 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
         return action_prob
 
-    def get_initial_state(self):
-        a=list(range(self.S))
-        a.remove(28)
-        a.remove(57)
-        a.remove(115)
-        a.remove(RWD_NODE)
-        return np.random.choice(a)    # Random initial state
-
     def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, et):
         """
 
@@ -112,22 +103,25 @@ class TDLambdaXStepsRewardReceived(BaseModel):
         :param MAX_LENGTH:
         :param V:
         :param et:
-        :return: valid_episode, [episode_traj], LL
+        :return: valid_episode, episodes, LL
         """
 
         s = self.get_initial_state()
         episode_traj = []
         LL = 0.0
-        valid_episode = False
-        while s not in self.terminal_nodes:
+        first_reward = -1
+        while True:
 
             episode_traj.append(s)  # Record current state
 
+            if s in self.terminal_nodes:
+                print(f"reached {s}, entering again")
+                s = self.get_initial_state()
+
             if s != RWD_NODE:
-                action_prob = self.get_action_probabilities(s, beta, V)
-                a = np.random.choice(range(self.A), 1, p=action_prob)[0]  # Choose action
-                s_next = int(self.nodemap[s, a])           # Take action
-                LL += np.log(action_prob[a])
+                a, a_prob = self.choose_action(s, beta, V)  # Choose action
+                s_next = self.take_action(s, a)  # Take action
+                LL += np.log(a_prob)    # Update log likelihood
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
                 s_next = WATER_PORT_STATE
@@ -136,125 +130,84 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
             # Update state-values
             td_error = R + gamma * V[s_next] - V[s]
-            et[s] += 1
+            # et[s] += 1
             for node in np.arange(self.S):
                 V[node] += alpha * td_error * et[node]
-                et[node] = gamma * lamda * et[node]
+                # et[node] = gamma * lamda * et[node]
 
-            # print("V[s]", s, V[s])
-            if np.isnan(V[s]):
-                print('Warning invalid state-value: ', s, s_next, V[s], V[s_next], alpha, beta, gamma, R)
-            elif np.isinf(V[s]):
-                print('Warning infinite state-value: ', V)
-            elif abs(V[s]) >= 1e5:
-                print('Warning state value exceeded upper bound. Might approach infinity.')
-                V[s] = np.sign(V[s]) * 1e5
+            V[s] = self.is_valid_state_value(V[s])
 
             if s == RWD_NODE:
-                # print('Reward Reached. Recording episode.')
-                valid_episode = True
-                break
+                print('Reward Reached!')
+                if first_reward == -1:
+                    first_reward = len(episode_traj)
+                    print("First reward:", len(episode_traj))
 
-            if len(episode_traj) > MAX_LENGTH:
-                # print('Trajectory too long. Aborting episode.')
-                valid_episode = False
+            if len(episode_traj) > MAX_LENGTH + first_reward:
+                print('Trajectory too long. Aborting episode.')
                 break
 
             s = s_next
 
-        return valid_episode, [episode_traj], LL
+            if len(episode_traj)%100 == 0:
+                print("current state", s, "step", len(episode_traj))
 
-    def simulate(self, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=100):
+        episodes = break_simulated_traj_into_episodes(episode_traj)
+        return True, episodes, LL
+
+    def simulate(self, agentId, sub_fits, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
         """
         Model predictions (sample predicted trajectories) using fitted parameters sub_fits.
         You can use this to generate simulated data for parameter recovery as well.
 
+        agentId:
+            any agent identifier
         sub_fits: 
             dictionary of fitted parameters and log likelihood for each mouse. 
             {0:[alpha_fit, beta_fit, gamma_fit, lambda_fit, LL], 1:[]...}
         MAX_LENGTH:
-            max length of an episode to simulate
+            max length of a trajectory to simulate
         N_BOUTS_TO_GENERATE:
             number of bout episodes to generate
 
         Returns:
-        episodes_all_mice:
-            dictionary of trajectories simulated by a model using fitted 
-            parameters for specified mice. e.g. {0:[0,1,3..], 1:[]..}
-        invalid_episodes_all_mice:
-            dictionary of trajectories simulated by a model using fitted
-            parameters for specified mice. e.g. {0:[0,1,3..], 1:[]..}
-            where they didn't reach the reward in even MAX_LENGTH steps
         success:
             int. either 0 or 1 to flag when the model fails to generate
             trajectories adhering to certain bounds: fitted parameters, 
             number of episodes, trajectory length, etc.
         stats:
-            dict. some stats on generated traj
+            dict. some stats on generated traj along with episodes
         """
 
-        stats = {}
-        episodes_all_mice = defaultdict(dict)
-        invalid_episodes_all_mice = defaultdict(dict)
-        loglikelihoods = defaultdict(int)
-        episode_cap = 500   # max attempts at generating a bout episode
         success = 1
 
-        for mouseID in sub_fits:
+        alpha = sub_fits[0]    # learning rate
+        beta = sub_fits[1]     # softmax exploration - exploitation
+        gamma = sub_fits[2]    # discount factor
+        lamda = sub_fits[3]    # eligibility trace
 
-            alpha = sub_fits[mouseID][0]    # learning rate
-            beta = sub_fits[mouseID][1]     # softmax exploration - exploitation
-            gamma = sub_fits[mouseID][2]    # discount factor
-            lamda = sub_fits[mouseID][3]    # eligibility trace
+        print("alpha, beta, gamma, lamda, agentId",
+              alpha, beta, gamma, lamda, agentId)
 
-            print("alpha, beta, gamma, lamda, mouseID, nick",
-                  alpha, beta, gamma, lamda, mouseID, RewNames[mouseID])
+        V = np.random.rand(self.S+1)  # Initialize state values
+        V[HOME_NODE] = 0     # setting state-value of maze entry to 0
+        V[WATER_PORT_STATE] = 0
+        et = np.zeros(self.S+1)    # eligibility trace vector for all states
 
-            V = np.random.rand(self.S+1)  # Initialize state-action values
-            V[HOME_NODE] = 0     # setting action-values of maze entry to 0
+        all_episodes = []
+        LL = 0.0
+        while len(all_episodes) < N_BOUTS_TO_GENERATE:
+            # Begin generating a bout
+            _, episodes, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, et)
+            all_episodes.extend(episodes)
+            LL += episode_ll
 
-            et = np.zeros(self.S+1)    # eligibility trace vector for all states
-
-            episodes = []
-            invalid_episodes = []
-            count_valid, count_total = 0, 1
-            LL = 0.0
-            while len(episodes) < N_BOUTS_TO_GENERATE:
-
-                # Back-up a copy of state-values to use in case the next episode has to be discarded
-                V_backup = np.copy(V)
-                e_backup = np.copy(et)
-
-                # Begin generating episode
-                episode_attempt = 0
-                valid_episode = False
-                while not valid_episode and episode_attempt <= episode_cap:
-                    episode_attempt += 1
-                    valid_episode, episode_traj, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, MAX_LENGTH, V, et)
-                    count_valid += int(valid_episode)
-                    count_total += 1
-                    if valid_episode:
-                        episodes.extend(episode_traj)
-                        LL += episode_ll
-                    else:   # retry
-                        V = np.copy(V_backup)   # TODO: maybe not discard invalid trajs?
-                        et = np.copy(e_backup)
-                        invalid_episodes.append(episode_traj)
-                    print("===")
-                if not count_valid:
-                    print('Failed to generate episodes for mouse ', mouseID)
-                    success = 0
-                    break
-                # print("=============")
-            episodes_all_mice[mouseID] = episodes
-            loglikelihoods[mouseID] = LL
-            invalid_episodes_all_mice[mouseID] = invalid_episodes
-            stats[mouseID] = {
-                "mouse": RewNames[mouseID],
-                "MAX_LENGTH": MAX_LENGTH,
-                "count_valid": count_valid,
-                "count_total": count_total,
-                "fraction_valid": round(count_valid/count_total, 3) * 100,
-                # "invalid_initial_state_counts": invalid_initial_state_counts
-            }
-        return episodes_all_mice, invalid_episodes_all_mice, loglikelihoods, success, stats
+        stats = {
+            "agentId": agentId,
+            "episodes": all_episodes,
+            "LL": LL,
+            "MAX_LENGTH": MAX_LENGTH,
+            "count_total": len(all_episodes),
+            "V": V,
+        }
+        return success, stats

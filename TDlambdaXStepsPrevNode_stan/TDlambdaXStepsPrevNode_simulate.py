@@ -26,119 +26,16 @@ if module_path not in sys.path:
     sys.path.append(module_path)
 
 from TDLambdaXStepsPrevNode_model import TDLambdaXStepsPrevNodeRewardReceived
-from plot_utils import plot_trajectory, plot_maze_stats
+from plot_utils import plot_maze_stats, plot_trajs, plot_reward_path_lengths, plot_episode_lengths, plot_exploration_efficiency
 from parameters import HomeNode, RewardNode, InvalidState, WaterPortNode
 import evaluation_metrics as em
-from BaseModel import BaseModel
-
-
-def get_reward_times(episodes_mouse):
-    visit_home_node = []
-    visit_reward_node = []
-    time_reward_node = []
-    for i, traj in enumerate(episodes_mouse):
-        # print(i, ":", traj[:5], '...', traj[-5:])
-        if traj.count(HomeNode):
-            visit_home_node.append(i)
-        if traj.count(RewardNode):
-            visit_reward_node.append(i)
-            time_reward_node.append(len(traj))
-    return visit_home_node, visit_reward_node, time_reward_node
-
-
-def plot_visits(visit_home_node, visit_reward_node, save_file_path, title_params):
-    # print("visit_home_node", visit_home_node)
-    plt.plot(visit_home_node, [1]*len(visit_home_node), 'y.', label='home')
-    # print("visit_reward_node", visit_reward_node)
-    plt.plot(visit_reward_node, [2]*len(visit_reward_node), 'b.', label='reward')
-    plt.legend()
-    plt.title(f'alpha, beta, gamma, lambda = {title_params}')
-    plt.xlabel("time")
-    plt.savefig(os.path.join(save_file_path, f'home_and_reward_visits.png'))
-    # plt.show()
-    plt.clf()
-    plt.close()
-    return
-
-
-def plot_reward_path_lengths(time_reward_node, save_file_path, title_params, dots=True):
-    # print("time_reward_node", time_reward_node)
-    if dots:
-        plt.plot(time_reward_node, 'b.', label='Steps to reward')
-    else:
-        plt.plot(time_reward_node, 'b-', label='Steps to reward')
-    plt.legend()
-    plt.title(f'alpha, beta, gamma, lambda = {title_params}')
-    plt.xlabel("reward")
-    plt.ylabel("number of steps")
-    plt.savefig(os.path.join(save_file_path, f'reward_path_lengths_dots.png'))
-    # plt.show()
-    plt.clf()
-    plt.close()
-    plt.bar(range(len(time_reward_node)), time_reward_node, label='Steps to reward')
-    plt.legend()
-    plt.title(f'alpha, beta, gamma, lambda = {title_params}')
-    plt.xlabel("reward")
-    plt.ylabel("number of steps")
-    plt.savefig(os.path.join(save_file_path, f'reward_path_lengths_bars.png'))
-    # plt.show()
-    plt.clf()
-    plt.close()
-    return
-
-
-def plot_bout_lengths(episodes_mouse, save_file_path, title_params):
-    print("bout_lengths")
-    plt.bar(range(len(episodes_mouse)), [len(e) for e in episodes_mouse],
-            label='Bout length; from home to home')
-    plt.title(f'alpha, beta, gamma, lambda = {title_params}')
-    plt.xlabel("time")
-    plt.ylabel("number of steps")
-    plt.legend()
-    plt.savefig(os.path.join(save_file_path, f'bout_lengths_bars.png'))
-    # plt.show()
-    plt.clf()
-    plt.close()
-
-
-def plot_trajs(episodes_mouse, save_file_path, title_params):
-    for i, traj in enumerate(episodes_mouse):
-        print(i, ":", traj[:5], '...', traj[-5:])
-        if len(episodes_mouse) >= 100 and i >=10 and i%5 != 0:
-            # save every 5th graph when lots of episodes
-            continue
-        plot_trajectory([traj], 'all',
-                        save_file_name=os.path.join(save_file_path, f'traj_{i}.png'),
-                        display=False,
-                        figtitle=f'Traj {i} \n alpha, beta, gamma, lambda = {title_params}')
-        plt.clf()
-        plt.close()
-    return
-
-
-def analyse_episodes(model, episodes_mouse, save_file_path, params):
-    print("#Episodes", len(episodes_mouse))
-    title_params = [round(p, 3) for p in params]
-
-    visit_home_node, visit_reward_node, time_reward_node = get_reward_times(episodes_mouse)
-    new_end_nodes_found = em.exploration_efficiency(episodes_mouse)
-    plot_visits(visit_home_node, visit_reward_node, save_file_path, title_params)
-    plot_reward_path_lengths(time_reward_node, save_file_path, title_params)
-    plot_bout_lengths(episodes_mouse, save_file_path, title_params)
-    plot_exploration_efficiency(new_end_nodes_found, save_file_path, title_params)
-
-    # try fitting an exp decay on reward times
-    # x = np.arange(len(actual_reward_times))
-    # print(x)
-    # y = np.max(actual_reward_times)*np.exp(-x/2) + np.min(actual_reward_times)
-    # plt.plot(x, y)
-    # plt.show()
-
-    plot_trajs(episodes_mouse, save_file_path, title_params)
-    return
+from utils import get_reward_times
+from sample_agent import analyse_episodes
 
 
 def analyse_state_values(model, V, save_file_path, title_params):
+    """
+    """
     state_values = np.zeros(128)
     state_values_1 = np.zeros(128)
     for n in range(128):
@@ -167,24 +64,6 @@ def analyse_state_values(model, V, save_file_path, title_params):
                     save_file_name=os.path.join(save_file_path, f'state_values_1.png'),
                     display=False,
                     figtitle=f'state values \n alpha, beta, gamma, lambda = {title_params}')
-    plt.clf()
-    plt.close()
-    return
-
-
-def plot_exploration_efficiency(new_end_nodes_found, save_file_path, title_params):
-    """
-    new_end_nodes_found: dict() of how many steps -> how many distinct end nodes
-    """
-    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
-    plt.xscale('log', base=10)
-
-    plt.title(f'alpha, beta, gamma, lambda = {title_params}')
-    plt.xlabel("end nodes visited")
-    plt.ylabel("new end nodes found")
-    plt.savefig(os.path.join(save_file_path, f'exp_efficiency.png'))
-
-    plt.show()
     plt.clf()
     plt.close()
     return
@@ -277,7 +156,7 @@ def analyse_avg(model, V_all, reward_lengths_all, new_end_nodes_found_all, simul
     return
 
 
-def run(params_all):
+def run(param_sets):
     # Load the parameters fitted by stan for each mouse
     # with open('/Volumes/ssrde-home/run2/TDlambdaXsteps_best_sub_fits.p', 'rb') as f:
     #     params_all = pickle.load(f)
@@ -287,12 +166,11 @@ def run(params_all):
 
     # Import the model class you are interested in
     model = TDLambdaXStepsPrevNodeRewardReceived()
-    simulation_results = model.simulate_multiple(params_all,
-                                                 n=len(params_all),
+    simulation_results = model.simulate_multiple(param_sets,
                                                  MAX_LENGTH=MAX_LENGTH/10,
                                                  N_BOUTS_TO_GENERATE=N_BOUTS_TO_GENERATE)
     # analyse results
-    for mouse, params in params_all.items():
+    for mouse, params in param_sets.items():
         print("params:", params)
         save_file_path = f'/Users/usingla/mouse-maze/figs/' \
                          f'TDLambdaXStepsPrevNodeRewardReceived/' \
@@ -343,7 +221,7 @@ def load_multiple(save_file_path):
         LL = stats["LL"]
         V = stats["V"]
         print(len(episodes))
-        visit_home_node, visit_reward_node, time_reward_node = get_reward_times(episodes)
+        visit_reward_node, time_reward_node = get_reward_times(episodes)
         print(">>> Number of rewards", len(time_reward_node))
         reward_lengths_all_matrix[agent_id, :] = np.pad(
             time_reward_node, (0, max_rewards-len(time_reward_node)),
@@ -359,9 +237,11 @@ def load_multiple(save_file_path):
 
 if __name__ == '__main__':
     # UNCOMMENT THIS TO SIMULATE ONE OR MORE AGENTS
-    # # param_sets = dict([(i, [0.1, 3, 0.89, 0.7]) for i in range(10)])
-    # param_sets = dict([(0, [0.1, 3, 0.89, 0.7]), (1, [0.3, 3, 0.89, 0.3])])
-    # run(param_sets)
+    param_sets = {
+        0: {"alpha": 0.1, "beta": 3, "gamma": 0.89, "lamda": 0.7},
+        1: {"alpha": 0.1, "beta": 3, "gamma": 0.89, "lamda": 0.3},
+    }
+    run(param_sets)
 
     # load episodes file into the rl agent model. Used to analyse previous run data
     save_file_path = "/Users/usingla/mouse-maze/figs/TDLambdaXStepsPrevNodeRewardReceived/MAX_LENGTH=310000/2"

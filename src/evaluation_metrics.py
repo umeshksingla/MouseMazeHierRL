@@ -31,16 +31,16 @@ def exploration_efficiency_sequential(episodes):
     return steps_taken
 
 
-def exploration_efficiency(episodes):
+def exploration_efficiency(episodes, re):
     """
     Averages new and distinct nodes over various window sizes. Based on method from Rosenberg et al. (2021).
-    :param episodes:
-    :return:
+    episodes: [[], [], ...]
+    re = True for rewarded animals, False for unrewarded
     """
     leave, drink, explore = 0, 1, 2
     ma = NewMaze(6)
     tf = convert_episodes_to_traj_class(episodes)
-    cl = SplitModeClips(tf, ma, re=True)  # find the clips; no drink mode for unrewarded animals
+    cl = SplitModeClips(tf, ma, re=re)  # find the clips; no drink mode for unrewarded animals
     ti = np.array([tf.no[c[0]][c[1] + c[2], 1] - tf.no[c[0]][c[1], 1] for c in cl])  # duration in frames of each clip
     nn = np.array([np.sum(cl[np.where(cl[:, 3] == leave)][:, 2]),
                    np.sum(cl[np.where(cl[:, 3] == drink)][:, 2]),
@@ -58,7 +58,7 @@ def exploration_efficiency(episodes):
     ns = ne[np.isin(ne, ln)]  # restricted to desired nodes
     _, c, n = NewNodes4(ns, nf[2] / len(ns))  # compute new nodes vs all nodes for exploration mode only
     steps_taken = dict(zip(c, n))
-    print(steps_taken)
+    # print(steps_taken)
     return steps_taken
 
 
