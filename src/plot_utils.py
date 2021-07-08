@@ -333,6 +333,8 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
         fig.savefig(save_file_name)
     if display:
         plt.show()
+    plt.clf()
+    plt.close()
     return ax
 
 
@@ -357,47 +359,51 @@ def plot_trajs(episodes_mouse, save_file_path, title):
     return
 
 
-def plot_episode_lengths(episodes_mouse, save_file_path, title, display=False):
+def plot_episode_lengths(episodes_mouse, title, save_file_path=None, display=False):
     """todo
     A bar plot of all episode lengths
     episodes_mouse:
 
     """
-    plt.bar(range(len(episodes_mouse)), [len(e) for e in episodes_mouse],
+    ax = plt.bar(range(len(episodes_mouse)), [len(e) for e in episodes_mouse],
             label='Episodes length')
     plt.title(title)
     plt.xlabel("time")
     plt.ylabel("number of steps")
     plt.legend()
-    plt.savefig(os.path.join(save_file_path, f'epi_lengths_bars.png'))
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'epi_lengths_bars.png'))
     if display:
         plt.show()
     plt.clf()
     plt.close()
-    return
+    return ax
 
 
-def plot_exploration_efficiency(episodes, save_file_path, title, display=False):
+def plot_exploration_efficiency(episodes, title, save_file_path=None, display=False):
     """todo
     new_end_nodes_found:
         dict() of how many steps -> how many distinct end nodes
     """
-    new_end_nodes_found = em.exploration_efficiency(episodes)
-    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
+    new_end_nodes_found = em.exploration_efficiency(episodes, re=True)
+
+    f = plt.figure()
+    ax = plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
     plt.xscale('log', base=10)
 
     plt.title(title)
     plt.xlabel("end nodes visited")
     plt.ylabel("new end nodes found")
-    plt.savefig(os.path.join(save_file_path, f'exp_efficiency.png'))
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'exp_efficiency.png'))
     if display:
         plt.show()
     plt.clf()
     plt.close()
-    return
+    return f
 
 
-def plot_reward_path_lengths(episodes, save_file_path, title, dots=True, display=False):
+def plot_reward_path_lengths(episodes, title, save_file_path=None, dots=True, display=False):
     """todo
     time_reward_node:
 
@@ -411,9 +417,28 @@ def plot_reward_path_lengths(episodes, save_file_path, title, dots=True, display
     plt.title(title)
     plt.xlabel("reward")
     plt.ylabel("number of steps")
-    plt.savefig(os.path.join(save_file_path, f'reward_path_lengths_dots.png'))
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'reward_path_lengths_dots.png'))
     if display:
         plt.show()
     plt.clf()
     plt.close()
     return
+
+
+def plot_visit_freq(visit_frequency, title, save_file_path=None, display=False):
+    """todo
+    visit_frequency: 1x127 array
+
+    """
+    ax = plt.plot(visit_frequency)
+    plt.title(title)
+    plt.xlabel("node")
+    plt.ylabel("no of visits")
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'visit_frequency_plot.png'))
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return ax
