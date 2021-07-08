@@ -11,8 +11,8 @@ INVALID_STATE = -1
 FRAME_RATE = 30  # Hz
 
 # Define cell numbers of end/leaf nodes
-ALL_VISITABLE_NODES=ALL_NAMES+[HOME_NODE]
 ALL_MAZE_NODES = list(range(0, 127))
+ALL_VISITABLE_NODES=ALL_MAZE_NODES+[HOME_NODE]
 LVL_6_NODES = list(range(63,127))
 LVL_5_NODES = list(range(31,63))
 LVL_4_NODES = list(range(15,31))

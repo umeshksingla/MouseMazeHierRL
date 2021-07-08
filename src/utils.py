@@ -1,5 +1,5 @@
 from MM_Traj_Utils import add_node_times_to_tf, add_node_times_to_tf_re, NewMaze, Traj
-from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE, ALL_MAZE_NODES
+from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES
 import numpy as np
 
 from collections import defaultdict
@@ -254,14 +254,12 @@ def get_reward_times(episodes):
 
 def calculate_visit_frequency(episodes):
     """
-    episodes: [[], [], ...]
-
-    Returns a 127-length list of number of times each node was visited in all the
+    :param episodes: episodes: [[], [], ...]
+    :return: 127-length list of number of times each node was visited in all the
     input episodes
     """
-    node_visit_freq = np.zeros(len(ALL_MAZE_NODES)+1)
-    for each in episodes:
-        for node in each:
+    node_visit_freq = np.zeros(len(ALL_VISITABLE_NODES))
+    for episode in episodes:
+        for node in episode:
             node_visit_freq[node] += 1
     return node_visit_freq
-
