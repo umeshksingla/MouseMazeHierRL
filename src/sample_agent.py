@@ -18,7 +18,7 @@ def analyse_episodes(episodes, save_file_path, params):
     plot_exploration_efficiency(episodes, params, save_file_path)
     visit_frequency = calculate_visit_frequency(episodes)
     plot_visit_freq(visit_frequency, params, save_file_path)
-    plot_maze_stats(visit_frequency, "state_values", 'Blues',
+    plot_maze_stats(visit_frequency, interpolate_cell_values=True, colormap_name='Blues',
                     colorbar_label="visit freq",
                     save_file_name=os.path.join(save_file_path, f'visit_frequency.png'),
                     display=False,
@@ -35,7 +35,7 @@ def analyse_state_values(model, V, save_file_path, params):
     """
     state_values = model.get_maze_state_values(V)
     print("state_values", state_values)
-    plot_maze_stats(state_values, datatype="state_values",
+    plot_maze_stats(state_values, interpolate_cell_values=True,
                     save_file_name=os.path.join(save_file_path, f'state_values.png'),
                     display=False,
                     figtitle=f'state values\n{params}')

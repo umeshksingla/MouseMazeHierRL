@@ -220,5 +220,5 @@ if __name__ == '__main__':
 
     episode_i=8
     trial=0
-    plot_maze_stats(stats["value_hists"][episode_i][trial], 'state_values', colorbar_label="state value V",
+    plot_maze_stats(stats["value_hists"][episode_i][trial], colorbar_label="state value V",
                     figtitle=f"Values at trial {trial} of episode {episode_i}")

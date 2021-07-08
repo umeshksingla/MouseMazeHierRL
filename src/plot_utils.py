@@ -198,14 +198,13 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     return plt.gcf(), plt.gca()
 
 
-def PlotMazeFunction_gradientcmap(fn, ma, datatype, colormap_name=None, numcol=None, figsize=4, axes=None,
+def PlotMazeFunction_gradientcmap(fn, ma, interpolate_cell_values, colormap_name=None, numcol=None, figsize=4, axes=None,
                                   vmin=None, vmax=None):
     '''
     Plot the maze defined in `ma` with a function f overlaid in color
     :param fn: 1-by-128 array of state values for nodes on the maze
     :param ma: maze structure
-    :param datatype: 'states' or 'state_values'.
-      # TODO: explain the difference of how this function works when given "states" or "state_values"
+    :param interpolate_cell_values: interpolate_cell_values (bool)
     :param colormap_name:
     :param numcol: color for the numbers. If numcol is None the numbers are omitted
     :param figsize: in inches
@@ -264,10 +263,9 @@ def PlotMazeFunction_gradientcmap(fn, ma, datatype, colormap_name=None, numcol=N
     else:
         ax=PlotMazeWall(ma, axes=None, figsize=figsize)
 
-    if datatype == 'state_values':
+    if interpolate_cell_values:
         f_cells = nodes2cell_statevalues(fn)
         colors, cmappable = generate_colors(f_cells, colormap_name, vmin=vmin, vmax=vmax)
-
         for j in range(len(ma.xc)):
             x = ma.xc[j];
             y = ma.yc[j]
@@ -276,7 +274,7 @@ def PlotMazeFunction_gradientcmap(fn, ma, datatype, colormap_name=None, numcol=N
                                                color=colors[j, 1:]))  # draw with color f[]
             if numcol:
                 plt.text(x - .35, y + .15, '{:d}'.format(j), color=numcol)  # number the cells
-    elif datatype == 'states':
+    else:
         fr, _ = np.histogram(fn, bins=np.arange(2 ** (ma.le + 1)) - 0.5)
         colors, cmappable = generate_colors(fr, colormap_name, vmin=vmin, vmax=vmax)
 
@@ -290,13 +288,14 @@ def PlotMazeFunction_gradientcmap(fn, ma, datatype, colormap_name=None, numcol=N
     return ax, cmappable
 
 
-def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_name=None, display=True,
+def plot_maze_stats(data, interpolate_cell_values=True, colormap_name=None, axes=None, save_file_name=None, display=True,
                     cbar=True, colorbar_label="", figtitle='', vmin=None, vmax=None):
-    '''
+    """
     :param data: list of maze nodes, cells or 1-by-128 array of state-values
-    :param datatype (str): e.g. 'states' or 'state_values'
+    :param interpolate_cell_values (bool): True to interpolate, False to only color nodes and leave
+        other cells colored in white
     :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
-    '''
+    """
     # ma = NewMaze()
     # if datatype == 'states':
         # fr,_= np.histogram(data,bins=np.arange(2**(ma.le+1))-0.5)
@@ -308,7 +307,8 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
     #     plt.colorbar(cmappable, shrink=0.5)  # draw the colorbar
 
     ma = NewMaze()
-    ax, cmappable = PlotMazeFunction_gradientcmap(data, ma, datatype, colormap_name, axes=axes, vmin=vmin, vmax=vmax)
+    ax, cmappable = PlotMazeFunction_gradientcmap(data, ma, interpolate_cell_values, colormap_name, axes=axes,
+                                                  vmin=vmin, vmax=vmax)
 
     re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
        [2.5,13.5,1,1],[6.5,13.5,1,1],[10.5,13.5,1,1],
@@ -322,7 +322,6 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
         rect=patches.Rectangle((r[0],r[1]),r[2],r[3],linewidth=1,edgecolor='lightgray',facecolor='lightgray')
         ax.add_patch(rect)
     plt.axis('off'); # turn off the axes
-
     if cbar:
         plt.colorbar(cmappable, shrink=0.4, label=colorbar_label)
         # plt.colorbar(cmappable, ax=[ax], location='left', shrink=0.5)  # draw the colorbar
@@ -333,8 +332,9 @@ def plot_maze_stats(data, datatype, colormap_name=None, axes=None, save_file_nam
         fig.savefig(save_file_name)
     if display:
         plt.show()
-    plt.clf()
-    plt.close()
+    else:
+        plt.clf()
+        plt.close()
     return ax
 
 

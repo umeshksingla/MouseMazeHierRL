@@ -53,14 +53,14 @@ def analyse_state_values(model, V, save_file_path, title_params):
         state_values_1[n] = np.nanmean(pos_state_values_1)
 
     print(state_values)
-    plot_maze_stats(state_values, datatype="state_values",
+    plot_maze_stats(state_values, interpolate_cell_values=True,
                     save_file_name=os.path.join(save_file_path, f'state_values.png'),
                     display=False,
                     figtitle=f'state values \n alpha, beta, gamma, lambda = {title_params}')
     plt.clf()
     plt.close()
     print(state_values_1)
-    plot_maze_stats(state_values_1, datatype="state_values",
+    plot_maze_stats(state_values_1, interpolate_cell_values=True,
                     save_file_name=os.path.join(save_file_path, f'state_values_1.png'),
                     display=False,
                     figtitle=f'state values \n alpha, beta, gamma, lambda = {title_params}')
