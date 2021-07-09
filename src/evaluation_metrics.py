@@ -15,27 +15,28 @@ def exploration_efficiency_sequential(episodes):
     Counts total and distinct end nodes
 
     See also `exploration_efficiency` for implementation as was used in Rosenberg et al. (2021).
-    :param episodes:
-    :return:
+    :param episodes (format [[], [], ...]): list of episode trajectories (which are list of nodes)
+    :return: steps_taken
     """
     step = 0
     steps_taken = dict([(2**i, np.nan) for i in range(0, 15)])
-    nodes_explored = defaultdict(int)
-    for each in episodes:
-        for n in each:
-            if n in NODE_LVL[6]:
+    end_nodes_explored = defaultdict(int)
+    for episode in episodes:
+        for node in episode:
+            if node in NODE_LVL[6]:
                 step += 1
-                nodes_explored[n] += 1
-                if step in steps_taken:
-                    steps_taken[step] = len(nodes_explored)
+                end_nodes_explored[node] += 1
+                if step in steps_taken:  # step is a power of 2
+                    steps_taken[step] = len(end_nodes_explored)
     return steps_taken
 
 
 def exploration_efficiency(episodes, re):
     """
     Averages new and distinct nodes over various window sizes. Based on method from Rosenberg et al. (2021).
-    episodes: [[], [], ...]
-    re = True for rewarded animals, False for unrewarded
+    :param episodes (format [[], [], ...]): list of episode trajectories (which are list of nodes)
+    :param re = True for rewarded animals, False for unrewarded
+    :return: steps_taken  #TODO: explain what is the format and content
     """
     leave, drink, explore = 0, 1, 2
     ma = NewMaze(6)

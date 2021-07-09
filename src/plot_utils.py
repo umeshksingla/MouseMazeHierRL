@@ -13,7 +13,7 @@ from utils import get_node_visit_times, get_all_night_nodes_and_times, \
 import evaluation_metrics as em
 
 
-def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=None, display=True):
+def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=None, display=True, figsize=(9,9)):
     '''
     Plots specified simulated trajectories on the maze layout.
     
@@ -29,7 +29,7 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
     
     ma=NewMaze(6)
     # Draw the maze outline    
-    fig,ax=plt.subplots(figsize=(9,9))
+    fig,ax=plt.subplots(figsize=figsize)
     plot(ma.wa[:,0],ma.wa[:,1],fmts=['k-'],equal=True,linewidth=2,yflip=True,
               xhide=True,yhide=True,axes=ax)
     re=[[-0.5,0.5,1,1],[-0.5,4.5,1,1],[-0.5,8.5,1,1],[-0.5,12.5,1,1],
@@ -65,6 +65,7 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
             lc = LineCollection(segs, cmap=plt.get_cmap('viridis'),linewidths=2) # jet, viridis hot
             lc.set_array(t) # color the segments by our parameter
 
+            # put a blue star in the beginning and a yellow star in the end of each trajectory
             plt.plot(points[ 0, 0, 0], points[ 0, 0, 1], "*", markersize=10, color="blue")
             plt.plot(points[-1, 0, 0], points[-1, 0, 1], "*", markersize=10, color="yellow")
 
@@ -84,6 +85,10 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
         # make the collection of segments
         lc = LineCollection(segs, cmap=plt.get_cmap('viridis'),linewidths=2) # jet, viridis hot
         lc.set_array(t) # color the segments by our parameter
+
+        # put a blue star in the beginning and a yellow star in the end of each trajectory
+        plt.plot(points[0, 0, 0], points[0, 0, 1], "*", markersize=10, color="blue")
+        plt.plot(points[-1, 0, 0], points[-1, 0, 1], "*", markersize=10, color="yellow")
 
         # plot the collection
         lines=ax.add_collection(lc); # add the collection to the plot
@@ -380,18 +385,17 @@ def plot_episode_lengths(episodes_mouse, title, save_file_path=None, display=Fal
     return ax
 
 
-def plot_exploration_efficiency(episodes, title, save_file_path=None, display=False):
+def plot_exploration_efficiency(episodes, title=None, save_file_path=None, display=False):
     """todo
     new_end_nodes_found:
         dict() of how many steps -> how many distinct end nodes
     """
     new_end_nodes_found = em.exploration_efficiency(episodes, re=True)
-
     f = plt.figure()
     ax = plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
     plt.xscale('log', base=10)
 
-    plt.title(title)
+    if title: plt.title(title)
     plt.xlabel("end nodes visited")
     plt.ylabel("new end nodes found")
     if save_file_path:

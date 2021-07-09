@@ -138,7 +138,8 @@ def get_SAnodemap():
 
 def nodes2cell(state_hist_all):
     '''
-    simulated trajectories, state_hist_all: {mouseID: [[TrajID x TrajSize]]}
+    Simulated trajectories
+    :param state_hist_all: {mouseID: [[TrajID x TrajSize]]}
     '''
     state_hist_cell = []
     state_hist_xy = {}
