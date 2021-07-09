@@ -1,21 +1,18 @@
 """
 TDLambdaSR model:
-Successor representation RL agent learned with TD-lambda
-#### WORK IN PROGRESS - THIS IS NOT WORKING YET ####
-TODO:
-* When it is implemented, I expect to see the gradient arise immediately after receiving the
-  first reward, and then just increase in magnitude
+Successor representation RL agent
 """
 
 from multiprocessing import Pool
-
-from BaseModel import BaseModel
 import os
 import numpy as np
 from numpy import arange
 
-from parameters import RWD_NODE, WATER_PORT_STATE, HOME_NODE, LVL_6_NODES, ALL_MAZE_NODES, INVALID_STATE
-from plot_utils import plot_trajectory, plot_maze_stats
+from BaseModel import BaseModel
+from parameters import RWD_NODE, WATER_PORT_STATE, HOME_NODE, LVL_6_NODES, ALL_MAZE_NODES, INVALID_STATE, \
+    ALL_VISITABLE_NODES
+from plot_utils import plot_trajectory, plot_maze_stats, plot_exploration_efficiency
+from utils import calculate_visit_frequency
 
 
 def info(title):
@@ -23,14 +20,14 @@ def info(title):
     print('>>> module name:', __name__, 'parent process id:', os.getppid(),
           'process id:', os.getpid())
 
-class TDLambdaSR(BaseModel):
-    """TD lambda model with a Successor Representation
-    #### WORK IN PROGRESS - THIS IS NOT USING S.R. YET ####
+class TDLambdaSR(BaseModel):  #TODO: change name
+    """RL model with Successor Representation
     """
 
     def __init__(self):
         super().__init__(self)
-        self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
+        # self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
+        self.terminal_nodes = {HOME_NODE}
         self.T = self.get_transition_matrix()
 
     def get_transition_matrix(self):
@@ -83,77 +80,91 @@ class TDLambdaSR(BaseModel):
         return 0
 
 
-    def generate_episode(self, alpha, beta, gamma, lamda, max_length, V):
+    def generate_episode(self, beta, gamma, max_length, V, time_each_move=0.3):
         """
         Generate an episode using the given agent parameters
-        :param alpha: learning rate parameter
         :param beta: inverse temperature parameter. It controls randomness of softmax
         :param gamma: discount factor
-        :param lamda: eligibility trace decay parameter
-        :param max_length:
+        :param max_length: max number of actions before aborting episode
         :param V (ndarray): state values
-        :return: valid_episode, episode_traj, LL
+        :param time_each_move:
+        :return:
+        valid_episode (bool): False only when episode is aborted because of not reaching a terminal state after
+        `max_length` actions,
+        episode_state_traj (list),
+        episode_maze_traj (list),
+        value_hist (list)
         """
-        et = np.zeros(self.S)  # eligibility trace vector for all states
-        s = self.get_initial_state()
-        episode_traj = [s]  # initialize episode trajectory list with the initial state
-        value_hist = [V]
-        LL = 0.0
-        M = np.linalg.inv(np.eye(self.S - 2) - gamma * self.T)  # S-2, bc I'm not using waterport nor homenode states
-        tau = .1
-        rwd = np.zeros(self.S)
 
-        while s not in self.terminal_nodes and len(episode_traj) < max_length:
-
-            if s != RWD_NODE:
-                action_prob = self.get_action_probabilities(s, beta, V)
-                a = np.random.choice(range(self.A), p=action_prob)  # Choose action
-                s_next = int(self.nodemap[s, a])           # Take action
-                LL += np.log(action_prob[a])
-                R = 0 # No reward
-                # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
-            else:
-                s_next = WATER_PORT_STATE
-                R = 1 # Observe reward
-                rwd[RWD_NODE] = 0 # reset the periodic drive to go to waterport
-
-            episode_traj.append(s_next)  # Record next state
-
-            # Update state-values
-            rwd[RWD_NODE] = rwd[RWD_NODE] + tau*(1 - rwd[RWD_NODE])
-            V = np.pad(M @ rwd[:-2], 1)  # TODO: check if I should really pad this
-            value_hist.append(V)
-
-            # TODO: When would these happen? Add explanation
+        def check_value_function(V):
+            # TODO: When would the cases below happen? Add explanation
             if np.isnan(V[s]):
-                print('Warning invalid state-value: ', s, s_next, V[s], V[s_next], alpha, beta, gamma, R)
+                print('Warning invalid state-value: ')
             elif np.isinf(V[s]):
                 print('Warning infinite state-value: ', V)
             elif abs(V[s]) >= 1e5:
                 print('Warning state value exceeded upper bound. Might approach infinity.')
                 V[s] = np.sign(V[s]) * 1e5
+            return V
 
+        s = self.get_initial_state()
+        episode_state_traj = [s]  # initialize episode trajectory list with the initial state
+        episode_maze_traj = [s]  # initialize episode trajectory list with the initial state
+        value_hist = [V]
+        time_from_last_rwd = 90
+        M = np.linalg.inv(np.eye(self.T.shape[0]) - gamma * self.T)  # matrix M with expected future occupancies in each line
+        tau = .05
+        rwd = np.zeros(self.S-2)  # S-2, bc I'm not using waterport nor homenode states
+
+        while s not in self.terminal_nodes and len(episode_state_traj) < max_length:
+
+            if s == WATER_PORT_STATE:
+                s_next = RWD_NODE
+                # R = 1
+                rwd[RWD_NODE] = 0  # reset the periodic drive to go to waterport
+                time_from_last_rwd = 0
+                # print(rwd)
+            elif (s == RWD_NODE) & (time_from_last_rwd >= 90):
+                s_next = WATER_PORT_STATE
+                # R = 0
+            else:
+                action_prob = self.get_action_probabilities(s, beta, V)
+                a = np.random.choice(range(self.A), 1, p=action_prob)[0]  # Choose action
+                s_next = int(self.nodemap[s, a])           # Take action
+                time_from_last_rwd += time_each_move #time
+                # R = 0
+
+            episode_state_traj.append(s_next)  # Record next state
+            if s_next in ALL_VISITABLE_NODES:
+                episode_maze_traj.append(s_next)  # Record next state
+
+            # Update state-values
+            rwd[RWD_NODE] = rwd[RWD_NODE] + tau*(1 - rwd[RWD_NODE])
+            V = np.pad(M @ rwd, (0,2))  # pad because value function array includes values for all states, including home node and waterport_state
+            value_hist.append(V)
+
+            V = check_value_function(V)
             if s_next == WATER_PORT_STATE:
-                print('Reward reached.')
+                print('Reward consumed. Trial ', len(episode_maze_traj))
+                # print(rwd)
             elif s_next==HOME_NODE:
-                print('Home reached.')
+                print('Home reached. Trial ', len(episode_maze_traj))
 
             s = s_next
 
         if s in self.terminal_nodes:
             valid_episode = True
         else:
-            print('Trajectory too long. Episode was aborted.')
+            print('Trajectory too long. Episode was aborted. Another attempt will be made')
             valid_episode = False
 
-        return valid_episode, episode_traj, value_hist, LL
+        return valid_episode, episode_state_traj, episode_maze_traj, value_hist
 
 
     def simulate(self, agent_id, agent_params, max_length=200, n_bouts_to_generate=1, debug=False):
         """
         Simulate the agent.
         Example usage: success, stats = agentObj.simulate(0, [0.3, 3, 0.89, 0.3])
-
         :param agent_id (int):
         :param agent_params: Subject fits, dictionary with agentIds as keys and value is a list of parameters that are going to be used in the model [alpha, beta, gamma, lambda]
            I.e. {AgentId1: [alpha1, beta1, gamma1, lambda1], AgentId2: [alpha2, beta2, gamma2, lambda2]}
@@ -163,46 +174,40 @@ class TDLambdaSR(BaseModel):
             stats is a dict with keys "agentId", "episodes", "LL", "MAX_LENGTH", "count_total", "V"
             success is currently always set to 1 TODO: why is that even here? Remove it? Or else improve this.
         """
-        if debug:
-            info([">>> Simulating:", agent_id, agent_params, max_length, n_bouts_to_generate])
-
         MAX_EPISODE_ATTEMPTS = 500   # max attempts at generating a bout episode
         success = 1
 
-        alpha = agent_params[0]    # learning rate
-        beta = agent_params[1]     # softmax exploration - exploitation
-        gamma = agent_params[2]    # discount factor
-        lamda = agent_params[3]    # eligibility trace decay lambda
-
+        # learning rate, softmax exploration - exploitation, discount factor, eligibility trace decay lambda
+        alpha, beta, gamma, lamda = agent_params
+        V = np.zeros(self.S)  # initialize all state values at zero
         if debug:
+            info([">>> Simulating:", agent_id, agent_params, max_length, n_bouts_to_generate])
             print("alpha %.1f, beta %.1f, gamma %.2f, lambda %.1f, agentId %.0f" % (alpha, beta, gamma, lamda, agent_id))
 
-        V = np.zeros(self.S)  # initialize all state values at zero
-
-        episodes_trajs = []
+        episodes_state_trajs = []
+        episodes_maze_trajs = []
         episodes_value_hists = []
         count_valid, count_total = 0, 1
-        LL = 0.0
-        while len(episodes_trajs) < n_bouts_to_generate:  # while haven't generated enough valid episodes
-            if debug: print(len(episodes_trajs))
-            # Back-up a copy of state-values to use in case the next episode has to be discarded
-            V_backup = np.copy(V)
+        while len(episodes_state_trajs) < n_bouts_to_generate:  # while haven't generated enough valid episodes
+            if debug: print(len(episodes_state_trajs))
+            V_backup = np.copy(V) # Back-up a copy of state-values to use in case the next episode has to be discarded
 
             # Begin generating episode
             episode_attempt = 0
             valid_episode = False
             while not valid_episode:
                 episode_attempt += 1
-                if debug: print("  Start of episode generation attempt %d =" % episode_attempt)
-                valid_episode, episode_traj, value_hist, episode_ll = self.generate_episode(alpha, beta, gamma, lamda, max_length, V)
-                if debug: print("  End of episode generation attempt %d =" % episode_attempt)
+                # if debug: print("  Start of episode generation attempt %d =" % episode_attempt)
+                valid_episode, episode_state_traj, episode_maze_traj, value_hist = \
+                    self.generate_episode(beta, gamma, max_length, V)
+                # if debug: print("  End of episode generation attempt %d =" % episode_attempt)
                 if valid_episode:
-                    episodes_trajs.append(episode_traj)
+                    episodes_state_trajs.append(episode_state_traj)
+                    episodes_maze_trajs.append(episode_maze_traj)
                     episodes_value_hists.append(value_hist)
                     V = np.copy(value_hist[-1])
-                    LL += episode_ll
                 else:  # reestablish V with the value function of the latest valid episode
-                    # this makes invalid episodes have no effect on the value function
+                    # this makes prevents invalid episodes from affecting the value function
                     V = np.copy(V_backup)
 
                 if episode_attempt > MAX_EPISODE_ATTEMPTS:
@@ -210,8 +215,8 @@ class TDLambdaSR(BaseModel):
                                     " a bug in the code")
         stats = {
             "agentId": agent_id,
-            "episodes": episodes_trajs,
-            "LL": LL,
+            "episodes_states": episodes_state_trajs,
+            "episodes_positions": episodes_maze_trajs,
             "MAX_LENGTH": max_length,
             "count_total": count_total,
             "value_hists": episodes_value_hists,
@@ -237,10 +242,22 @@ class TDLambdaSR(BaseModel):
 
 if __name__ == '__main__':
     agnt = TDLambdaSR()
-    success, stats = agnt.simulate(0, [0.3, 3, 0.89, 0.8], max_length=2000, n_bouts_to_generate=15, debug=True)
-    plot_trajectory([stats["episodes"][0]], 'all')
+    np.random.seed(40)
+    ALPHA, BETA, GAMMA, LAMBDA = [0.3, 2, 0.89, 0.8]
+    success, stats = agnt.simulate(0, [ALPHA, BETA, GAMMA, LAMBDA], max_length=10000, n_bouts_to_generate=7, debug=True)
+    plot_trajectory(stats["episodes_positions"], episode_idx=0)
 
-    episode_i=8
+    episode_i=5
     trial=0
-    plot_maze_stats(stats["value_hists"][episode_i][trial], 'state_values', colorbar_label="state value V",
+    plot_maze_stats(stats["value_hists"][episode_i][trial], colorbar_label="state value V",
                     figtitle=f"Values at trial {trial} of episode {episode_i}")
+
+    # plot_exploration_efficiency(stats["episodes_positions"])  # TODO: currently in infinite loop. Uncomment when this is solved
+
+    plot_maze_stats(calculate_visit_frequency(stats["episodes_positions"]),
+                    colorbar_label="visit freq", figtitle='Node occupancies - all episodes')
+
+    plot_maze_stats(calculate_visit_frequency(stats["episodes_positions"]),
+                    colorbar_label="visit freq", figtitle='Node occupancies - all episodes', vmax=100)
+
+    # plot occupancies with error bars # TODO: check how it was done in TDlambda_Shuangquan.ipynb
