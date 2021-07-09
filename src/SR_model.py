@@ -1,5 +1,5 @@
 """
-TDLambdaSR model:
+SR model:
 Successor representation RL agent
 """
 
@@ -20,7 +20,7 @@ def info(title):
     print('>>> module name:', __name__, 'parent process id:', os.getppid(),
           'process id:', os.getpid())
 
-class TDLambdaSR(BaseModel):  #TODO: change name
+class SR(BaseModel):
     """RL model with Successor Representation
     """
 
@@ -241,7 +241,7 @@ class TDLambdaSR(BaseModel):  #TODO: change name
 
 
 if __name__ == '__main__':
-    agnt = TDLambdaSR()
+    agnt = SR()
     np.random.seed(40)
     ALPHA, BETA, GAMMA, LAMBDA = [0.3, 2, 0.89, 0.8]
     success, stats = agnt.simulate(0, [ALPHA, BETA, GAMMA, LAMBDA], max_length=10000, n_bouts_to_generate=7, debug=True)

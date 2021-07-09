@@ -20,7 +20,7 @@ from parameters import INVALID_STATE, WATER_PORT_STATE, RWD_NODE, RewNames, HOME
 class BaseModel:
     def __init__(self, file_suffix='BaseModel'):
         """
-        :param file_suffix: name used for saving model in a file #TODO: check if this description is correct
+        :param file_suffix: name used for saving model in a file
         """
         self.S = 129  # Number of states, including 127 maze nodes plus home and waterport states
         self.A = 3    # Number of max actions for a state
