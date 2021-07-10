@@ -128,3 +128,35 @@ def get_feature_vectors(episodes):
     features[:, 1] = list(map(lambda t: diffusivity(t, 3), trajs))
     features[:, 2] = list(map(tortuosity, trajs))
     return features
+
+def get_direct_paths(episodes, node, mode):
+    '''
+    Extracting starting points of direct paths to / from node of interest
+    :param episodes: episodes (format [[], [], ...]): list of episode trajectories (which are list of nodes)
+    :param node: node of interest to analyze
+    :param mode: 'source' to look at direct paths coming from node or 'target' to look at direct paths going to node
+    :return: list of starting point nodes of direct paths either to / from node of interest
+    '''
+    tailend_nodelist = []
+    for traj in episodes:
+        nodepos = np.where(np.array(traj) == node)[0]
+
+        for id, pos in enumerate(nodepos):
+            clippedtraj = []
+            trajsegment = []
+            if mode == 'source':
+                # Extracting path starting from current node occurence
+                trajsegment = traj[nodepos[id]:]
+                trajsegment.pop(0)  # removing analysis node from segment
+            elif mode == 'target':
+                # Extracting path ending at current node occurence
+                trajsegment = traj[nodepos[id]:None:-1]
+                trajsegment.pop(0)  # removing analysis node from segment
+
+            for i in trajsegment:
+                if i not in clippedtraj:
+                    clippedtraj.extend([i])
+                else:
+                    break
+            if clippedtraj: tailend_nodelist.extend([clippedtraj[-1]])
+    return tailend_nodelist
