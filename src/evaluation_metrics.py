@@ -147,11 +147,10 @@ def get_direct_paths(episodes, node, mode):
             if mode == 'source':
                 # Extracting path starting from current node occurence
                 trajsegment = traj[nodepos[id]:]
-                trajsegment.pop(0)  # removing analysis node from segment
             elif mode == 'target':
                 # Extracting path ending at current node occurence
                 trajsegment = traj[nodepos[id]:None:-1]
-                trajsegment.pop(0)  # removing analysis node from segment
+            trajsegment.pop(0)  # removing analysis node from segment
 
             for i in trajsegment:
                 if i not in clippedtraj:
