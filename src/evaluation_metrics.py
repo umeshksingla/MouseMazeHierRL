@@ -6,8 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from parameters import NODE_LVL
-from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips
-from utils import nodes2cell, convert_episodes_to_traj_class
+from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips, LoadTrajFromPath
+from utils import nodes2cell, convert_episodes_to_traj_class, convert_traj_to_episodes
 
 
 def exploration_efficiency_sequential(episodes):
@@ -159,3 +159,31 @@ def get_direct_paths(episodes, node, mode):
                     break
             if clippedtraj: tailend_nodelist.extend([clippedtraj[-1]])
     return tailend_nodelist
+
+def get_dfs_ee():
+    """
+    Returns DFS exploration efficiency
+    """
+    return dict([(i, i if i <= 64 else 64) for i in range(1000)])
+
+
+def get_unrewarded_ee():
+    """
+    Returns any one unrewarded animal's exploration efficiency
+    """
+    outdata_path = '../outdata/'
+    tf = LoadTrajFromPath(outdata_path + 'B5-tf')
+    unrew_epi = convert_traj_to_episodes(tf)
+    return exploration_efficiency(unrew_epi, re=False)
+
+
+def get_rewarded_ee():
+    """
+    Returns any one rewarded animal's exploration efficiency before the first
+    reward
+    """
+    outdata_path = '../outdata/'
+    tf = LoadTrajFromPath(outdata_path + 'B1-tf')
+    rew_epi = convert_traj_to_episodes(tf)
+    rew_epi_exp = [rew_epi[17][:354]]
+    return exploration_efficiency(rew_epi_exp, re=False)
