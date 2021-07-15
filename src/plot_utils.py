@@ -7,9 +7,11 @@ import matplotlib.pyplot as plt
 from numpy import ones
 
 from MM_Maze_Utils import *
+from MM_Traj_Utils import LoadTrajFromPath
 from parameters import HOME_NODE, RWD_NODE, FRAME_RATE, NODE_LVL
 from utils import get_node_visit_times, get_all_night_nodes_and_times, \
-    get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times
+    get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times, \
+    convert_traj_to_episodes
 import evaluation_metrics as em
 
 
@@ -347,14 +349,15 @@ def plot_trajs(episodes_mouse, save_file_path, title):
     """todo:
     episodes_mouse:
 
-    Save every kth episodes when there are more than 100 episodes in total,
+    Save every kth episodes when there are more than 20 episodes in total,
     otherwise save all.
     """
-    k = 10
+    print("# Trajectories", len(episodes_mouse))
+    k = 5
     for i, traj in enumerate(episodes_mouse):
-        print("Saving traj", i, ":", traj[:5], '...', traj[-5:])
-        if len(episodes_mouse) >= 100 and i >=10 and i%k != 0:
+        if len(episodes_mouse) >= 10 and i >=10 and i%k != 0:
             continue
+        print("Saving traj", i, ":", traj[:5], '...', traj[-5:])
         plot_trajectory([traj], 'all',
                         save_file_name=os.path.join(save_file_path, f'traj_{i}.png'),
                         display=False,
@@ -370,6 +373,7 @@ def plot_episode_lengths(episodes_mouse, title, save_file_path=None, display=Fal
     episodes_mouse:
 
     """
+    plt.figure()
     ax = plt.bar(range(len(episodes_mouse)), [len(e) for e in episodes_mouse],
             label='Episodes length')
     plt.title(title)
@@ -385,26 +389,45 @@ def plot_episode_lengths(episodes_mouse, title, save_file_path=None, display=Fal
     return ax
 
 
-def plot_exploration_efficiency(episodes, title=None, save_file_path=None, display=False):
+def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, display=False):
     """todo
     new_end_nodes_found:
         dict() of how many steps -> how many distinct end nodes
     """
-    new_end_nodes_found = em.exploration_efficiency(episodes, re=True)
-    f = plt.figure()
-    ax = plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
+    colormap = plt.cm.gist_ncar
+
+    new_end_nodes_found = em.exploration_efficiency(episodes, re=re)
+    plt.figure()
+    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
+
+    # DFS
+    new_end_nodes_found_dfs = em.get_dfs_ee()
+    plt.plot(new_end_nodes_found_dfs.keys(), new_end_nodes_found_dfs.values(), 'black', label='DFS')
+
+    # one unrewarded animal
+    new_end_nodes_found_unrew = em.get_unrewarded_ee()
+    plt.plot(new_end_nodes_found_unrew.keys(),
+             new_end_nodes_found_unrew.values(), color=colormap(0),
+             linestyle='-.', label='Unrewarded: B5')
+
+    # one rewarded animal
+    new_end_nodes_found_rew = em.get_rewarded_ee()
+    plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(),
+             'ro-', label='Rewarded: B1')
+
     plt.xscale('log', base=10)
 
     if title: plt.title(title)
     plt.xlabel("end nodes visited")
     plt.ylabel("new end nodes found")
+    plt.legend()
     if save_file_path:
         plt.savefig(os.path.join(save_file_path, f'exp_efficiency.png'))
     if display:
         plt.show()
     plt.clf()
     plt.close()
-    return f
+    return
 
 
 def plot_reward_path_lengths(episodes, title, save_file_path=None, dots=True, display=False):
@@ -435,6 +458,7 @@ def plot_visit_freq(visit_frequency, title, save_file_path=None, display=False):
     visit_frequency: 1x127 array
 
     """
+    plt.figure()
     ax = plt.plot(visit_frequency)
     plt.title(title)
     plt.xlabel("node")
