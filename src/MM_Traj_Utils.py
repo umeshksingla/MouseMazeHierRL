@@ -40,7 +40,7 @@ def add_node_times_to_tf(tf):
     return tf
 
 
-def add_node_times_to_tf_re(tf):
+def add_reward_times_to_tf(tf):
     """
     Adds a field `re_times` to tf with the time of reward gain, in place of the frame that was present at `tf.re`.
     `tf.re_times` has nodes numbers and start times within the bout; list of (n_visited_nodes,2) ndarrays, one ndarray for each bout
