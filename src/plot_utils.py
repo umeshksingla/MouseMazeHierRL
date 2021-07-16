@@ -112,8 +112,6 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
     """
     Plot traversed nodes (y-axis) over time (x-axis) for the selected time interval
     :param tf: trajectory file
-    :param all_night_nodes_and_times: ndarray (n_nodes_traversed, 2) nodes and the time the animal was there
-    :param times_to_rwd: times of reward delivery
     :returns: fig, axes
     """
     plt.figure(figsize=(15, 13))
@@ -207,6 +205,8 @@ def PlotMazeFunction_gradientcmap(fn, ma, interpolate_cell_values, colormap_name
                                   vmin=None, vmax=None):
     '''
     Plot the maze defined in `ma` with a function f overlaid in color
+
+    See also MM_Traj_Utils.PlotMazeFunction
     :param fn: 1-by-128 array of state values for nodes on the maze
     :param ma: maze structure
     :param interpolate_cell_values: interpolate_cell_values (bool)
