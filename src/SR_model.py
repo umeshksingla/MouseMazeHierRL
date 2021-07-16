@@ -55,21 +55,28 @@ class SR(BaseModel):
             action_prob = [1, 0, 0]  # return is the only possible action at the end node
         else:  # this part implements softmax
             betaV = [np.exp(beta * V[int(future_state)]) for future_state in self.nodemap[state, :]]
+            # print(V[self.nodemap[state, :]], betaV, state)
             action_prob = []
+            n_infs = np.sum(np.isinf(betaV))
+            if n_infs!=0:
+                print("WARNING: Overflow in softmax computation. There were %d infs" % n_infs)
             for action in np.arange(self.A):
-                if np.isinf(betaV[action]):  # TODO: When would this happen?
-                    action_prob.append(1)
+                if np.isinf(betaV[action]):  # can happen when using high beta values
+                    action_prob.append(1./n_infs)
                 elif np.isnan(betaV[action]):  # TODO: When would this happen?
                     action_prob.append(0)
                 else:
-                    action_prob.append(betaV[action] / np.nansum(betaV))
+                    if n_infs==0:
+                        action_prob.append(betaV[action] / np.nansum(betaV))
+                    else:
+                        action_prob.append(0)
 
             # Check for invalid probabilities
             for i in action_prob:
                 if np.isnan(i):
                     print('Invalid action probabilities ', action_prob, betaV, state)
 
-            if np.sum(action_prob) < 0.999:
+            if np.sum(action_prob) <= 0.999 or np.sum(action_prob) >= 1.001:
                 print('Invalid action probabilities, failed summing to 1: ',
                       action_prob, betaV, state)
 
