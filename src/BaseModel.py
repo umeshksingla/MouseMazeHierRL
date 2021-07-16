@@ -123,17 +123,17 @@ class BaseModel:
         SAnodemap = np.ones((self.S, self.A), dtype=int) * INVALID_STATE
         for node in np.arange(self.S - 1):
             # Shallow level node available from current node is accessed via action 0 (i.e. action 0 is the return)
-            if node % 2 == 0:
-                SAnodemap[node, 0] = (node - 2) / 2
-            elif node % 2 == 1:
-                SAnodemap[node, 0] = (node - 1) / 2
-            if SAnodemap[node, 0] == INVALID_STATE:
+            if node==0:
                 SAnodemap[node, 0] = HOME_NODE
+            elif node % 2 == 0:  # when current node number is even, action zero leads to the shallower node whose number is half of the current node minus two
+                SAnodemap[node, 0] = (node - 2) / 2
+            elif node % 2 == 1:  # when current node number is odd, action zero leads to the shallower node whose number is half of the current node minus one
+                SAnodemap[node, 0] = (node - 1) / 2
 
-            if node not in NODE_LVL[6]:
+            if node not in NODE_LVL[6]:  # level 6 nodes are not set here, which means they lead to invalid states unders actions 1 and 2
                 # Deeper level nodes available from current node are accessed via action 1 and 2
-                SAnodemap[node, 1] = node * 2 + 1
-                SAnodemap[node, 2] = node * 2 + 2
+                SAnodemap[node, 1] = node * 2 + 1 # action 1 leads to odd deeper node
+                SAnodemap[node, 2] = node * 2 + 2 # action 2 leads to even deeper node
 
         # Nodes available from home node
         SAnodemap[HOME_NODE, 0] = INVALID_STATE
@@ -145,8 +145,8 @@ class BaseModel:
         SAnodemap[WATER_PORT_STATE, 1] = INVALID_STATE
         SAnodemap[WATER_PORT_STATE, 2] = INVALID_STATE
 
-        # Arbitrarily set action 1 to lead to waterport,
-        # but agent automatically goes from RWD_NODE to WATER_PORT_NODE without any action
+        # Arbitrarily set action 1 to lead to waterport state,
+        # but agent automatically goes from RWD_NODE to WATER_PORT_NODE without any action, i.e., this is not being used
         SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
         return SAnodemap
 
