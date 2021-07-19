@@ -209,7 +209,7 @@ class BaseModel:
             tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
         with Pool(8) as p:  # running in parallel in 4 processes
             simulation_results = p.starmap(self.simulate, tasks)
-        return simulation_results
+        return dict([(a[0], simulation_results[i]) for i, a in enumerate(tasks)])
 
     def get_maze_state_values(self, V):
         """
