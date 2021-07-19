@@ -390,9 +390,11 @@ def plot_episode_lengths(episodes_mouse, title, save_file_path=None, display=Fal
 
 
 def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, display=False):
-    """todo
-    new_end_nodes_found:
-        dict() of how many steps -> how many distinct end nodes
+    """
+    :param episodes: [[], [], ...] (list of list of nodes for each trajectory)
+    :param re: True for rewarded animals, False for unrewarded (i.e. if you want
+    to treat a visit to 116 as rewarded then True. If there is no reward and it's
+    only exploration, keep it False).
     """
     colormap = plt.cm.gist_ncar
 

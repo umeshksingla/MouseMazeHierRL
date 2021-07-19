@@ -33,11 +33,18 @@ def exploration_efficiency_sequential(episodes):
 
 def exploration_efficiency(episodes, re):
     """
-    Averages new and distinct nodes over various window sizes. Based on method from Rosenberg et al. (2021).
-    :param episodes (format [[], [], ...]): list of episode trajectories (which are list of nodes)
+    Averages new and distinct nodes over various window sizes.
+    Based on method from Rosenberg et al. (2021).
+
+    :param episodes: (format [[], [], ...]) list of episode trajectories (which are list of nodes)
     :param re = True for rewarded animals, False for unrewarded
-    :return: steps_taken  #TODO: explain what is the format and content
+
+    :return: steps_taken (dict of total_nodes_visited -> distinct_nodes_visited
+    for various window sizes). Example, {10: 2, 50: 15} means on average it
+    visited 2 distinct nodes when it visited a total of 10 nodes. And to cover
+    15 distinct nodes it has to visit 50 nodes on average
     """
+
     leave, drink, explore = 0, 1, 2
     ma = NewMaze(6)
     tf = convert_episodes_to_traj_class(episodes)
