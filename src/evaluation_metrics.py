@@ -1,13 +1,19 @@
 """
 
 """
+import sys
 from collections import defaultdict
+from scipy.optimize import curve_fit
 import numpy as np
 import matplotlib.pyplot as plt
 
 from parameters import NODE_LVL
 from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips, LoadTrajFromPath
 from utils import nodes2cell, convert_episodes_to_traj_class, convert_traj_to_episodes
+
+outdata_path = '../outdata/'
+if outdata_path not in sys.path:
+    sys.path.append(outdata_path)
 
 
 def exploration_efficiency_sequential(episodes):
@@ -136,6 +142,7 @@ def get_feature_vectors(episodes):
     features[:, 2] = list(map(tortuosity, trajs))
     return features
 
+
 def get_direct_paths(episodes, node, mode):
     '''
     Extracting starting points of direct paths to / from node of interest
@@ -167,6 +174,7 @@ def get_direct_paths(episodes, node, mode):
             if clippedtraj: tailend_nodelist.extend([clippedtraj[-1]])
     return tailend_nodelist
 
+
 def get_dfs_ee():
     """
     Returns DFS exploration efficiency
@@ -194,3 +202,221 @@ def get_rewarded_ee():
     rew_epi = convert_traj_to_episodes(tf)
     rew_epi_exp = [rew_epi[17][:354]]
     return exploration_efficiency(rew_epi_exp, re=False)
+
+
+def fit_LevyWalk(nicknamelist, plottitle, start_bout=None, end_bout=None, log_scale=False):
+    '''
+    Fit real or predicted mouse trajectories to a Levy Walk model: c * (x ** - mu) where a 1 < mu <= 3 constitutes a Levy Walk
+    source for analysis: Murano, J., Mitsuishi, M. & Moriyama (2018), https://doi.org/10.1007/s10015-018-0457-7
+    :param nicknamelist: list of mouse nicknames
+    :param plottitle: title for agent or agent group the fitting is being done for
+    :param start_bout: bout to begin analysis for all mice, if not leave as None
+    :param end_bout: bout to end analysis for all mice, if not leave as None
+    :param log_scale: True or False to plot on a double log scale
+    :return:
+    '''
+    def TwoStep():
+        '''
+        Classifies transitions between every other connecting node on the maze as a
+        left: 0 or right: 1 turn. All other types and invalid turns are -1.
+        :return: 128-by-128 array [source node, destination node]
+                 eg. two_st[0,3] is a left turn (= 0) from node 0 to node 3
+        '''
+        m = NewMaze()
+        stem_vertT = []
+        [stem_vertT.extend(vl) for vl in list(NODE_LVL.values())[0:6:2]]
+        stem_horzT = []
+        [stem_horzT.extend(vl) for vl in list(NODE_LVL.values())[1:5:2]]
+        stem_horzT.extend([127])
+
+        two_st = np.full((len(m.ru) + 1, len(m.ru) + 1), -1, dtype=int)
+
+        for snode in stem_vertT:
+            # snode is the stem of a vertical T-junction
+            dnode = np.arange(snode + (snode + 1) * 3, snode + (snode + 1) * 3 + 4)
+            two_st[snode, dnode] = [0, 1, 1, 0]
+
+        for snode in stem_horzT[:-1]:
+            # snode is the stem of a horizontal T-junction
+            dnode = np.arange(snode + (snode + 1) * 3, snode + (snode + 1) * 3 + 4)
+            two_st[snode, dnode] = [0, 1, 1, 0]
+        two_st[127, [1, 2]] = [0, 1]
+
+        return two_st
+
+    def get_turn(source, dest, two_st):
+        '''
+        Identify turn type connecting the source and destination node
+        :param source: node to begin a turn from eg. node 0
+        :param dest: node to end a turn at eg. node 3 (corresponding to the source node 0)
+        :param two_st: 128-by-128 array [source node, destination node] with left: 0 or right: 1 or -1 for all others
+        :return: either 'L' or 'R' for left and right turns respectively. Or -1 for invalid turns
+        '''
+        turns = ['L', 'R']
+        turn = -1
+        if dest > source:
+            # step is inwards
+            turn = turns[two_st[source, dest]] if two_st[source, dest] != -1 else -1
+        elif source > dest:
+            # step is outwards
+            turn = turns[1 - two_st[dest, source]] if two_st[dest, source] != -1 else -1
+        return turn
+
+    def get_turnseq(nickname, start_bout=None, end_bout=None):
+        '''
+        Convert trajectory to a sequence of turns
+        :param nickname: mouse nickname as a str
+        :param start_bout: bout to begin analysis for each mouse
+        :param end_bout: bout to end analysis for each mouse
+        :return: list of turn types ('L', 'R', -1) for the specified bout duration and mouse
+        '''
+        tf = LoadTrajFromPath(outdata_path + nickname + '-tf')
+        turnseq = []
+        two_st = TwoStep()
+
+        for bout in tf.no[start_bout:end_bout]:
+            nodelist = bout[:, 0]
+            bout_turnseq = []
+            for source_node, dest_node in zip(nodelist[:-3], nodelist[2:]):
+                turn = get_turn(source_node, dest_node, two_st)
+                bout_turnseq.extend([turn])
+            turnseq.append(bout_turnseq)
+        return turnseq
+
+    def get_indv_turnsegment(turnseq):
+        '''
+        Analyze trajectory of an individual mouse and calculate frequency of alternating (TA) and repeating (TR) path segments
+        :param turnseq: list of turn types ('L', 'R', -1) for the specified bout duration and mouse
+        :return: frequency array of TA or TR path segments ranging from length 1 to a maximum length of 15
+        '''
+
+        def get_turntype(turn_pair):
+            '''
+            Identifying whether a sequence of two turns are alternating (TA) or repeating (TR)
+            :param turn_pair:
+            :return: 'TA' or 'TR' indicating the type of path segment for Levy Walk analysis
+            '''
+            flag = 'INVALID'
+            if turn_pair == ['L', 'R'] or turn_pair == ['R', 'L']:
+                flag = 'TA'
+            elif turn_pair == ['L', 'L'] or turn_pair == ['R', 'R']:
+                flag = 'TR'
+            return flag
+
+        def update_seglengths(prev_flag, curr_flag, TA, TR, seg_length):
+            '''
+            Updates TA and TR frequency arrays before agent changes to a different path segment type
+            :param prev_flag: previous path segment type ('TA','TR','INVALID')
+            :param curr_flag: current path segment type ('TA','TR','INVALID')
+            :param TA: frequency array of TA path segments ranging from length 1 to a maximum length of 15
+            :param TR: frequency array of TR path segments ranging from length 1 to a maximum length of 15
+            :param seg_length: segment length of the current path segment type
+            :return: TA, TR, seg_length
+            '''
+            if prev_flag == 'TA':
+                TA[seg_length - 1] += 1
+            elif prev_flag == 'TR':
+                TR[seg_length - 1] += 1
+            seg_length = 1 if curr_flag != 'INVALID' else 0
+            return TA, TR, seg_length
+
+        TA = np.zeros(15, dtype=int)
+        TR = np.zeros(15, dtype=int)
+
+        for boutseq in turnseq:
+            prev_flag = get_turntype(boutseq[0:2])
+            seg_length = 0
+            for id, turn in enumerate(boutseq[:-1]):
+                curr_flag = get_turntype(boutseq[id:id + 2])
+                if prev_flag == 'INVALID' and curr_flag != 'INVALID':
+                    seg_length += 1
+                elif prev_flag != 'INVALID' and curr_flag == 'INVALID':
+                    TA, TR, seg_length = update_seglengths(prev_flag, curr_flag, TA, TR, seg_length)
+                elif curr_flag == prev_flag and (prev_flag != 'INVALID'):
+                    seg_length += 1
+                elif curr_flag != prev_flag and (prev_flag != 'INVALID'):
+                    TA, TR, seg_length = update_seglengths(prev_flag, curr_flag, TA, TR, seg_length)
+                prev_flag = curr_flag
+        return TA, TR
+
+    def get_turnsegment(nicknamelist, start_bout, end_bout):
+        '''
+        Analyze trajectories of all mice and calculate average frequency of alternating (TA) and repeating (TR) path segments
+        :param nicknamelist: list of mouse nicknames
+        :param start_bout: bout to begin analysis for all mice
+        :param end_bout: bout to end analysis for all mice
+        :return: frequency array of average TA or TR path segments ranging from length 1 to a maximum length of 15
+        '''
+        TA_group = np.zeros(15, dtype=int)
+        TR_group = np.zeros(15, dtype=int)
+
+        for nickname in nicknamelist:
+            turnseq = get_turnseq(nickname, start_bout, end_bout)
+            TA, TR = get_indv_turnsegment(turnseq)
+            TA_group = TA_group + TA
+            TR_group = TR_group + TR
+        TA_group = TA_group / len(nicknamelist)
+        TR_group = TR_group / len(nicknamelist)
+
+        return TA_group, TR_group
+
+    def Levy_powerlaw(x, c, m):
+        '''
+
+        :param x: length of path segments eg. 'LRLR' is an alternating path segment of length 3 ('LR', 'RL', 'LR')
+        :param c: constant
+        :param m: mu
+        :return: cumulative relative frequency of path segment lengths (y values) predicted by the Levy Walk model
+        '''
+        return c * (x ** m)
+
+    def plot_freq(turn_seqdata, xlabel, plottitle, mode, log_scale=False):
+        '''
+        Line plot of mouse data path segment frequencies with a fitted Levy Walk model
+        :param turn_seqdata: TA or TR frequency arrays
+        :param xlabel: label for x-axis
+        :param plottitle: title for agent or agent group the fitting is being done for
+        :param mode: relative frequency, 'rel_freq' or cumulative frequency, 'cum_freq'
+        :param log_scale: True or False to plot on a double log scale
+        :return:
+        '''
+
+        def calc_ydata(turn_seqdata, total, mode):
+            if mode == 'rel_freq':
+                ydata = turn_seqdata * 100 / total
+                ylabel = 'Relative Frequency (%)'
+            elif mode == 'cum_freq':
+                ydata = np.cumsum(turn_seqdata[::-1])[::-1]
+                ydata = ydata * 100 / np.max(ydata)
+                ylabel = 'Cumulative Relative Frequency (%)'
+            return ydata, ylabel
+
+        plt.figure()
+        total = np.sum(turn_seqdata)
+        ydata, ylabel = calc_ydata(turn_seqdata, total, mode)
+        x = np.arange(len(turn_seqdata))
+        [c, mu], pcov = curve_fit(Levy_powerlaw, x + 1, ydata, maxfev=10000)
+
+        # R^2 calculation copied from:
+        # https://stackoverflow.com/questions/19189362/getting-the-r-squared-value-using-curve-fit
+        residuals = ydata - Levy_powerlaw(x + 1, c, mu)
+        ss_res = np.sum(residuals ** 2)
+        ss_tot = np.sum((ydata - np.mean(ydata)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot)
+        print(c, mu, r_squared)
+
+        plt.plot(x, ydata, '.', markersize=12, label='Real data')
+        plt.plot(x, Levy_powerlaw(x + 1, c, mu), 'r', label='Fitted power law')
+        if log_scale:
+            plt.yscale('log')
+            plt.xscale('log')
+            xlabel = 'Log ' + xlabel
+            ylabel = 'Log ' + ylabel
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title('%s, fits: c=%.2f, mu=%.2f, $R^2$=%.3f' % (plottitle, c, -1 * mu, r_squared))
+        plt.legend()
+
+    TA_results, TR_results = get_turnsegment(nicknamelist, start_bout, end_bout)
+    plot_freq(TA_results, xlabel='TA segment length', plottitle=plottitle, mode='cum_freq', log_scale=log_scale)
+    plot_freq(TR_results, xlabel='TR segment length', plottitle=plottitle, mode='cum_freq', log_scale=log_scale)
