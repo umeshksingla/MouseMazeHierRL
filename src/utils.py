@@ -36,10 +36,13 @@ def get_node_visit_times(tf, node_id):
             bout_init_fr = tf.fr[bout, 0]  # first frame of the bout
             frs_to_node_visits.append(bout_init_fr + node_visits_frs[:, 1])
 
-    frs_to_node_visits = np.concatenate(frs_to_node_visits)
+    if len(frs_to_node_visits)>0:
+        frs_to_node_visits = np.concatenate(frs_to_node_visits)
 
-    times_to_node_visits = np.array([frame_to_node_visit / FRAME_RATE
-                                          for frame_to_node_visit in frs_to_node_visits])
+        times_to_node_visits = np.array([frame_to_node_visit / FRAME_RATE
+                                              for frame_to_node_visit in frs_to_node_visits])
+    else:
+        times_to_node_visits=np.array([])
     return times_to_node_visits
 
 
