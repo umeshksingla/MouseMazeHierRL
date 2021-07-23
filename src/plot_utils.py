@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from numpy import ones
 
 from MM_Maze_Utils import *
-from parameters import HOME_NODE, RWD_NODE, FRAME_RATE, NODE_LVL
+from parameters import HOME_NODE, RWD_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES
 from utils import get_node_visit_times, get_all_night_nodes_and_times, \
     get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times
 import evaluation_metrics as em
@@ -123,9 +123,9 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
 
     if colored_markers:
         node_visit_times = list()
-        for node in range(127):
+        for node in ALL_MAZE_NODES:
             node_visit_times.append(get_node_visit_times(tf, node))
-        for node in range(127):
+        for node in ALL_MAZE_NODES:
             plt.plot(node_visit_times[node], node * ones(len(node_visit_times[node])), 'o')
 
     # Have visual separation for different node levels and quadrants
