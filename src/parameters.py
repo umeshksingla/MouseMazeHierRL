@@ -10,6 +10,8 @@ WATER_PORT_STATE = 128
 INVALID_STATE = -1
 FRAME_RATE = 30  # Hz
 
+TIME_EACH_MOVE=0.3  # in seconds. Mice take an average of 0.3 per each move
+
 # Define cell numbers of end/leaf nodes
 ALL_MAZE_NODES = list(range(0, 127))
 ALL_VISITABLE_NODES=ALL_MAZE_NODES+[HOME_NODE]
