@@ -1,6 +1,8 @@
 from MM_Traj_Utils import add_node_times_to_tf, add_node_times_to_tf_re, NewMaze, Traj
-from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES
+from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
+    TIME_EACH_MOVE
 import numpy as np
+from numpy import array
 
 from collections import defaultdict
 
@@ -171,20 +173,48 @@ def nodes2cell(state_hist_all):
     return state_hist_cell, state_hist_xy
 
 
-def convert_episodes_to_traj_class(episodes):
+def convert_episodes_to_traj_class(episodes_pos_trajs, episodes_state_trajs=None, time_each_move=TIME_EACH_MOVE):
     """
     Convert list of lists to Traj class with tf.no containing episode information.
     At the moment, simply using the index as time. This is so that simulated episodes
     can use some of the functions provided original authors that operate on Traj
     class instances.
 
-    episodes: [[], [], ..]
-    Returns tf: Traj
+    :param episodes_pos_trajs:  format [[], [], ..]; contains only positions in the maze that are visitable,
+    i.e. from ALL_VISITABLE_NODES
+    :param episodes_state_trajs: format [[], [], ..]; contains any state the agent can go to, including the WATER_PORT_STATE
+    :param time_each_move:
+    :return: tf: Traj
     """
+    tf = Traj(fr=[],ce=None,ke=None,no=[],re=[])
+    start = 0
+    end = 0
+    frames_per_move=FRAME_RATE*time_each_move
+    # frames_per_move =1
+    for bout, episode_traj in enumerate(episodes_pos_trajs):
+        tf.no.append(np.stack([np.array(episode_traj), np.arange(len(episode_traj))*frames_per_move], axis=1))
 
-    tf = Traj(fr=None,ce=None,ke=None,no=[],re=None)
-    for e in episodes:
-        tf.no.append(np.stack([np.array(e), np.arange(len(e))], axis=1))
+        end = start + len(episode_traj)*frames_per_move
+        tf.fr.append([start, end])
+        start = end+1*frames_per_move  # currently assuming the agent always stays the same amount of time at home
+
+        if episodes_state_trajs is not None:  # use state trajectory to find when rwd was delivered
+            rwd_idxs = np.where(array(episodes_state_trajs[bout]) == WATER_PORT_STATE)[0]  # received reward
+            rwd_times = []
+            for i, rwd_idx in enumerate(rwd_idxs):
+                wp_visit_idx = rwd_idx - 1 - 2 * i
+                rwd_times.append(frames_per_move*(wp_visit_idx + .1)) # adding a small 0.1 constant to make the
+                # reward delivery happen slightly after the waterport visit; the -2*i is to account for the extra
+                # entries (128 and 116) that are in the list when a reward is received
+            rwd_times = array(rwd_times)
+        else:  # assume every waterport visit leads to reward delivery
+            rwd_times = tf.no[bout][tf.no[bout][:, 0] == RWD_NODE, 1]+frames_per_move*.1
+        tmp_re = np.zeros((len(rwd_times), 2))
+        tmp_re[:, 0] = rwd_times  # tmp[:, 1] is left as zeros
+        tf.re.append(tmp_re)
+
+    tf.fr = np.array(tf.fr)
+
     return tf
 
 
