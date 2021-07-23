@@ -14,7 +14,7 @@ import numpy as np
 import pickle
 from pathlib import Path
 
-from parameters import HOME_NODE, WATER_PORT_STATE, INVALID_STATE, NODE_LVL, RWD_NODE
+from parameters import HOME_NODE, RWD_STATE, INVALID_STATE, NODE_LVL, WATERPORT_NODE
 
 class TDLambda_Home2Rwd():
     def __init__(self, file_suffix='BaseModel'):
@@ -23,7 +23,7 @@ class TDLambda_Home2Rwd():
         self.S0 = HOME_NODE
         self.file_suffix = file_suffix
         self.nodemap = self.get_SAnodemap()
-        self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
+        self.terminal_nodes = {HOME_NODE, RWD_STATE}
 
     def extract_trajectory_data(self):
         """
@@ -71,7 +71,7 @@ class TDLambda_Home2Rwd():
         for n in np.arange(N):
             for b in np.arange(B):
                 for bl in np.arange(BL - 1):
-                    if TrajS[n, b, bl + 1] == INVALID_STATE or TrajS[n, b, bl + 1] == WATER_PORT_STATE:
+                    if TrajS[n, b, bl + 1] == INVALID_STATE or TrajS[n, b, bl + 1] == RWD_STATE:
                         break
                     TrajA[n, b, bl] = np.where(
                         nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
@@ -107,12 +107,12 @@ class TDLambda_Home2Rwd():
         SAnodemap[HOME_NODE,1] = 0
         SAnodemap[HOME_NODE,2] = INVALID_STATE
 
-        # Nodes available at WATER_PORT_STATE
-        SAnodemap[WATER_PORT_STATE, :] = INVALID_STATE
+        # Nodes available at RWD_STATE
+        SAnodemap[RWD_STATE, :] = INVALID_STATE
 
-        # Nodes available at RWD_NODE
-        SAnodemap[RWD_NODE, 0] = INVALID_STATE
-        SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
+        # Nodes available at WATERPORT_NODE
+        SAnodemap[WATERPORT_NODE, 0] = INVALID_STATE
+        SAnodemap[WATERPORT_NODE, 1] = RWD_STATE
 
         return SAnodemap
 
@@ -124,7 +124,7 @@ class TDLambda_Home2Rwd():
         :return:
         '''
 
-        if s == RWD_NODE or s == HOME_NODE:
+        if s == WATERPORT_NODE or s == HOME_NODE:
             prob = [0, 1, 0]
             a = 1
         elif INVALID_STATE in self.nodemap[s, :]:
@@ -163,7 +163,7 @@ class TDLambda_Home2Rwd():
 
                 # Take action, observe reward and next state
                 sprime = self.nodemap[s, a]
-                if sprime == WATER_PORT_STATE:
+                if sprime == RWD_STATE:
                     R = 1  # Receive a reward of 1 when transitioning to the reward port
                 else:
                     R = 0
@@ -216,7 +216,7 @@ class TDLambda_Home2Rwd():
             #       alpha, beta, gamma, lamda, mouseID)
 
             V = np.ones(self.S) * V0mag
-            V[WATER_PORT_STATE] = 0  # setting state-values of terminal nodes to 0
+            V[RWD_STATE] = 0  # setting state-values of terminal nodes to 0
             V[HOME_NODE] = 0
             e = np.zeros(self.S)     # eligibility trace vector for all states
             episodes = []
@@ -267,8 +267,8 @@ class TDLambda_Home2Rwd():
             for mouseID in pred_traj:
                 total_pred_traj[mouseID].append(pred_traj[mouseID])
                 for traj in pred_traj[mouseID]:
-                    pred_rwd_rate[mouseID][i].extend([len(np.where(np.array(traj)==RWD_NODE)[0])])
-                    total_rwds[mouseID] += len(np.where(np.array(traj)==RWD_NODE)[0])
+                    pred_rwd_rate[mouseID][i].extend([len(np.where(np.array(traj) == WATERPORT_NODE)[0])])
+                    total_rwds[mouseID] += len(np.where(np.array(traj) == WATERPORT_NODE)[0])
 
         for mouseID in sub_fits:
             avg_state_value_hist[mouseID] /= RUNS

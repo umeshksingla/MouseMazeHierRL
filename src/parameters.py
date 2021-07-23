@@ -4,9 +4,9 @@ RWD_NAMES = ['B1','B2','B3','B4','C1','C3','C6','C7','C8','C9']
 ALL_NAMES = RWD_NAMES + UNRWD_NAMES
 UNRWD_NAMES_SUB = ['B5','B6','B7','D3','D4','D5','D7','D8','D9'] # excluding D6 which barely entered the maze
 
-RWD_NODE = 116
+WATERPORT_NODE = 116
 HOME_NODE = 127
-WATER_PORT_STATE = 128
+RWD_STATE = 128
 INVALID_STATE = -1
 FRAME_RATE = 30  # Hz
 
@@ -33,9 +33,9 @@ QUAD4 = [6, 13, 14, 27, 28, 29, 30, 55, 56, 57, 58, 59, 60, 61, 111, 112, 113, 1
 # DEPRECATED: Parameters to transition out of
 # PLEASE ONLY USE THE UPPERCASE ONES
 HomeNode = HOME_NODE
-RewardNode = RWD_NODE
+RewardNode = WATERPORT_NODE
 InvalidState = INVALID_STATE
-WaterPortNode = WATER_PORT_STATE
+WaterPortNode = RWD_STATE
 UnrewNames = UNRWD_NAMES
 RewNames = RWD_NAMES
 AllNames = ALL_NAMES

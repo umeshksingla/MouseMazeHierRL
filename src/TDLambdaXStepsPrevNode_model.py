@@ -29,8 +29,8 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
         self.construct_node_tuples_to_number_map()
 
         self.home_terminal_state = self.get_number_from_node_tuple((HOME_NODE, INVALID_STATE))
-        self.reward_terminal_state = self.get_number_from_node_tuple((RWD_NODE, WATER_PORT_STATE))
-        self.RewardTupleState = self.get_number_from_node_tuple((57, RWD_NODE))
+        self.reward_terminal_state = self.get_number_from_node_tuple((WATERPORT_NODE, RWD_STATE))
+        self.RewardTupleState = self.get_number_from_node_tuple((57, WATERPORT_NODE))
         self.terminal_nodes = {self.home_terminal_state, self.reward_terminal_state}
 
     def add_LoS(self, s, running_episode_traj, action_prob):
@@ -108,7 +108,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
 
     def get_initial_state(self) -> int:
         from_ = np.random.randint(0, HomeNode)
-        to_ = np.random.choice([c for c in self.nodemap[from_] if c not in [INVALID_STATE, RWD_NODE, WATER_PORT_STATE]])
+        to_ = np.random.choice([c for c in self.nodemap[from_] if c not in [INVALID_STATE, WATERPORT_NODE, RWD_STATE]])
         print("from_, to_", from_, to_)
         return self.get_number_from_node_tuple((from_, to_))
         # a=list(range(self.S))
@@ -299,7 +299,7 @@ class TDLambdaXStepsPrevNodeRewardReceived(TDLambdaXStepsRewardReceived):
             print(n, possible_states)
             possible_states = list(filter(
                 lambda
-                    p: p != INVALID_STATE and p != WATER_PORT_STATE and p != HOME_NODE,
+                    p: p != INVALID_STATE and p != RWD_STATE and p != HOME_NODE,
                 possible_states))
             pos_state_values = [V[self.get_number_from_node_tuple((p, n))] for
                                 p in possible_states]

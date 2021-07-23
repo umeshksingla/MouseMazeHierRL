@@ -14,7 +14,7 @@ import pickle
 from multiprocessing import Pool
 
 from MM_Traj_Utils import LoadTrajFromPath
-from parameters import INVALID_STATE, WATER_PORT_STATE, RWD_NODE, RewNames, HOME_NODE, NODE_LVL
+from parameters import INVALID_STATE, RWD_STATE, WATERPORT_NODE, RWD_NAMES, HOME_NODE, NODE_LVL
 
 
 class BaseModel:
@@ -26,7 +26,7 @@ class BaseModel:
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
         self.nodemap = self.get_SAnodemap()
-        self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
+        self.terminal_nodes = {HOME_NODE, RWD_STATE}
 
     def get_initial_state(self):
         a=list(range(self.S))
@@ -34,8 +34,8 @@ class BaseModel:
         a.remove(57)
         a.remove(115)
         a.remove(HOME_NODE)
-        a.remove(RWD_NODE)
-        a.remove(WATER_PORT_STATE)
+        a.remove(WATERPORT_NODE)
+        a.remove(RWD_STATE)
         return np.random.choice(a)    # Random initial state
 
     def extract_trajectory_data(self, orig_data_dir='../outdata/', save_dir=None):
@@ -44,7 +44,7 @@ class BaseModel:
         data object.
         """
         trajectory_data = []
-        for mouseId, nickname in enumerate(RewNames):
+        for mouseId, nickname in enumerate(RWD_NAMES):
             trajectory_data.append(self.__get_trajectory_data_by_nickname__(orig_data_dir, nickname))
         if save_dir:
             with open(os.path.join(save_dir, f'{self.file_suffix}.p'), 'wb') as f:
@@ -100,7 +100,7 @@ class BaseModel:
         for n in np.arange(N):
             for b in np.arange(B):
                 for bl in np.arange(BL - 1):
-                    if TrajS[n, b, bl + 1] == INVALID_STATE or TrajS[n, b, bl + 1] == WATER_PORT_STATE:
+                    if TrajS[n, b, bl + 1] == INVALID_STATE or TrajS[n, b, bl + 1] == RWD_STATE:
                         break
                     TrajA[n, b, bl] = np.where(
                         nodemap[TrajS[n, b, bl], :] == TrajS[n, b, bl + 1]
@@ -140,14 +140,15 @@ class BaseModel:
         SAnodemap[HOME_NODE, 1] = 0
         SAnodemap[HOME_NODE, 2] = INVALID_STATE
 
-        # Nodes at WaterPortState
-        SAnodemap[WATER_PORT_STATE, 0] = INVALID_STATE
-        SAnodemap[WATER_PORT_STATE, 1] = INVALID_STATE
-        SAnodemap[WATER_PORT_STATE, 2] = INVALID_STATE
+        # Nodes at RWD_STATE
+        SAnodemap[RWD_STATE, 0] = INVALID_STATE
+        SAnodemap[RWD_STATE, 1] = INVALID_STATE
+        SAnodemap[RWD_STATE, 2] = INVALID_STATE
 
-        # Arbitrarily set action 1 to lead to waterport state,
-        # but agent automatically goes from RWD_NODE to WATER_PORT_NODE without any action, i.e., this is not being used
-        SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
+        # Arbitrarily set action 1 to lead to rwdstate,
+        # but agent automatically goes from RWD_STATE to WATERPORT_NODE without any action, i.e., this is not
+        # being used
+        SAnodemap[WATERPORT_NODE, 1] = RWD_STATE
         return SAnodemap
 
     def get_action_probabilities(self, state, beta, V):

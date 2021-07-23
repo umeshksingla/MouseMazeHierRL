@@ -8,7 +8,7 @@ import numpy as np
 from numpy import arange
 
 from BaseModel import BaseModel
-from parameters import RWD_NODE, WATER_PORT_STATE, HOME_NODE, LVL_6_NODES, ALL_MAZE_NODES, INVALID_STATE, \
+from parameters import WATERPORT_NODE, RWD_STATE, HOME_NODE, LVL_6_NODES, ALL_MAZE_NODES, INVALID_STATE, \
     ALL_VISITABLE_NODES, TIME_EACH_MOVE
 from plot_utils import plot_trajectory, plot_maze_stats, plot_exploration_efficiency
 from utils import calculate_visit_frequency
@@ -31,7 +31,7 @@ class SR(BaseModel):
         n_states=len(ALL_VISITABLE_NODES)
         T = np.zeros((n_states, n_states))
         for state in arange(n_states):
-            mask_valid_next_states = np.logical_and(self.nodemap[state] != INVALID_STATE, self.nodemap[state] != WATER_PORT_STATE)
+            mask_valid_next_states = np.logical_and(self.nodemap[state] != INVALID_STATE, self.nodemap[state] != RWD_STATE)
             n_possibilities = float(sum(mask_valid_next_states))
 
             for next_state in self.nodemap[state][mask_valid_next_states]:
@@ -118,7 +118,7 @@ class SR(BaseModel):
 
         time_from_last_rwd += time_each_move
         rwd = np.zeros(self.S-1)  # S-1, bc I'm not using waterport state
-        rwd[RWD_NODE] = 1  # value of RWD_NODE state is set to 1 when it reaches HOME
+        rwd[WATERPORT_NODE] = 1  # value of WATERPORT_NODE state is set to 1 when it reaches HOME
         rwd[HOME_NODE] = 0  # value of HOME_NODE is reset to 0 when it reaches HOME
         V = self.calculate_value(M, rwd)
         value_hist = [V]
@@ -126,15 +126,15 @@ class SR(BaseModel):
         while s not in self.terminal_nodes and len(episode_state_traj) < max_length:
 
             # update states and get rewards
-            if s == WATER_PORT_STATE:
-                s_next = RWD_NODE
+            if s == RWD_STATE:
+                s_next = WATERPORT_NODE
                 # R = 1
-                rwd[RWD_NODE] = 0  # reset the drive to go to waterport
+                rwd[WATERPORT_NODE] = 0  # reset the drive to go to waterport
                 rwd[HOME_NODE] = 15
                 time_from_last_rwd = 0
                 # print(rwd)
-            elif (s == RWD_NODE) & (time_from_last_rwd >= 90):
-                s_next = WATER_PORT_STATE
+            elif (s == WATERPORT_NODE) & (time_from_last_rwd >= 90):
+                s_next = RWD_STATE
                 # R = 0
             else:
                 action_prob = self.get_action_probabilities(s, beta, V)
@@ -144,17 +144,17 @@ class SR(BaseModel):
                 # R = 0
 
             episode_state_traj.append(s_next)  # Record next state
-            if s_next in ALL_VISITABLE_NODES and s!=WATER_PORT_STATE:  # second condition avoids repetition of the RWD_NODE state in the record
+            if s_next in ALL_VISITABLE_NODES and s!=RWD_STATE:  # second condition avoids repetition of the WATERPORT_NODE state in the record
                 episode_maze_traj.append(s_next)  # Record next state
 
             # Update state-values
-            # rwd[RWD_NODE] = rwd[RWD_NODE] + tau*(1 - rwd[RWD_NODE])
+            # rwd[WATERPORT_NODE] = rwd[WATERPORT_NODE] + tau*(1 - rwd[WATERPORT_NODE])
             # rwd[HOME_NODE] = rwd[HOME_NODE] + tau*(1 - rwd[HOME_NODE])
             V = self.calculate_value(M, rwd)
             value_hist.append(V)
 
             V = check_value_function(V)
-            if s_next == WATER_PORT_STATE:
+            if s_next == RWD_STATE:
                 print('Reward consumed. Trial ', len(episode_maze_traj))
                 # print(rwd)
             elif s_next==HOME_NODE:

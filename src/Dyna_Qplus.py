@@ -75,10 +75,10 @@ class DynaQPlus(BaseModel):
         s = 0   # Start from 0 in exploration mode
         episode_traj = []
         LL = 0.0
-        self.nodemap[RWD_NODE][1] = -1  # No action to go to WATER_PORT_STATE
+        self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
         e = np.zeros((self.S, self.A))  # eligibility trace vector for all states
         while True:
-            assert s != WATER_PORT_STATE
+            assert s != RWD_STATE
             episode_traj.append(s)  # Record current state
             if s in self.terminal_nodes:
                 print(f"reached {s}, entering again")
@@ -152,7 +152,7 @@ class DynaQPlus(BaseModel):
 
         Q = np.zeros((self.S, self.A))  # Initialize state values
         Q[HOME_NODE, :] = 0
-        Q[WATER_PORT_STATE, :] = 0
+        Q[RWD_STATE, :] = 0
         T = np.zeros(Q.shape)
         M = np.zeros(Q.shape)
         for n in np.arange(self.S):

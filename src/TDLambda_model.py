@@ -8,7 +8,7 @@ from BaseModel import BaseModel
 import os
 import numpy as np
 
-from parameters import RWD_NODE, WATER_PORT_STATE, HOME_NODE, LVL_6_NODES
+from parameters import WATERPORT_NODE, RWD_STATE, HOME_NODE, LVL_6_NODES
 from plot_utils import plot_trajectory, plot_maze_stats
 
 
@@ -22,7 +22,7 @@ class TDLambda(BaseModel):
 
     def __init__(self):
         super().__init__(self)
-        self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
+        self.terminal_nodes = {HOME_NODE, RWD_STATE}
 
     def get_action_probabilities(self, state, beta, V):
         """
@@ -80,7 +80,7 @@ class TDLambda(BaseModel):
 
         while s not in self.terminal_nodes and len(episode_traj) < max_length:
 
-            if s != RWD_NODE:
+            if s != WATERPORT_NODE:
                 action_prob = self.get_action_probabilities(s, beta, V)
                 a = np.random.choice(range(self.A), p=action_prob)  # Choose action
                 s_next = int(self.nodemap[s, a])           # Take action
@@ -88,7 +88,7 @@ class TDLambda(BaseModel):
                 R = 0 # No reward
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
-                s_next = WATER_PORT_STATE
+                s_next = RWD_STATE
                 R = 1 # Observe reward
 
             episode_traj.append(s_next)  # Record next state
@@ -96,7 +96,7 @@ class TDLambda(BaseModel):
             # Update state-values
             td_error = R + gamma * V[s_next] - V[s]
             et[s] += 1
-            for node in np.arange(self.S - 1):  # WATER_PORT_STATE is never eligible (i.e. et=0), hence no need to include it
+            for node in np.arange(self.S - 1):  # RWD_STATE is never eligible (i.e. et=0), hence no need to include it
                 V[node] += alpha * td_error * et[node]
                 et[node] = gamma * lamda * et[node]
 
@@ -111,7 +111,7 @@ class TDLambda(BaseModel):
                 print('Warning state value exceeded upper bound. Might approach infinity.')
                 V[s] = np.sign(V[s]) * 1e5
 
-            if s_next == WATER_PORT_STATE:
+            if s_next == RWD_STATE:
                 print('Reward reached.')
             elif s_next==HOME_NODE:
                 print('Home reached.')

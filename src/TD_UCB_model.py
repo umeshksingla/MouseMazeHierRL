@@ -47,12 +47,12 @@ class TD_UCBpolicy(BaseModel):
         s = 0   # Start from 0 in exploration mode
         episode_traj = []
         LL = 0.0
-        self.nodemap[RWD_NODE][1] = -1  # No action to go to WATER_PORT_STATE
+        self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
         e = np.zeros(self.S)  # eligibility trace vector for all states
         N[s] += 1
         t[0] += 1
         while True:
-            assert s != WATER_PORT_STATE
+            assert s != RWD_STATE
             episode_traj.append(s)  # Record current state
             N[s] += 1
             t[0] += 1
@@ -109,7 +109,7 @@ class TD_UCBpolicy(BaseModel):
 
         V = np.zeros(self.S)  # Initialize state values
         V[HOME_NODE] = 0
-        V[WATER_PORT_STATE] = 0
+        V[RWD_STATE] = 0
         t = np.ones(1)
         N = np.ones(self.S)
         all_episodes = []

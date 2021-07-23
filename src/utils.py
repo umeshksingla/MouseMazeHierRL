@@ -1,5 +1,5 @@
 from MM_Traj_Utils import add_node_times_to_tf, add_reward_times_to_tf, NewMaze, Traj
-from parameters import FRAME_RATE, RWD_NODE, HOME_NODE, WATER_PORT_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
+from parameters import FRAME_RATE, WATERPORT_NODE, HOME_NODE, RWD_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
     TIME_EACH_MOVE
 import numpy as np
 from numpy import array
@@ -55,7 +55,7 @@ def get_wp_visit_times_and_rwd_times(tf):
     :param tf: trajectory object
     :return: times_to_waterport_visits, times_to_rwd
     """
-    times_to_waterport_visits = get_node_visit_times(tf, RWD_NODE)
+    times_to_waterport_visits = get_node_visit_times(tf, WATERPORT_NODE)
 
     # calculate reward deliveries
 
@@ -136,8 +136,8 @@ def get_SAnodemap():
     SAnodemap[HOME_NODE, 0] = INVALID_STATE
     SAnodemap[HOME_NODE, 1] = 0
     SAnodemap[HOME_NODE, 2] = INVALID_STATE
-    SAnodemap[WATER_PORT_STATE, :] = INVALID_STATE
-    SAnodemap[RWD_NODE, 1] = WATER_PORT_STATE
+    SAnodemap[RWD_STATE, :] = INVALID_STATE
+    SAnodemap[WATERPORT_NODE, 1] = RWD_STATE
 
     return SAnodemap
 
@@ -155,7 +155,7 @@ def nodes2cell(state_hist_all):
         if not epi:
             continue
         for id,node in enumerate(epi):
-            if id != 0 and node != HOME_NODE and node != WATER_PORT_STATE:
+            if id != 0 and node != HOME_NODE and node != RWD_STATE:
                 if node > epi[id-1]:
                     # if going to a deeper node
                     cells.extend(ma.ru[node])
@@ -183,7 +183,7 @@ def convert_episodes_to_traj_class(episodes_pos_trajs, episodes_state_trajs=None
 
     :param episodes_pos_trajs:  format [[], [], ..]; contains only positions in the maze that are visitable,
     i.e. from ALL_VISITABLE_NODES
-    :param episodes_state_trajs: format [[], [], ..]; contains any state the agent can go to, including the WATER_PORT_STATE
+    :param episodes_state_trajs: format [[], [], ..]; contains any state the agent can go to, including the RWD_STATE
     :param time_each_move:
     :return: tf: Traj
     """
@@ -200,7 +200,7 @@ def convert_episodes_to_traj_class(episodes_pos_trajs, episodes_state_trajs=None
         start = end+1*frames_per_move  # currently assuming the agent always stays the same amount of time at home
 
         if episodes_state_trajs is not None:  # use state trajectory to find when rwd was delivered
-            rwd_idxs = np.where(array(episodes_state_trajs[bout]) == WATER_PORT_STATE)[0]  # received reward
+            rwd_idxs = np.where(array(episodes_state_trajs[bout]) == RWD_STATE)[0]  # received reward
             rwd_times = []
             for i, rwd_idx in enumerate(rwd_idxs):
                 wp_visit_idx = rwd_idx - 1 - 2 * i
@@ -209,7 +209,7 @@ def convert_episodes_to_traj_class(episodes_pos_trajs, episodes_state_trajs=None
                 # entries (128 and 116) that are in the list when a reward is received
             rwd_times = array(rwd_times)
         else:  # assume every waterport visit leads to reward delivery
-            rwd_times = tf.no[bout][tf.no[bout][:, 0] == RWD_NODE, 1]+frames_per_move*.1
+            rwd_times = tf.no[bout][tf.no[bout][:, 0] == WATERPORT_NODE, 1] + frames_per_move * .1
         tmp_re = np.zeros((len(rwd_times), 2))
         tmp_re[:, 0] = rwd_times  # tmp[:, 1] is left as zeros
         tf.re.append(tmp_re)
@@ -253,19 +253,19 @@ def break_simulated_traj_into_episodes(maze_episode_traj):
                 episodes.append(epi)
             epi = []
             counts[HOME_NODE] += 1
-        elif i == WATER_PORT_STATE:
+        elif i == RWD_STATE:
             # epi.append(i)
             if len(epi) > 2:
                 episodes.append(epi)
             epi = []
-            counts[WATER_PORT_STATE] += 1
-        # elif i == WATER_PORT_STATE:
+            counts[RWD_STATE] += 1
+        # elif i == RWD_STATE:
         #     continue
         else:
             epi.append(i)
     if epi:
         episodes.append(epi)
-    assert WATER_PORT_STATE not in counts
+    assert RWD_STATE not in counts
     print("Home and WP node visit counts in simulated episodes:", counts)
     return episodes
 
@@ -281,7 +281,7 @@ def get_reward_times(episodes):
     visit_reward_node = []
     time_reward_node = []
     for i, traj in enumerate(episodes):
-        if traj.count(RWD_NODE):
+        if traj.count(WATERPORT_NODE):
             visit_reward_node.append(i)
             time_reward_node.append(len(traj))
     return visit_reward_node, time_reward_node

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from numpy import ones
 
 from MM_Maze_Utils import *
-from parameters import HOME_NODE, RWD_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES
+from parameters import HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES
 from MM_Traj_Utils import LoadTrajFromPath
 from utils import get_node_visit_times, get_all_night_nodes_and_times, \
     get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times, \
@@ -177,7 +177,7 @@ def plot_nodes_vs_time(tf, colored_markers=False, init_time=None, time_window=No
         plt.fill_betweenx([62.6, 126.4], 0, end_time, alpha=.1, color='blue')
 
     # Plot stars when the animal gets a reward
-    plt.plot(times_to_rwd, RWD_NODE * ones(len(times_to_rwd)) - .2, linestyle='None', marker='^', label='rwd',
+    plt.plot(times_to_rwd, WATERPORT_NODE * ones(len(times_to_rwd)) - .2, linestyle='None', marker='^', label='rwd',
              markersize=10, markerfacecolor='yellow', color='red')
 
     # plot times at home # NOTE: apparently there is a bug in fill_betweenx function which unpredictably gives a wrong visualization sometimes

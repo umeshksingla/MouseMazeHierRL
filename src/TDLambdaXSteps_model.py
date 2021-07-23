@@ -11,7 +11,7 @@ from collections import defaultdict
 
 from BaseModel import BaseModel
 from MM_Traj_Utils import LoadTrajFromPath
-from parameters import HOME_NODE, WATER_PORT_STATE, LVL_6_NODES, RWD_NODE, RewNames
+from parameters import HOME_NODE, RWD_STATE, LVL_6_NODES, WATERPORT_NODE, RewNames
 from utils import break_simulated_traj_into_episodes
 
 
@@ -48,14 +48,14 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 # steps Or if there haven't been X steps till now.)
                 lastXsteps_ = bout_trajectory[max(prev_idx+1, idx-self.X):idx , 0]
 
-                # Check if RWD_NODE was visited within X steps but no reward was received
-                rew_node_visit_in_lastXsteps = np.where(lastXsteps_[:-1] == RWD_NODE)[0]
+                # Check if WATERPORT_NODE was visited within X steps but no reward was received
+                rew_node_visit_in_lastXsteps = np.where(lastXsteps_[:-1] == WATERPORT_NODE)[0]
                 last_rew_node_visit = rew_node_visit_in_lastXsteps[-1] if rew_node_visit_in_lastXsteps.size > 0 else -1
 
                 # If yes, then consider only the later part of the trajectory
                 traj = lastXsteps_[last_rew_node_visit+1:]
                 # And append WaterPortNode at the end to denote the receipt of a reward.
-                traj = np.append(traj, WATER_PORT_STATE)
+                traj = np.append(traj, RWD_STATE)
 
                 trajectory_data.append(traj.tolist())
                 prev_idx = idx
@@ -118,15 +118,15 @@ class TDLambdaXStepsRewardReceived(BaseModel):
                 print(f"reached {s}, entering again")
                 s = self.get_initial_state()
 
-            if s != RWD_NODE:
+            if s != WATERPORT_NODE:
                 a, a_prob = self.choose_action(s, beta, V)  # Choose action
                 s_next = self.take_action(s, a)  # Take action
                 LL += np.log(a_prob)    # Update log likelihood
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
-                s_next = WATER_PORT_STATE
+                s_next = RWD_STATE
 
-            R = 1 if s == RWD_NODE else 0  # Observe reward
+            R = 1 if s == WATERPORT_NODE else 0  # Observe reward
 
             # Update state-values
             td_error = R + gamma * V[s_next] - V[s]
@@ -137,7 +137,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
             V[s] = self.is_valid_state_value(V[s])
 
-            if s == RWD_NODE:
+            if s == WATERPORT_NODE:
                 print('Reward Reached!')
                 if first_reward == -1:
                     first_reward = len(episode_traj)
@@ -191,7 +191,7 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
         V = np.random.rand(self.S+1)  # Initialize state values
         V[HOME_NODE] = 0     # setting state-value of maze entry to 0
-        V[WATER_PORT_STATE] = 0
+        V[RWD_STATE] = 0
         et = np.zeros(self.S+1)    # eligibility trace vector for all states
 
         all_episodes = []

@@ -64,10 +64,10 @@ class Epsilon3Greedy(BaseModel):
         s = 0   # Start from 0 in exploration mode
         episode_traj = []
         LL = 0.0
-        self.nodemap[RWD_NODE][1] = -1  # No action to go to WATER_PORT_STATE
+        self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
         e = np.zeros(self.S)  # eligibility trace vector for all states
         while True:
-            assert s != WATER_PORT_STATE
+            assert s != RWD_STATE
             episode_traj.append(s)  # Record current state
             if s in self.terminal_nodes:
                 print(f"reached {s}, entering again")
@@ -116,15 +116,15 @@ class Epsilon3Greedy(BaseModel):
                 s = self.get_initial_state()
                 e = np.zeros(self.S)
 
-            if s != RWD_NODE:
+            if s != WATERPORT_NODE:
                 a, a_prob = self.choose_action(s, V, epsilon)  # Choose action
                 s_next = self.take_action(s, a)  # Take action
                 # LL += np.log(a_prob)    # Update log likelihood
                 # print("s, s_next, a, action_prob", s, s_next, a, action_prob)
             else:
-                s_next = WATER_PORT_STATE
+                s_next = RWD_STATE
 
-            R = 1 if s == RWD_NODE else 0  # Observe reward
+            R = 1 if s == WATERPORT_NODE else 0  # Observe reward
 
             # Update state values
             td_error = R + gamma * V[s_next] - V[s]
@@ -135,7 +135,7 @@ class Epsilon3Greedy(BaseModel):
 
             V[s] = self.is_valid_state_value(V[s])
 
-            if s == RWD_NODE:
+            if s == WATERPORT_NODE:
                 print('Reward Reached!')
                 if first_reward == -1:
                     first_reward = len(episode_traj)
@@ -167,7 +167,7 @@ class Epsilon3Greedy(BaseModel):
 
         V = {'zero': np.zeros(self.S), 'one': np.ones(self.S)}[initial_v]  # Initialize state values
         V[HOME_NODE] = 0
-        V[WATER_PORT_STATE] = 0
+        V[RWD_STATE] = 0
         all_episodes = []
         LL = 0.0
         while len(all_episodes) < N_BOUTS_TO_GENERATE:
