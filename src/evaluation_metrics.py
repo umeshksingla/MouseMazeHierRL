@@ -200,7 +200,8 @@ def get_rewarded_ee():
     outdata_path = '../outdata/'
     tf = LoadTrajFromPath(outdata_path + 'B1-tf')
     rew_epi = convert_traj_to_episodes(tf)
-    rew_epi_exp = [rew_epi[17][:354]]
+    rew_epi_exp = rew_epi[:17]
+    rew_epi_exp.append(rew_epi[17][:354])
     return exploration_efficiency(rew_epi_exp, re=False)
 
 

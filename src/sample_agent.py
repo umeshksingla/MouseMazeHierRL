@@ -8,8 +8,7 @@ import glob
 import re
 
 from plot_utils import plot_trajs, plot_episode_lengths, \
-    plot_exploration_efficiency, plot_reward_path_lengths, plot_maze_stats, plot_visit_freq
-from utils import calculate_visit_frequency
+    plot_exploration_efficiency, plot_maze_stats, plot_visit_freq
 import evaluation_metrics as em
 
 
@@ -48,32 +47,37 @@ def analyse_state_values(model, V, save_file_path, params):
 
 
 def load(save_file_path):
+    """
+    Takes episodes pickles from a local directory and plots exp efficiency for
+    all of them on one graph. To be extended to other metrics.
+    """
+
+    episode_files_list = glob.glob(save_file_path + '/*_rand*/episodes*')
+    episode_files_list = sorted(episode_files_list)
+    c = 0
 
     plt.figure(figsize=(20, 10))
     plt.xscale('log', base=10)
     colormap = plt.cm.gist_ncar
 
-    episode_files_list = glob.glob(save_file_path + '/*_rand*/episodes*')
     for i, each in enumerate(episode_files_list):
         print("Loading", each)
         match = re.search(r'episodes_(\d+)_(\{.*})_LL', each)
-        print(match.group(1), " == ", match.group(2))
         agent_id = int(match.group(1))
         params = ast.literal_eval(match.group(2))
-        eps, n_plan, k, lamda = params["epsilon"], params["n_plan"], params["k"], params["lamda"]
+        print(agent_id, " == ", params)
 
-        if eps != 0.5:
-            continue
+        label = f'td-opt-{params["lamda"]}-lamda-{params["gamma"]}-gamma'
+        print("agentId", agent_id, ":", label)
 
         with open(os.path.join(each), 'rb') as f:
             stats = pickle.load(f)
-
-        print("agentId", agent_id, ":", f'{k}-dyna-{n_plan}-plan-{eps}-eps-{lamda}-lamda')
         episodes = stats["episodes"]
         new_end_nodes_found = em.exploration_efficiency(episodes, re=False)
         plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(),
-                 color=colormap(0.1 + 0.03 * i), linestyle='-', marker="o",
-                 label=f'{k}-dyna-{n_plan}-plan-{eps}-eps-{lamda}-lamda')
+                 color=colormap(0.2 + (0.03) * c), linestyle='-', marker="o",
+                 label=label)
+        c += 1
         print()
 
     # DFS
@@ -94,14 +98,17 @@ def load(save_file_path):
     plt.xlabel("end nodes visited")
     plt.ylabel("new end nodes found")
     plt.legend()
+
+    # sort legend labels with some logic if you need to
+    # handles, labels = plt.gca().get_legend_handles_labels()
+    # print(labels)
+    # labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: float(t[0].split('-')[2]) if len(t[0].split('-')) > 2 else 1))
+    # plt.legend(handles, labels)
     plt.show()
     return
 
 
-def run(model, params_all, base_path):
-
-    MAX_LENGTH = 20001
-    N_BOUTS_TO_GENERATE = 1
+def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
 
     simulation_results = model.simulate_multiple(params_all,
                                                  MAX_LENGTH=MAX_LENGTH,
@@ -115,7 +122,9 @@ def run(model, params_all, base_path):
         V = stats["V"]
         if success:
             print("#Episodes: ", len(episodes))
-            save_file_path = f'{base_path}/{model.__class__.__name__}/MAX_LENGTH={MAX_LENGTH}/' \
+            save_file_path = f'{base_path}/' \
+                             f'{model.__class__.__name__}/' \
+                             f'MAX_LENGTH={MAX_LENGTH}/' \
                              f'{params.__str__()}_rand{np.random.randint(1, 10000)}/'
             Path(save_file_path).mkdir(parents=True, exist_ok=True)
             with open(os.path.join(save_file_path, f'episodes_{agent_id}_{params.__str__()}_LL={LL}.pkl'), 'wb') as f:
@@ -123,89 +132,48 @@ def run(model, params_all, base_path):
             # print("episodes", episodes)
             analyse_state_values(model, V, save_file_path, params)
             analyse_episodes(stats, save_file_path, params)
-        print(">>> Done with params!", params)
+            print(">>> Done with params!", params, "- Check results at:", save_file_path)
 
     return
 
 
 if __name__ == '__main__':
-    np.random.seed(0)
+    # np.random.seed(0)
+    MAX_LENGTH = 4000
+    N_BOUTS_TO_GENERATE = 1
 
     # base path to save figs or other results in
     base_path = '/Users/usingla/mouse-maze/figs'
 
-    load(base_path + '/DynaQPlus/MAX_LENGTH=20001/')
-    quit()
+    # 1. Load prev simulation(s) results saved locally
+    # load(base_path + f'/TDLambdaOptimisticInitialization/MAX_LENGTH={MAX_LENGTH}/')
+    # quit()
+
+    # OR, 2. Run a new simulation
 
     # Import the model class you are interested in
-    # from TDLambdaXStepsPrevNode_model import TDLambdaXStepsPrevNodeRewardReceived
-    # from Epsilon3Greedy_model import Epsilon3Greedy
-    # from Epsilon2Greedy_model import Epsilon2Greedy
     # from TD_UCB_model import TD_UCBpolicy
-    from Dyna_Qplus import DynaQPlus
-    model = DynaQPlus()
+    # from Dyna_Qplus import DynaQPlus
+    # model = DynaQPlus()
+    from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
+    model = TDLambdaOptimisticInitialization()
     param_sets = {
-        0: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.0, "n_plan": 0, "back_action": True},
-        1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.1, "n_plan": 0, "back_action": True},
-        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.5, "n_plan": 0, "back_action": True},
-        3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.8, "n_plan": 0, "back_action": True},
 
-        4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.0, "n_plan": 50, "back_action": True},
-        5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.1, "n_plan": 50, "back_action": True},
-        6: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.5, "n_plan": 50, "back_action": True},
-        7: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.8, "n_plan": 50, "back_action": True},
+        # param_sets to try TDLambda+OptimisticInitialization
+        # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.0, "epsilon": 0.0},
+        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
+        # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
+        # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
 
-        8: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.0, "n_plan": 5000, "back_action": True},
-        9: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.1, "n_plan": 5000, "back_action": True},
-        10: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.5, "n_plan": 5000, "back_action": True},
-        11: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.8, "n_plan": 5000, "back_action": True},
+        # param_sets to try dynaQ+
+        # 12: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.0, "n_plan": 50000, "back_action": True},
+        # 13: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.1, "n_plan": 50000, "back_action": True},
+        # 14: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.5, "n_plan": 50000, "back_action": True},
+        # 15: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.8, "n_plan": 50000, "back_action": True},
 
-        12: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.0, "n_plan": 50000, "back_action": True},
-        13: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.1, "n_plan": 50000, "back_action": True},
-        14: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.5, "n_plan": 50000, "back_action": True},
-        15: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.8, "n_plan": 50000, "back_action": True},
-
-        16: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.0, "n_plan": 100000, "back_action": True},
-        17: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.1, "n_plan": 100000, "back_action": True},
-        18: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.5, "n_plan": 100000, "back_action": True},
-        19: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.8, "n_plan": 100000, "back_action": True},
-
-        20: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.0, "n_plan": 1000000, "back_action": True},
-        21: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.1, "n_plan": 1000000, "back_action": True},
-        22: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-            "epsilon": 0.5, "n_plan": 1000000, "back_action": True},
-        23: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-             "epsilon": 0.8, "n_plan": 1000000, "back_action": True},
-        # 0: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "c": 0.8, 'V': 'zero'},
-        # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "c": 0.8, 'V': 'zero'},
-        #
-        # 0: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "c": 0.1, 'V': 'zero'},
-        # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "c": 0.1, 'V': 'zero'},
-        #
-        # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "c": 0.5, 'V': 'one'},
-        # 5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "c": 0.5, 'V': 'zero'},
-        # 0: {"alpha": 0.1, "beta": 3, "gamma": 0.89, "lamda": 0.5},
     }
-    run(model, param_sets, base_path)
+    run(model, param_sets, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE)
