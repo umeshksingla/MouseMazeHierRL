@@ -1,5 +1,5 @@
 """
-
+Dyna Q+ agent.
 """
 import os
 import numpy as np
@@ -27,6 +27,10 @@ class DynaQPlus(BaseModel):
         raise Exception("wasn't supposed to be called")
 
     def get_valid_actions(self, state):
+        """
+        Get valid actions available at the "state".
+        Note: back_action=False is not verified yet.
+        """
         if state == HOME_NODE:
             return [1]
         if state in LVL_6_NODES:
@@ -39,7 +43,7 @@ class DynaQPlus(BaseModel):
 
     def __greedy_action__(self, state, Q):
         """
-        epsilon greedy
+        Choose a valid action in state greedily based on Q-values
         :param state:
         :param Q:
         :return: greedy action index based on SA_nodemap
@@ -55,7 +59,7 @@ class DynaQPlus(BaseModel):
 
     def __random_action__(self, state):
         """
-        Random action from one of left, right or back.
+        Random action from the actions available in this state.
         :return: random action index
         """
         return np.random.choice(self.get_valid_actions(state))
