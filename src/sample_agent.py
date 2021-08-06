@@ -159,19 +159,21 @@ if __name__ == '__main__':
     model = TDLambdaOptimisticInitialization()
     param_sets = {
 
+        # param_sets to try TDLambda+OptimisticInitialization
         # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.0, "epsilon": 0.0},
         2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
         # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
         # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
-        # 5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.3, "epsilon": 0.0},
-        # 6: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.9, "epsilon": 0.0},
-        # # 7: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.99, "epsilon": 0.0},
-        # # 8: {"alpha": 0.1, "gamma": 0.99, "lamda": 0.7, "epsilon": 0.0},
-        # 9: {"alpha": 0.1, "gamma": 0.8, "lamda": 0.7, "epsilon": 0.0},
-        # 10: {"alpha": 0.1, "gamma": 0.4, "lamda": 0.7, "epsilon": 0.0},
-        # 11: {"alpha": 0.1, "gamma": 0.6, "lamda": 0.7, "epsilon": 0.0},
-        # 12: {"alpha": 0.1, "gamma": 0.2, "lamda": 0.7, "epsilon": 0.0},
-        # 13: {"alpha": 0.1, "gamma": 0.1, "lamda": 0.7, "epsilon": 0.0},
+
+        # param_sets to try dynaQ+
+        # 12: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.0, "n_plan": 50000, "back_action": True},
+        # 13: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.1, "n_plan": 50000, "back_action": True},
+        # 14: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.5, "n_plan": 50000, "back_action": True},
+        # 15: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+        #      "epsilon": 0.8, "n_plan": 50000, "back_action": True},
 
     }
     run(model, param_sets, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE)
