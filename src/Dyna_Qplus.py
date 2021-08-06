@@ -22,6 +22,7 @@ class DynaQPlus(BaseModel):
     def __init__(self, file_suffix='_DynaQPlusTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
         self.back_action = True
+        self.terminal_nodes = {HOME_NODE, WATER_PORT_STATE}
 
     def get_action_probabilities(self, state, beta, V):
         raise Exception("wasn't supposed to be called")
