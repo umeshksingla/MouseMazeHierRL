@@ -19,7 +19,7 @@ def info(title):
 
 class DynaQPlus(BaseModel):
 
-    def __init__(self, file_suffix='_Epsilon3GreedyTrajectories'):
+    def __init__(self, file_suffix='_DynaQPlusTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
         self.back_action = True
 
@@ -27,6 +27,8 @@ class DynaQPlus(BaseModel):
         raise Exception("wasn't supposed to be called")
 
     def get_valid_actions(self, state):
+        if state == HOME_NODE:
+            return [1]
         if state in LVL_6_NODES:
             return [0]
         else:
@@ -88,10 +90,11 @@ class DynaQPlus(BaseModel):
 
             # acting
             a, a_prob = self.choose_action(s, Q, epsilon)      # Choose action
+            # a, a_prob = self.choose_action(s, Q + k * np.sqrt(T), epsilon)
             s_next = self.take_action(s, a)     # Take action
 
             # direct RL; learning (updating state values)
-            td_error = 0.0 + gamma * np.max(Q[s_next, :]) - Q[s, a]   # R = 0
+            td_error = 0.0 + gamma * np.max([Q[s_next, a_i] for a_i in self.get_valid_actions(s_next)]) - Q[s, a]   # R = 0
             e[s, a] += 1
             for n in np.arange(self.S):
                 Q[n, :] += alpha * td_error * e[n, :]
@@ -181,7 +184,8 @@ class DynaQPlus(BaseModel):
 
     def get_maze_state_values(self, V):
         """
-        Get state values to plot against the nodes on the maze
+        Get state values to plot against the nodes on the maze.
+        Do any transformations here if you need to on V matrix.
         """
         return V
 
@@ -189,7 +193,7 @@ class DynaQPlus(BaseModel):
         """
         Get state values to plot against the nodes on the maze
         """
-        return np.max(Q, axis=1)
+        return np.array([np.max([Q[n, a_i] for a_i in self.get_valid_actions(n)]) for n in np.arange(self.S)])
 
 
 if __name__ == '__main__':
