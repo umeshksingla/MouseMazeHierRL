@@ -249,14 +249,12 @@ def break_simulated_traj_into_episodes(maze_episode_traj):
     for i in maze_episode_traj:
         if i == HOME_NODE:
             epi.append(i)
-            if len(epi) > 2:
-                episodes.append(epi)
+            episodes.append(epi)
             epi = []
             counts[HOME_NODE] += 1
         elif i == RWD_STATE:
             # epi.append(i)
-            if len(epi) > 2:
-                episodes.append(epi)
+            episodes.append(epi)
             epi = []
             counts[RWD_STATE] += 1
         # elif i == RWD_STATE:
@@ -266,6 +264,7 @@ def break_simulated_traj_into_episodes(maze_episode_traj):
     if epi:
         episodes.append(epi)
     assert RWD_STATE not in counts
+    episodes = list(filter(lambda e: len(e) >= 2, episodes))
     print("Home and WP node visit counts in simulated episodes:", counts)
     return episodes
 
