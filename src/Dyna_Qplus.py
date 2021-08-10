@@ -86,6 +86,7 @@ class DynaQPlus(BaseModel):
         e = np.zeros((self.S, self.A))  # eligibility trace vector for all states
 
         s = HOME_NODE  # Start from HOME
+        print("Starting at", s)
         while len(episode_state_traj) <= MAX_LENGTH:
             assert s != RWD_STATE   # since it's pure exploration
 
