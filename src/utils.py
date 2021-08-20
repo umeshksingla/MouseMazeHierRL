@@ -1,8 +1,8 @@
 from MM_Traj_Utils import add_node_times_to_tf, add_reward_times_to_tf, NewMaze, Traj
 from parameters import FRAME_RATE, WATERPORT_NODE, HOME_NODE, RWD_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
-    TIME_EACH_MOVE
+    TIME_EACH_MOVE, INVALID_STATE, NODE_LVL
 import numpy as np
-from numpy import array
+from numpy import array, arange
 
 from collections import defaultdict
 
@@ -112,6 +112,7 @@ def create_list_waterport_visits_in_between_rwds(times_to_waterport_visits, time
 
 
 def get_SAnodemap():
+    ### THIS IS OLD AND PROBABLY BROKEN
     """
     Creates a mapping based on the maze layout where current states are linked to the next 3 future states
 
@@ -190,10 +191,10 @@ def convert_episodes_to_traj_class(episodes_pos_trajs, episodes_state_trajs=None
     tf = Traj(fr=[],ce=None,ke=None,no=[],re=[])
     start = 0
     end = 0
-    frames_per_move=FRAME_RATE*time_each_move
+    frames_per_move=int(FRAME_RATE*time_each_move)
     # frames_per_move =1
     for bout, episode_traj in enumerate(episodes_pos_trajs):
-        tf.no.append(np.stack([np.array(episode_traj), np.arange(len(episode_traj))*frames_per_move], axis=1).astype(int))
+        tf.no.append(np.stack([np.array(episode_traj), arange(len(episode_traj))*frames_per_move], axis=1).astype(int))
 
         end = start + len(episode_traj)*frames_per_move
         tf.fr.append([start, end])
