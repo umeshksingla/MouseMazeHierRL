@@ -17,7 +17,7 @@ def analyse_episodes(stats, save_file_path, params):
     episodes:
 
     """
-    episodes = stats["episodes"]
+    episodes = stats["episodes_positions"]
     # plot_reward_path_lengths(episodes, params, save_file_path)
     plot_episode_lengths(episodes, title=params, save_file_path=save_file_path)
     plot_exploration_efficiency(episodes, re=False, title=params, save_file_path=save_file_path)
@@ -117,7 +117,7 @@ def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
     for agent_id, params in params_all.items():
         print("params:", params)
         success, stats = simulation_results[agent_id]
-        episodes = stats["episodes"]
+        episodes = stats["episodes_positions"]
         LL = stats["LL"]
         V = stats["V"]
         if success:

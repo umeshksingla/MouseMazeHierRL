@@ -193,7 +193,7 @@ def convert_episodes_to_traj_class(episodes_pos_trajs, episodes_state_trajs=None
     frames_per_move=FRAME_RATE*time_each_move
     # frames_per_move =1
     for bout, episode_traj in enumerate(episodes_pos_trajs):
-        tf.no.append(np.stack([np.array(episode_traj), np.arange(len(episode_traj))*frames_per_move], axis=1))
+        tf.no.append(np.stack([np.array(episode_traj), np.arange(len(episode_traj))*frames_per_move], axis=1).astype(int))
 
         end = start + len(episode_traj)*frames_per_move
         tf.fr.append([start, end])
@@ -237,7 +237,7 @@ def convert_traj_to_episodes(tf):
 
 def break_simulated_traj_into_episodes(maze_episode_traj):
     """
-    Break the simulated trajectory list at either home node or reward node
+    Break the simulated trajectory list at home node
     and return the list of episodes
     param maze_episode_traj: list of nodes
     returns:
@@ -245,27 +245,17 @@ def break_simulated_traj_into_episodes(maze_episode_traj):
     """
     episodes = []
     epi = []
-    counts = defaultdict(int)
     for i in maze_episode_traj:
         if i == HOME_NODE:
             epi.append(i)
             episodes.append(epi)
             epi = []
-            counts[HOME_NODE] += 1
-        elif i == RWD_STATE:
-            # epi.append(i)
-            episodes.append(epi)
-            epi = []
-            counts[RWD_STATE] += 1
-        # elif i == RWD_STATE:
-        #     continue
         else:
             epi.append(i)
-    if epi:
+    if epi:     # last episode
         episodes.append(epi)
-    assert RWD_STATE not in counts
-    episodes = list(filter(lambda e: len(e) >= 2, episodes))
-    print("Home and WP node visit counts in simulated episodes:", counts)
+
+    print("Home visit counts in simulated episodes:", len(episodes))
     return episodes
 
 

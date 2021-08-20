@@ -21,7 +21,7 @@ class DynaQPlus(BaseModel):
 
     def __init__(self, file_suffix='_DynaQPlusTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
-        self.back_action = True
+        self.back_action = True # if there is a back action, Note: back_action=False is not verified yet, so keep it True for now.
 
     def get_action_probabilities(self, state, beta, V):
         raise Exception("wasn't supposed to be called")
@@ -73,28 +73,30 @@ class DynaQPlus(BaseModel):
         # print(f"greedy_action {greedy_action}, random_action {random_action} in state {s}: chosen {action}")
         return action, 1.0
 
-    def generate_exploration_episode(self, alpha, gamma, lamda, epsilon, k, n_plan, T, M, MAX_LENGTH, Q):
+    def generate_exploration_episode(self, alpha, gamma, lamda, epsilon, k, n_plan, bonus_in_planning, T, M, MAX_LENGTH, Q):
         """
         T contains the time steps a state hasn't been tried in T[n] time steps.
         """
-        print(self.nodemap)
-        s = 0   # Start from 0 in exploration mode
-        episode_traj = []
-        LL = 0.0
+
         self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
+        print(" === nodemap start ===\n", self.nodemap, "\n === nodemap end ===")
+
+        episode_state_traj = []
+        LL = 0.0    # loglikelihood (broken at the moment)
         e = np.zeros((self.S, self.A))  # eligibility trace vector for all states
-        while True:
-            assert s != RWD_STATE
-            episode_traj.append(s)  # Record current state
-            if s in self.terminal_nodes:
-                print(f"reached {s}, entering again")
-                s = 0   # Start from 0 when you hit home in exploration mode
-                episode_traj.append(s)  # Add new initial state s to it
-                e = np.zeros((self.S, self.A))
+
+        s = HOME_NODE  # Start from HOME
+        while len(episode_state_traj) <= MAX_LENGTH:
+            assert s != RWD_STATE   # since it's pure exploration
+
+            # Record current state
+            episode_state_traj.append(s)
 
             # acting
-            a, a_prob = self.choose_action(s, Q, epsilon)      # Choose action
-            # a, a_prob = self.choose_action(s, Q + k * np.sqrt(T), epsilon)
+            if bonus_in_planning:
+                a, a_prob = self.choose_action(s, Q, epsilon)      # Choose action
+            else:
+                a, a_prob = self.choose_action(s, Q + k * np.sqrt(T), epsilon)
             s_next = self.take_action(s, a)     # Take action
 
             # direct RL; learning (updating state values)
@@ -112,8 +114,7 @@ class DynaQPlus(BaseModel):
             M[s, a] = int(s_next)
 
             # planning
-            # assert np.count_nonzero(Q) == 0
-            # Q_ = Q
+            assert (np.count_nonzero(Q) == 0 if not bonus_in_planning else True)
             while n_plan:
                 s_random = np.random.choice(np.arange(self.S))
                 if s_random in self.terminal_nodes:
@@ -121,24 +122,28 @@ class DynaQPlus(BaseModel):
                 a_random = np.random.choice(self.get_valid_actions(s_random))   # any random action in S, not necessarily previously taken in S
                 s_next_random = int(M[s_random, a_random])
                 # print("s_random, a_random, s_next_random", s_random, a_random, s_next_random)
-                r_random = 0.0 + k * np.sqrt(T[s_random, a_random])     # use exploration bonus while planning as well
+                if bonus_in_planning:
+                    r_random = 0.0 + k * np.sqrt(T[s_random, a_random])     # use exploration bonus while planning as well
+                else:
+                    r_random = 0.0
                 Q[s_random, a_random] += alpha * (r_random + gamma * np.max(Q[s_next_random, :]) - Q[s_random, a_random])
                 n_plan -= 1
 
-            if len(episode_traj) > MAX_LENGTH:
-                print('Max trajectory length reached. Ending this trajectory.')
-                break
-
             s = s_next
-            if len(episode_traj)%1000 == 0:
-                print("current state", s, "step", len(episode_traj))
+            if len(episode_state_traj)%1000 == 0:
+                print("current state", s, "step", len(episode_state_traj))
                 # print("Q", Q)
                 # print("T", T)
                 # print("M", M)
             # print("===========================")
 
-        episodes = break_simulated_traj_into_episodes(episode_traj)
-        return True, episodes, LL
+        print('Max trajectory length reached. Ending this trajectory.')
+
+        episode_state_trajs = break_simulated_traj_into_episodes(episode_state_traj)
+        episode_state_trajs = list(filter(lambda e: len(e), episode_state_trajs))  # remove empty or short episodes
+        episode_maze_trajs = episode_state_trajs    # in pure exploration, both are same
+
+        return True, episode_state_trajs, episode_maze_trajs, LL
 
     def generate_episode(self):
         raise Exception("Nope!")
@@ -152,10 +157,10 @@ class DynaQPlus(BaseModel):
         epsilon = params["epsilon"]     # epsilon
         k = params["k"]                 # bonus factor
         n_plan = params["n_plan"]       # number of planning steps
-        self.back_action = params["back_action"]    # if there is a back action
+        bonus_in_planning = params["bonus_in_planning"]     # True if exploration bonus to be considered in planning step only, False if during action selection only
 
-        print("alpha, gamma, lamda, epsilon, k, n_plan, back_action, agentId",
-              alpha, gamma, lamda, epsilon, k, n_plan, self.back_action, agentId)
+        print("alpha, gamma, lamda, epsilon, k, n_plan, bonus_in_planning, agentId",
+              alpha, gamma, lamda, epsilon, k, n_plan, bonus_in_planning, agentId)
 
         Q = np.zeros((self.S, self.A))  # Initialize state values
         Q[HOME_NODE, :] = 0
@@ -166,23 +171,26 @@ class DynaQPlus(BaseModel):
             M[n, :] = int(n)     # initial model is that an action would lead back to the same state with a reward of zero until observed
 
         # print("model", M)
-        all_episodes = []
+        all_episodes_state_trajs = []
+        all_episodes_pos_trajs = []
         LL = 0.0
-        while len(all_episodes) < N_BOUTS_TO_GENERATE:
-            _, episodes, episode_ll = self.generate_exploration_episode(alpha, gamma, lamda, epsilon, k, n_plan, T, M, MAX_LENGTH, Q)
-            all_episodes.extend(episodes)
+        while len(all_episodes_state_trajs) < N_BOUTS_TO_GENERATE:
+            _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(alpha, gamma, lamda, epsilon, k, n_plan, bonus_in_planning, T, M, MAX_LENGTH, Q)
+            all_episodes_state_trajs.extend(episode_state_trajs)
+            all_episodes_pos_trajs.extend(episode_maze_trajs)
             LL += episode_ll
         print("Q", Q, "T", T)
         stats = {
             "agentId": agentId,
-            "episodes": all_episodes,
+            "episodes_states": all_episodes_state_trajs,
+            "episodes_positions": all_episodes_pos_trajs,
             "LL": LL,
             "MAX_LENGTH": MAX_LENGTH,
-            "count_total": len(all_episodes),
+            "count_total": len(all_episodes_state_trajs),
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
-            "exploration_efficiency": em.exploration_efficiency(all_episodes, re=False),
-            "visit_frequency": calculate_visit_frequency(all_episodes)
+            "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
+            "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs)
         }
         return success, stats
 
@@ -201,4 +209,17 @@ class DynaQPlus(BaseModel):
 
 
 if __name__ == '__main__':
-    pass
+
+    # sample dynaq+ agent run
+    from plot_utils import plot_exploration_efficiency, plot_maze_stats
+    param_sets = {
+        0: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+            "epsilon": 0.0, "n_plan": 50000, "bonus_in_planning": True},
+    }
+    simulation_results = DynaQPlus().simulate_multiple(param_sets, MAX_LENGTH=20000, N_BOUTS_TO_GENERATE=1)
+    success, stats = simulation_results[0]
+    episodes = stats["episodes_positions"]
+    V = stats["V"]
+    plot_exploration_efficiency(episodes, re=False, title=param_sets[0], display=True)
+    plot_maze_stats(V, interpolate_cell_values=True,display=True, figtitle=f'state values\n{param_sets[0]}')
+    print("finished.")
