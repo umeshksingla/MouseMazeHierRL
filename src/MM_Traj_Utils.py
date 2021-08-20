@@ -1050,10 +1050,10 @@ def SplitModeClips(tf,ma,re=True):
     wd=np.array([ma.di[r[-1],ma.ru[water][0]] for r in ma.ru])+1 # cell distance to water for every node
     leave=0; drink=1; explore=2 # the 3 modes
     cl=[] # list to accumulate clips
-    for i,b in enumerate(tf.no): # for each bout
-        if len(b)>1: # ignore bouts with just the exit state
-            edb=ed[b[:-1,0]] # distance to exit for every state in the bout, ignoring exit state
-            wdb=wd[b[:-1,0]] # distance to water for every state in the bout
+    for i,bout in enumerate(tf.no): # for each bout
+        if len(bout)>1: # ignore bouts with just the exit state
+            edb=ed[bout[:-1,0]] # distance to exit for every state in the bout, ignoring exit state
+            wdb=wd[bout[:-1,0]] # distance to water for every state in the bout
             # find and reverse the leave path
             j = len(edb)-1 # start at last state before the exit state
             k = j-1 # step back in time
@@ -1066,7 +1066,7 @@ def SplitModeClips(tf,ma,re=True):
             cl.append([i, k, j-k, leave]) # bout, starting node index within the bout, number of steps, mode
             # find and reverse the subsequent clips
             while k>0: # stop at the start of the bout
-                if b[k,0]== water and re==True:
+                if bout[k,0]== water and re==True:
                     j = k # start at last state of preceding clip
                     k = j-1 # step back in time
                     while k>=0 and wdb[k]>wdb[k+1]: # continue until distance to water increases or start of bout
@@ -1076,7 +1076,7 @@ def SplitModeClips(tf,ma,re=True):
                 else:
                     j = k # start at last state of preceding clip
                     k = j-1 # step back in time
-                    while k>=0 and b[k,0]!= water: # continue until hit water port or start of bout
+                    while k>=0 and bout[k,0]!= water: # continue until hit water port or start of bout
                         k-=1
                     if k==-1: # stopped at the start of the bout
                         k+=1
