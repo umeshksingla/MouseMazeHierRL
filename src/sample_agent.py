@@ -71,12 +71,12 @@ def load(save_file_path):
         params = ast.literal_eval(match.group(2))
         print(agent_id, " == ", params)
 
-        label = f'td-opt-{params["lamda"]}-lamda-{params["gamma"]}-gamma'
+        label = f'myopic-{params["initial_beta"]}-beta-{params["initial_lambda"]}-lambda-{params["initial_alpha"]}-alpha'
         print("agentId", agent_id, ":", label)
 
         with open(os.path.join(each), 'rb') as f:
             stats = pickle.load(f)
-        episodes = stats["episodes"]
+        episodes = stats["episodes_positions"]
         new_end_nodes_found = em.exploration_efficiency(episodes, re=False)
         plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(),
                  color=colormap(0.2 + (0.03) * c), linestyle='-', marker="o",
@@ -153,41 +153,53 @@ def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
 
 if __name__ == '__main__':
     # np.random.seed(0)
-    MAX_LENGTH = 4000
+    MAX_LENGTH = 20000
     N_BOUTS_TO_GENERATE = 1
 
     # base path to save figs or other results in
     base_path = '/Users/usingla/mouse-maze/figs'
 
     # 1. Load prev simulation(s) results saved locally
-    # load(base_path + f'/TDLambdaOptimisticInitialization/MAX_LENGTH={MAX_LENGTH}/')
+    # load(base_path + f'/BayesianQL/MAX_LENGTH={MAX_LENGTH}/')
     # quit()
 
     # OR, 2. Run a new simulation
-
     # Import the model class you are interested in
-    # from TD_UCB_model import TD_UCBpolicy
+
     # from Dyna_Qplus import DynaQPlus
     # model = DynaQPlus()
-    from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
-    model = TDLambdaOptimisticInitialization()
+    # param_sets = {
+    #     12: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+    #          "epsilon": 0.0, "n_plan": 50000, "back_action": True},
+    #     13: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+    #          "epsilon": 0.1, "n_plan": 50000, "back_action": True},
+    #     14: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+    #          "epsilon": 0.5, "n_plan": 50000, "back_action": True},
+    #     15: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+    #          "epsilon": 0.8, "n_plan": 50000, "back_action": True},
+    # }
+
+    # from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
+    # model = TDLambdaOptimisticInitialization()
+    # param_sets = {
+    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.0, "epsilon": 0.0},
+    #     2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
+    #     3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
+    #     4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
+    # }
+
+    from BayesianQL import BayesianQL
+    model = BayesianQL()
     param_sets = {
+        31: {"gamma": 0.99, "action_selection_method": 'q_sampling', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+        # 1533: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+        # 464: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 5, "initial_beta": 0.75},
+        # 543: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 8, "initial_beta": 0.75},
 
-        # param_sets to try TDLambda+OptimisticInitialization
-        # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.0, "epsilon": 0.0},
-        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
-        # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
-        # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
-
-        # param_sets to try dynaQ+
-        # 12: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-        #      "epsilon": 0.0, "n_plan": 50000, "back_action": True},
-        # 13: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-        #      "epsilon": 0.1, "n_plan": 50000, "back_action": True},
-        # 14: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-        #      "epsilon": 0.5, "n_plan": 50000, "back_action": True},
-        # 15: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-        #      "epsilon": 0.8, "n_plan": 50000, "back_action": True},
+        # 3342: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.3},
+        # 131: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+        # 434: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 1.0},
+        # 553: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 5.0},
 
     }
     run(model, param_sets, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE)
