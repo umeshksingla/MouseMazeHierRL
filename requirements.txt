@@ -2,3 +2,4 @@ matplotlib
 pystan
 dataclasses
 numpy
+scipy
