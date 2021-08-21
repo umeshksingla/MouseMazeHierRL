@@ -175,7 +175,10 @@ class DynaQPlus(BaseModel):
         all_episodes_pos_trajs = []
         LL = 0.0
         while len(all_episodes_state_trajs) < N_BOUTS_TO_GENERATE:
-            _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(alpha, gamma, lamda, epsilon, k, n_plan, bonus_in_planning, T, M, MAX_LENGTH, Q)
+            _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(alpha, gamma, lamda,
+                                                                                                       epsilon,  k, n_plan,
+                                                                                                       bonus_in_planning, T, M,
+                                                                                                       MAX_LENGTH, Q)
             all_episodes_state_trajs.extend(episode_state_trajs)
             all_episodes_pos_trajs.extend(episode_maze_trajs)
             LL += episode_ll

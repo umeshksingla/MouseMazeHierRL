@@ -1,5 +1,6 @@
 """
 SR model: Successor representation RL agent
+This agent has an alternating drive to go to the waterport and then to home.
 """
 
 from multiprocessing import Pool
@@ -8,10 +9,13 @@ import numpy as np
 from numpy import arange
 
 from BaseModel import BaseModel
+from MM_Maze_Utils import NewMaze
+from MM_Traj_Utils import SplitModeClips
+from decision_bias_analysis_tools import ComputeFourBiasClips2
 from parameters import WATERPORT_NODE, RWD_STATE, HOME_NODE, LVL_6_NODES, ALL_MAZE_NODES, INVALID_STATE, \
-    ALL_VISITABLE_NODES, TIME_EACH_MOVE
-from plot_utils import plot_trajectory, plot_maze_stats, plot_exploration_efficiency
-from utils import calculate_visit_frequency
+    ALL_VISITABLE_NODES, TIME_EACH_MOVE, EXPLORE
+from plot_utils import plot_trajectory, plot_maze_stats, plot_exploration_efficiency, plot_decision_biases
+from utils import calculate_visit_frequency, convert_episodes_to_traj_class
 
 
 def info(title):
@@ -94,7 +98,7 @@ class SR(BaseModel):
         valid_episode (bool): False only when episode is aborted because of not reaching a terminal state after
         `max_length` actions,
         episode_state_traj (list),
-        episode_maze_traj (list),
+        episode_pos_traj (list),
         value_hist (list)
         """
 
@@ -111,7 +115,7 @@ class SR(BaseModel):
 
         s = self.get_initial_state()
         episode_state_traj = [s]  # initialize episode trajectory list with the initial state
-        episode_maze_traj = [s]  # initialize episode trajectory list with the initial state
+        episode_pos_traj = [s]  # initialize episode trajectory list with the initial state
         # time_from_last_rwd = 90  # TODO: change this so that the agent don't receive a reward after every visit home
         M = np.linalg.inv(np.eye(self.T.shape[0]) - gamma * self.T)  # matrix M with expected future occupancies in each line
         tau = .05
@@ -145,7 +149,7 @@ class SR(BaseModel):
 
             episode_state_traj.append(s_next)  # Record next state
             if s_next in ALL_VISITABLE_NODES and s!=RWD_STATE:  # second condition avoids repetition of the WATERPORT_NODE state in the record
-                episode_maze_traj.append(s_next)  # Record next state
+                episode_pos_traj.append(s_next)  # Record next state
 
             # Update state-values
             # rwd[WATERPORT_NODE] = rwd[WATERPORT_NODE] + tau*(1 - rwd[WATERPORT_NODE])
@@ -155,10 +159,10 @@ class SR(BaseModel):
 
             V = check_value_function(V)
             if s_next == RWD_STATE:
-                print('Reward consumed. Trial ', len(episode_maze_traj))
+                print('Reward consumed. Trial ', len(episode_pos_traj))
                 # print(rwd)
             elif s_next==HOME_NODE:
-                print('Home reached. Trial ', len(episode_maze_traj))
+                print('Home reached. Trial ', len(episode_pos_traj))
 
             s = s_next
 
@@ -168,7 +172,7 @@ class SR(BaseModel):
             print('Trajectory too long. Episode was aborted. Another attempt will be made')
             valid_episode = False
 
-        return valid_episode, episode_state_traj, episode_maze_traj, value_hist, time_from_last_rwd
+        return valid_episode, episode_state_traj, episode_pos_traj, value_hist, time_from_last_rwd
 
     def calculate_value(self, M, rwd):
         # pad because value function array includes values for all states, including home node and waterport_state
@@ -259,8 +263,8 @@ class SR(BaseModel):
 if __name__ == '__main__':
     agnt = SR()
     np.random.seed(40)
-    ALPHA, BETA, GAMMA, LAMBDA = [0.3, 12, 0.998, 0.8]
-    success, stats = agnt.simulate(0, [ALPHA, BETA, GAMMA, LAMBDA], max_length=10000, n_bouts_to_generate=20, debug=True)
+    ALPHA, BETA, GAMMA, LAMBDA = [0.3, 2, 0.998, 0.8]
+    _, stats = agnt.simulate(0, [ALPHA, BETA, GAMMA, LAMBDA], max_length=10000, n_bouts_to_generate=20, debug=True)
     plot_trajectory(stats["episodes_positions"], episode_idx=0)
 
     episode_i=5
@@ -278,3 +282,15 @@ if __name__ == '__main__':
                     colorbar_label="visit freq", figtitle='Node occupancies - all episodes', vmax=100)
 
     # plot occupancies with error bars # TODO: check how it was done in TDlambda_Shuangquan.ipynb
+
+    tf = convert_episodes_to_traj_class(stats["episodes_positions"], stats["episodes_states"])
+
+    N_EXTRA_SIMULATIONS = 5
+    tfs = list()
+    tfs.append(tf)
+    for _ in range(N_EXTRA_SIMULATIONS):
+        _, stats = agnt.simulate(0, [ALPHA, BETA, GAMMA, LAMBDA], max_length=10000, n_bouts_to_generate=20, debug=True)
+        tmp_tf = convert_episodes_to_traj_class(stats["episodes_positions"], stats["episodes_states"])
+        tfs.append(tmp_tf)
+
+    plot_decision_biases(tfs)

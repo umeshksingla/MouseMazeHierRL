@@ -1,14 +1,21 @@
 """
+Several useful plotting functions
 Plot the node trajectories on maze
 """
 
 from matplotlib.collections import LineCollection
+from matplotlib import patches
 import matplotlib.pyplot as plt
+import os
+import numpy as np
+from matplotlib.pyplot import figure, subplot, title, suptitle
 from numpy import ones
 
-from MM_Maze_Utils import *
-from parameters import HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES
-from MM_Traj_Utils import LoadTrajFromPath
+from MM_Maze_Utils import NewMaze, PlotMazeWall
+from MM_Plot_Utils import plot
+from decision_bias_analysis_tools import ComputeFourBiasClips2
+from parameters import HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES, EXPLORE
+from MM_Traj_Utils import LoadTrajFromPath, SplitModeClips
 from utils import get_node_visit_times, get_all_night_nodes_and_times, \
     get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times, \
     convert_traj_to_episodes
@@ -211,7 +218,9 @@ def PlotMazeFunction_gradientcmap(fn, ma, interpolate_cell_values, colormap_name
     See also MM_Traj_Utils.PlotMazeFunction
     :param fn: 1-by-128 array of state values for nodes on the maze
     :param ma: maze structure
-    :param interpolate_cell_values: interpolate_cell_values (bool)
+    :param interpolate_cell_values: interpolate_cell_values (bool)  # TODO: change this name since it is not only doing the
+                                                                        interpolation, but also change the way the function
+                                                                        is calculated
     :param colormap_name:
     :param numcol: color for the numbers. If numcol is None the numbers are omitted
     :param figsize: in inches
@@ -300,7 +309,8 @@ def plot_maze_stats(data, interpolate_cell_values=True, colormap_name=None, axes
     """
     :param data: list of maze nodes, cells or 1-by-128 array of state-values
     :param interpolate_cell_values (bool): True to interpolate, False to only color nodes and leave
-        other cells colored in white
+        other cells colored in white # TODO: change this name since it is not only doing the interpolation, but also change the
+                                        way the function is calculated
     :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
     """
     # ma = NewMaze()
@@ -430,6 +440,48 @@ def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, d
     plt.clf()
     plt.close()
     return
+
+
+def plot_decision_biases(tfs):
+    """
+    Plots the decision biases and prints their standard deviation for each agent
+    :param tfs: list of `tf` trajectory files converted from simulated episodes
+    """
+    ma = NewMaze(6)
+    # 4-bias of all animals during exploration, mean ± SD across nodes for each animal
+    print('Four biases during exploration only, mean and std dev across all nodes')
+    print('     SF             SA             BF             BS')
+    # old Bf/Ba/Lf/Lo | bottom (B), left (L), or right (R); forward (f) out (o) alternating (a)
+    bi = []
+    bis = []
+    for i, tf in enumerate(tfs):
+        cl = SplitModeClips(tf, ma)  # find the clips
+        be, bes = ComputeFourBiasClips2(tf, ma, cl, mode=EXPLORE)  # bias using exploration only
+        print('%2d' %i + ': {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}'.
+              format(be[0], bes[0], be[1], bes[1], be[2], bes[2], be[3], bes[3]))
+        bi += [be]
+        bis += [bes]
+    bi = np.array(bi)
+    bis = np.array(bis)
+
+    figure()
+    suptitle("Decision biases")
+    ax = subplot(121)
+    # plot biases BF vs SF
+    BF_MEAN = 0.82
+    SF_MEAN = 0.77
+    RANDOM_F = 2/3  # chance of going forward
+    plot([bi[:, 0], [SF_MEAN], [RANDOM_F]], [bi[:, 2], [BF_MEAN],  [RANDOM_F]],
+         fmts=['.', 'b^', 'k+'], markersize=5, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
+             legend=['agent', 'mean mice', 'random'], xlabel='$P_{\mathrm{SF}}$', ylabel='$P_{\mathrm{BF}}$', loc='lower left')
+    ax = subplot(122)
+    # plot biases BS vs SA
+    BS_MEAN = 0.64
+    SA_MEAN = 0.72
+    RANDOM_CHOICE = 0.5
+    plot([bi[:, 1], [SA_MEAN], [RANDOM_CHOICE]], [bi[:, 3], [BS_MEAN], [RANDOM_CHOICE]],
+         fmts=['.', 'b^', 'k+'], markersize=5, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
+             legend=['agent', 'mean mice', 'random'], xlabel='$P_{\mathrm{SA}}$', ylabel='$P_{\mathrm{BS}}$', loc='lower left')
 
 
 def plot_reward_path_lengths(episodes, title, save_file_path=None, dots=True, display=False):

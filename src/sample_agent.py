@@ -7,9 +7,13 @@ import ast
 import glob
 import re
 
+from MM_Maze_Utils import NewMaze
+from MM_Traj_Utils import SplitModeClips
+from decision_bias_analysis_tools import ComputeFourBiasClips2
 from plot_utils import plot_trajs, plot_episode_lengths, \
-    plot_exploration_efficiency, plot_maze_stats, plot_visit_freq
+    plot_exploration_efficiency, plot_maze_stats, plot_visit_freq, plot_decision_biases
 import evaluation_metrics as em
+from utils import convert_episodes_to_traj_class
 
 
 def analyse_episodes(stats, save_file_path, params):
@@ -110,9 +114,14 @@ def load(save_file_path):
 
 def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
 
-    simulation_results = model.simulate_multiple(params_all,
-                                                 MAX_LENGTH=MAX_LENGTH,
-                                                 N_BOUTS_TO_GENERATE=N_BOUTS_TO_GENERATE)
+    # N_SIMULATIONS = 5
+    # tfs = list()
+    # for _ in range(N_SIMULATIONS):
+    # TODO: when this is working, just ident all the code until the line that starts with tmp_tf
+    #  this code with two loops is bad, but it should work. For long term use, please be kind to our future selves and do
+    #  something decent that won't take much time to code.
+
+    simulation_results = model.simulate_multiple(params_all, MAX_LENGTH=MAX_LENGTH, N_BOUTS_TO_GENERATE=N_BOUTS_TO_GENERATE)
     # analyse results
     for agent_id, params in params_all.items():
         print("params:", params)
@@ -133,6 +142,11 @@ def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
             analyse_state_values(model, V, save_file_path, params)
             analyse_episodes(stats, save_file_path, params)
             print(">>> Done with params!", params, "- Check results at:", save_file_path)
+
+    #             tmp_tf = convert_episodes_to_traj_class(stats["episodes"], stats["episodes_states"])
+    #             tfs.append(tmp_tf)
+    #
+    # plot_decision_biases(tfs)
 
     return
 

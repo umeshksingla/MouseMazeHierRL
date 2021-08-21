@@ -34,7 +34,9 @@ class TDLambdaOptimisticInitialization(DynaQPlus):
         all_episodes = []
         LL = 0.0
         while len(all_episodes) < N_BOUTS_TO_GENERATE:
-            _, episodes, episode_ll = self.generate_exploration_episode(alpha, gamma, lamda, epsilon, k, n_plan, np.zeros(Q.shape), np.zeros(Q.shape), MAX_LENGTH, Q)
+            _, episodes, episode_ll = self.generate_exploration_episode(alpha, gamma, lamda, epsilon, k, n_plan,
+                                                                        np.zeros(Q.shape), np.zeros(Q.shape), MAX_LENGTH,
+                                                                        Q)  #TODO: missing parameter M
             all_episodes.extend(episodes)
             LL += episode_ll
         print("Q", Q)
