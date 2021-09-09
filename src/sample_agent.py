@@ -7,9 +7,6 @@ import ast
 import glob
 import re
 
-from MM_Maze_Utils import NewMaze
-from MM_Traj_Utils import SplitModeClips
-from decision_bias_analysis_tools import ComputeFourBiasClips2
 from plot_utils import plot_trajs, plot_episode_lengths, \
     plot_exploration_efficiency, plot_maze_stats, plot_visit_freq, plot_decision_biases
 import evaluation_metrics as em
@@ -114,12 +111,7 @@ def load(save_file_path):
 
 def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
 
-    # N_SIMULATIONS = 5
-    # tfs = list()
-    # for _ in range(N_SIMULATIONS):
-    # TODO: when this is working, just ident all the code until the line that starts with tmp_tf
-    #  this code with two loops is bad, but it should work. For long term use, please be kind to our future selves and do
-    #  something decent that won't take much time to code.
+    tfs = list()
 
     simulation_results = model.simulate_multiple(params_all, MAX_LENGTH=MAX_LENGTH, N_BOUTS_TO_GENERATE=N_BOUTS_TO_GENERATE)
     # analyse results
@@ -141,13 +133,11 @@ def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
             # print("episodes", episodes)
             analyse_state_values(model, V, save_file_path, params)
             analyse_episodes(stats, save_file_path, params)
+
+            tfs.append(convert_episodes_to_traj_class(stats["episodes_positions"], stats["episodes_states"]))
             print(">>> Done with params!", params, "- Check results at:", save_file_path)
 
-    #             tmp_tf = convert_episodes_to_traj_class(stats["episodes"], stats["episodes_states"])
-    #             tfs.append(tmp_tf)
-    #
-    # plot_decision_biases(tfs)
-
+    plot_decision_biases(tfs)
     return
 
 
@@ -169,37 +159,42 @@ if __name__ == '__main__':
     # from Dyna_Qplus import DynaQPlus
     # model = DynaQPlus()
     # param_sets = {
+    #     11: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
+    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
     #     12: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.0, "n_plan": 50000, "back_action": True},
+    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
     #     13: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.1, "n_plan": 50000, "back_action": True},
+    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
     #     14: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.5, "n_plan": 50000, "back_action": True},
+    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
     #     15: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.8, "n_plan": 50000, "back_action": True},
+    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
     # }
 
-    # from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
-    # model = TDLambdaOptimisticInitialization()
-    # param_sets = {
-    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.0, "epsilon": 0.0},
-    #     2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
-    #     3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
-    #     4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
-    # }
-
-    from BayesianQL import BayesianQL
-    model = BayesianQL()
+    from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
+    model = TDLambdaOptimisticInitialization()
     param_sets = {
-        31: {"gamma": 0.99, "action_selection_method": 'q_sampling', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-        # 1533: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-        # 464: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 5, "initial_beta": 0.75},
-        # 543: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 8, "initial_beta": 0.75},
-
-        # 3342: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.3},
-        # 131: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-        # 434: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 1.0},
-        # 553: {"gamma": 0.99, "action_selection_method": 'myopic', "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 5.0},
-
+        1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
+        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
+        3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
+        4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
+        5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
     }
+
+    # from BayesianQL import BayesianQL
+    # model = BayesianQL()
+    # param_sets = {
+    #     1: {"gamma": 0.99, "action_selection_method": 'q_sampling',
+    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+    #     2: {"gamma": 0.99, "action_selection_method": 'q_sampling',
+    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+    #     3: {"gamma": 0.99, "action_selection_method": 'q_sampling',
+    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+    #     4: {"gamma": 0.99, "action_selection_method": 'q_sampling',
+    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+    #     5: {"gamma": 0.99, "action_selection_method": 'q_sampling',
+    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
+    # }
+
+
     run(model, param_sets, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE)
