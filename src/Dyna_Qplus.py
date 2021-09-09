@@ -94,9 +94,9 @@ class DynaQPlus(BaseModel):
             episode_state_traj.append(s)
 
             # acting
-            if bonus_in_planning:
-                a, a_prob = self.choose_action(s, Q, epsilon)      # Choose action
-            else:
+            if bonus_in_planning:   # using bonus in planning
+                a, a_prob = self.choose_action(s, Q, epsilon)
+            else:   # bonus in action selection
                 a, a_prob = self.choose_action(s, Q + k * np.sqrt(T), epsilon)
             s_next = self.take_action(s, a)     # Take action
 

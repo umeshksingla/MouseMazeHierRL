@@ -25,7 +25,7 @@ class TDLambdaOptimisticInitialization(DynaQPlus):
         epsilon = params["epsilon"]     # epsilon
         k = 0                           # bonus factor
         n_plan = 0                      # number of planning steps
-        bonus_in_planning = False       # check dynaQ+ for this
+        bonus_in_planning = True        # check dynaQ+ for this; IMP is to keep n_plan = 0
 
         print("alpha, gamma, lamda, epsilon, k, n_plan, back_action, agentId",
               alpha, gamma, lamda, epsilon, k, n_plan, self.back_action, agentId)
