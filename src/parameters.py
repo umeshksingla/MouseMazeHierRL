@@ -20,13 +20,13 @@ EXPLORE = 2
 # Define cell numbers of end/leaf nodes
 ALL_MAZE_NODES = list(range(0, 127))
 ALL_VISITABLE_NODES=ALL_MAZE_NODES+[HOME_NODE]
-LVL_6_NODES = list(range(63,127))
-LVL_5_NODES = list(range(31,63))
-LVL_4_NODES = list(range(15,31))
-LVL_3_NODES = list(range(7,15))
-LVL_2_NODES = list(range(3,7))
-LVL_1_NODES = list(range(1,3))
-LVL_0_NODES = list(range(0,1))
+LVL_6_NODES = dict.fromkeys(list(range(63,127)), True)
+LVL_5_NODES = dict.fromkeys(list(range(31,63)), True)
+LVL_4_NODES = dict.fromkeys(list(range(15,31)), True)
+LVL_3_NODES = dict.fromkeys(list(range(7,15)), True)
+LVL_2_NODES = dict.fromkeys(list(range(3,7)), True)
+LVL_1_NODES = dict.fromkeys(list(range(1,3)), True)
+LVL_0_NODES = dict.fromkeys(list(range(0,1)), True)
 NODE_LVL = {0:LVL_0_NODES, 1:LVL_1_NODES, 2:LVL_2_NODES, 3:LVL_3_NODES, 4:LVL_4_NODES, 5:LVL_5_NODES, 6:LVL_6_NODES}
 
 # Define nodes belonging to each quadrant
