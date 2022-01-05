@@ -1,5 +1,5 @@
 """
-Epsilon3Greedy model, 3 actions at Level 0 - 5 nodes.
+EpsilonGreedy model, 3 actions at Level 0 - 5 nodes.
 """
 import os
 import numpy as np
@@ -11,9 +11,9 @@ from utils import break_simulated_traj_into_episodes, calculate_visit_frequency
 import evaluation_metrics as em
 
 
-class Epsilon3Greedy(BaseModel):
+class EpsilonGreedy(BaseModel):
 
-    def __init__(self, file_suffix='_Epsilon3GreedyTrajectories'):
+    def __init__(self, file_suffix='_EpsilonGreedyTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
 
     def get_action_probabilities(self, state, beta, V):

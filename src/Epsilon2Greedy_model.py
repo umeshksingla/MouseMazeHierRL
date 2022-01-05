@@ -1,22 +1,29 @@
 """
-Epsilon2Greedy model, with 2 actions at nodes. Contrast it with Epsilon3Greedy.
+NOTE: This model will just make the agent stuck.
+
+Epsilon2Greedy model, 2 actions at Level 0 - 5 nodes.
 """
-import numpy as np
+from parameters import *
+from BaseModel import BaseModel
+from EpsilonGreedy_model import EpsilonGreedy
 
-from Epsilon3Greedy_model import Epsilon3Greedy
 
-
-class Epsilon2Greedy(Epsilon3Greedy):
+class Epsilon2Greedy(EpsilonGreedy):
 
     def __init__(self, file_suffix='_Epsilon2GreedyTrajectories'):
-        Epsilon3Greedy.__init__(self, file_suffix=file_suffix)
+        BaseModel.__init__(self, file_suffix=file_suffix)
 
-    def __random_action__(self):
+    def get_valid_actions(self, state):
         """
-        No action to go back, only left and right
-        :return: random action index
+        Get valid actions available at the "state".
+        Note: back_action=False is not verified yet.
         """
-        return np.random.choice(range(1, 3))
+        if state == HOME_NODE:
+            return [1]
+        if state in LVL_6_NODES:
+            return [0]
+        else:
+            return [1, 2]
 
 
 if __name__ == '__main__':
