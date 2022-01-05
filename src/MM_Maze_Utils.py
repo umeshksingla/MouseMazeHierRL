@@ -182,6 +182,9 @@ def StepType(i,j,m):
 
 def StepType2(i,j,m):
     '''
+
+    # NOTE: for actions outgoing from a node
+
     A version of StepType() that considers both 'out left and 'out right' steps the same.
     Returns the type of step from node i to j in maze m.
     in left = 0; in right = 1; out = 2; illegal = -1
@@ -195,6 +198,9 @@ def StepType2(i,j,m):
 
 def StepType3(i,j,m):
     '''
+
+    # NOTE: for action incoming to a node
+
     A version of StepType() that considers both 'in left and 'in right' steps the same.
     Returns the type of step from node i to j in maze m.
     in = 0; out left = 1; out right = 2; illegal = -1

@@ -8,7 +8,9 @@ import glob
 import re
 
 from plot_utils import plot_trajs, plot_episode_lengths, \
-    plot_exploration_efficiency, plot_maze_stats, plot_visit_freq, plot_decision_biases
+    plot_exploration_efficiency, plot_maze_stats, plot_visit_freq, \
+    plot_decision_biases, plot_markov_fit_pooling, plot_markov_fit_non_pooling,\
+    plot_trajectory_features
 import evaluation_metrics as em
 from utils import convert_episodes_to_traj_class
 
@@ -23,13 +25,15 @@ def analyse_episodes(stats, save_file_path, params):
     plot_episode_lengths(episodes, title=params, save_file_path=save_file_path)
     plot_exploration_efficiency(episodes, re=False, title=params, save_file_path=save_file_path)
     plot_visit_freq(stats["visit_frequency"], title=params, save_file_path=save_file_path)
+    plot_markov_fit_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
+    # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
+    plot_decision_biases([convert_episodes_to_traj_class(episodes, stats["episodes_states"])], re=False, title=params, save_file_path=save_file_path, display=False)
+    plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=True)
     plot_maze_stats(stats["visit_frequency"], interpolate_cell_values=True, colormap_name='Blues',
                     colorbar_label="visit freq",
                     save_file_name=os.path.join(save_file_path, f'visit_frequency_maze.png'),
                     display=False,
                     figtitle=f'state visit freq\n{params}')
-
-    plot_trajs(episodes, save_file_path, params)
     return
 
 
@@ -87,14 +91,11 @@ def load(save_file_path):
 
     # one unrewarded animal
     new_end_nodes_found_unrew = em.get_unrewarded_ee()
-    plt.plot(new_end_nodes_found_unrew.keys(),
-             new_end_nodes_found_unrew.values(), color=colormap(0),
-             linestyle='-.', label='Unrewarded: B5')
+    plt.plot(new_end_nodes_found_unrew.keys(), new_end_nodes_found_unrew.values(), color=colormap(0), linestyle='-.', label='Unrewarded: B5')
 
     # one rewarded animal
     new_end_nodes_found_rew = em.get_rewarded_ee()
-    plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(),
-             'ro-', label='Rewarded: B1')
+    plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(), color=colormap(1), linestyle='-.', label='Rewarded: B1')
     plt.title("exploration efficiency as defined in orig paper")
     plt.xlabel("end nodes visited")
     plt.ylabel("new end nodes found")
@@ -111,9 +112,8 @@ def load(save_file_path):
 
 def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
 
-    tfs = list()
+    simulation_results = model.simulate_multiple(params_all, MAX_LENGTH, N_BOUTS_TO_GENERATE)
 
-    simulation_results = model.simulate_multiple(params_all, MAX_LENGTH=MAX_LENGTH, N_BOUTS_TO_GENERATE=N_BOUTS_TO_GENERATE)
     # analyse results
     for agent_id, params in params_all.items():
         print("params:", params)
@@ -133,18 +133,19 @@ def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
             # print("episodes", episodes)
             analyse_state_values(model, V, save_file_path, params)
             analyse_episodes(stats, save_file_path, params)
-
-            tfs.append(convert_episodes_to_traj_class(stats["episodes_positions"], stats["episodes_states"]))
             print(">>> Done with params!", params, "- Check results at:", save_file_path)
-
-    plot_decision_biases(tfs)
+            # plot_trajs(stats["episodes_positions"], save_file_path, params)
     return
 
 
 if __name__ == '__main__':
     # np.random.seed(0)
-    MAX_LENGTH = 20000
+    MAX_LENGTH = 20001
     N_BOUTS_TO_GENERATE = 1
+    # from utils import convert_traj_to_episodes
+    # from MM_Traj_Utils import LoadTrajFromPath
+    # episodes = convert_traj_to_episodes(LoadTrajFromPath('../outdata/B5-tf'))
+    # plot_markov_fit_pooling(episodes, re=False, display=True)
 
     # base path to save figs or other results in
     base_path = '/Users/usingla/mouse-maze/figs'
@@ -174,11 +175,11 @@ if __name__ == '__main__':
     from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
     model = TDLambdaOptimisticInitialization()
     param_sets = {
-        1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
-        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
+        1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
+        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
         3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
-        4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
-        5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
+        4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.8, "epsilon": 0.0},
+        5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.99, "epsilon": 0.0},
     }
 
     # from BayesianQL import BayesianQL
@@ -196,5 +197,13 @@ if __name__ == '__main__':
     #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
     # }
 
+    # from EpsilonTemporalGreedy import EpsilonZGreedy
+    # model = EpsilonZGreedy()
+    # param_sets = {
+    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
+    #     2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
+    #     3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5},
+    #     4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7},
+    # }
 
     run(model, param_sets, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE)

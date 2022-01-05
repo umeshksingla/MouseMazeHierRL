@@ -10,12 +10,12 @@ import os
 import numpy as np
 from matplotlib.pyplot import figure, subplot, title, suptitle
 from numpy import ones
+from sklearn.manifold import TSNE
 
 from MM_Maze_Utils import NewMaze, PlotMazeWall
 from MM_Plot_Utils import plot
-from decision_bias_analysis_tools import ComputeFourBiasClips2
-from parameters import HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES, EXPLORE
-from MM_Traj_Utils import LoadTrajFromPath, SplitModeClips
+from MM_Traj_Utils import LoadTrajFromPath
+from parameters import HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES
 from utils import get_node_visit_times, get_all_night_nodes_and_times, \
     get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times, \
     convert_traj_to_episodes
@@ -359,13 +359,15 @@ def plot_trajs(episodes_mouse, save_file_path, title):
     """todo:
     episodes_mouse:
 
-    Save every kth episodes when there are more than 20 episodes in total,
+    Save every kth episode when there are more than 20 episodes in total,
     otherwise save all.
     """
     print("# Trajectories", len(episodes_mouse))
     k = 5
     for i, traj in enumerate(episodes_mouse):
-        if len(episodes_mouse) >= 10 and i >=10 and i%k != 0:
+        if i >= 50:
+            break
+        if len(episodes_mouse) >= 20 and i >= 10 and i%k != 0:
             continue
         print("Saving traj", i, ":", traj[:5], '...', traj[-5:])
         plot_trajectory([traj], 'all',
@@ -410,7 +412,7 @@ def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, d
 
     new_end_nodes_found = em.exploration_efficiency(episodes, re=re)
     plt.figure()
-    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-')
+    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-', label='agent')
 
     # DFS
     new_end_nodes_found_dfs = em.get_dfs_ee()
@@ -425,7 +427,7 @@ def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, d
     # one rewarded animal
     new_end_nodes_found_rew = em.get_rewarded_ee()
     plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(),
-             'ro-', label='Rewarded: B1')
+             color=colormap(1), linestyle='-.', label='Rewarded: B1')
 
     plt.xscale('log', base=10)
 
@@ -442,30 +444,16 @@ def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, d
     return
 
 
-def plot_decision_biases(tfs):
+def plot_decision_biases(tfs, re, title=None, save_file_path=None, display=False):
     """
     Plots the decision biases and prints their standard deviation for each agent
     :param tfs: list of `tf` trajectory files converted from simulated episodes
     """
-    ma = NewMaze(6)
-    # 4-bias of all animals during exploration, mean ± SD across nodes for each animal
-    print('Four biases during exploration only, mean and std dev across all nodes')
-    print('     SF             SA             BF             BS')
-    # old Bf/Ba/Lf/Lo | bottom (B), left (L), or right (R); forward (f) out (o) alternating (a)
-    bi = []
-    bis = []
-    for i, tf in enumerate(tfs):
-        cl = SplitModeClips(tf, ma)  # find the clips
-        be, bes = ComputeFourBiasClips2(tf, ma, cl, mode=EXPLORE)  # bias using exploration only
-        print('%2d' %i + ': {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}'.
-              format(be[0], bes[0], be[1], bes[1], be[2], bes[2], be[3], bes[3]))
-        bi += [be]
-        bis += [bes]
-    bi = np.array(bi)
-    bis = np.array(bis)
+
+    bi, bis = em.get_decision_biases(tfs, re)
 
     figure()
-    suptitle("Decision biases")
+    suptitle(f"Decision biases - {title}")
     ax = subplot(121)
     # plot biases BF vs SF
     BF_MEAN = 0.82
@@ -482,6 +470,129 @@ def plot_decision_biases(tfs):
     plot([bi[:, 1], [SA_MEAN], [RANDOM_CHOICE]], [bi[:, 3], [BS_MEAN], [RANDOM_CHOICE]],
          fmts=['.', 'b^', 'k+'], markersize=5, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
              legend=['agent', 'mean mice', 'random'], xlabel='$P_{\mathrm{SA}}$', ylabel='$P_{\mathrm{BS}}$', loc='lower left')
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'decision_biases.png'))
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+def plot_markov_fit_non_pooling(episodes, re, title=None, save_file_path=None, display=False):
+    """
+    """
+    import time
+    start = time.time()
+    print("plotting markov_fit_non_pooling")
+    [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = em.markov_fit_non_pooling(episodes, re)
+    print("plot_markov_fit_non_pooling", time.time()-start, "seconds")
+    plot([hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr],
+             fmts=['r.-', 'g.-', 'b.-', 'y.-'], markersize=8, linewidth=1,
+             xlabel='Average depth of history', ylabel='Cross-entropy',
+             legend=['fix test', 'var test', 'fix train', 'var train'],
+             loc='upper center', figsize=(5, 4), title='markov_fit_non_pooling')
+
+    print("avg depth for min cross entropy")
+    ef, hf = sorted(zip(cf5, hf5))[0]
+    ev, hv = sorted(zip(cv5, hv5))[0]
+    print("fix", hf, ef)
+    print("var", hv, ev)
+    # mark the minimum ones
+    plt.plot(hf, ef, fillstyle='none', markersize=15, color='tab:red', marker='o')
+    plt.plot(hv, ev, fillstyle='none', markersize=15, color='tab:green', marker='o')
+
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'markov_fit_non_pooling.png'))
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+def plot_markov_fit_pooling(episodes, re, title=None, save_file_path=None, display=False):
+    """
+    """
+    import time
+    start = time.time()
+    print("plotting markov_fit_pooling")
+    [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = em.markov_fit_pooling(episodes, re)
+    print("plot_markov_fit_pooling end", time.time()-start, "seconds")
+    plot([hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr],
+             fmts=['r.-', 'g.-', 'b.-', 'y.-'], markersize=8, linewidth=1,
+             xlabel='Average depth of history', ylabel='Cross-entropy',
+             legend=['fix test', 'var test', 'fix train', 'var train'],
+             loc='upper center', figsize=(5, 4), title='markov_fit_pooling')
+
+    print("avg depth for min cross entropy")
+    ef, hf = sorted(zip(cf5, hf5))[0]
+    ev, hv = sorted(zip(cv5, hv5))[0]
+    print("fix", hf, ef)
+    print("var", hv, ev)
+
+    # mark the minimum ones
+    plt.plot(hf, ef, fillstyle='none', markersize=15, color='tab:red', marker='o')
+    plt.plot(hv, ev, fillstyle='none', markersize=15, color='tab:green', marker='o')
+
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'markov_fit_pooling.png'))
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+def plot_trajectory_features(episodes, title=None, save_file_path=None, display=False):
+
+    simulated_features = em.get_feature_vectors(episodes)
+    print("simulated_features", simulated_features.shape)
+
+    mouse_episodes = convert_traj_to_episodes(LoadTrajFromPath('../outdata/B5-tf'))
+    mouse_features = em.get_feature_vectors(mouse_episodes)
+    print("mouse_features", mouse_features.shape)
+
+    tsne = TSNE()
+    tsne_results = tsne.fit_transform(simulated_features)
+    plt.scatter(tsne_results[:, 0], tsne_results[:, 1], label='agent')
+
+    tsne_1 = TSNE()
+    tsne_results_1 = tsne_1.fit_transform(mouse_features)
+    plt.scatter(tsne_results_1[:, 0], tsne_results_1[:, 1], label='mouse B5')
+    plt.xlabel('t-sne1')
+    plt.ylabel('t-sne2')
+
+    plt.legend()
+    plt.show()
+    plt.close()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    ax.scatter(
+        simulated_features[:, 0],
+        simulated_features[:, 1],
+        simulated_features[:, 2],
+        color='r', label='agent')
+    ax.scatter(
+        mouse_features[:, 0],
+        mouse_features[:, 1],
+        mouse_features[:, 2],
+        color='y', label='mouse B5')
+
+    ax.set_xlabel('mean rotational_velocity')
+    ax.set_ylabel('mean diffusivity')
+    ax.set_zlabel('tortuosity')
+    ax.set_title(title)
+    plt.legend()
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'trajectory_features.png'))
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
 
 
 def plot_reward_path_lengths(episodes, title, save_file_path=None, dots=True, display=False):

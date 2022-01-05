@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 
 from parameters import NODE_LVL
 from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips, LoadTrajFromPath
+from MM_Models import MarkovFit2, MarkovFit3, TranslLevelsLR
 from utils import nodes2cell, convert_episodes_to_traj_class, convert_traj_to_episodes
+from decision_bias_analysis_tools import ComputeFourBiasClips2
+from parameters import EXPLORE
 
 outdata_path = '../outdata/'
 if outdata_path not in sys.path:
@@ -79,7 +82,7 @@ def exploration_efficiency(episodes, re):
 def rotational_velocity(traj, d=3):
     """
     The rotational velocity is a rolling measure of the angle between
-    consecutive points in a trajectory separated by δ time steps.
+    consecutive points in a trajectory separated by d time steps.
     This is then normalised by δ and the mean is taken across the
     entirety of a trajectory.
     Reference: William John de Cothi, 2020
@@ -98,8 +101,8 @@ def rotational_velocity(traj, d=3):
 def diffusivity(traj, d=3):
     """
     The diffusivity is a rolling measure of the squared Euclidean distance
-    travelled between consecutive points in a trajectory separated by δ time
-    steps. This is then normalised by δ and the mean is taken across
+    travelled between consecutive points in a trajectory separated by d time
+    steps. This is then normalised by d and the mean is taken across
     the trajectory.
     Reference: William John de Cothi, 2020
     """
@@ -421,3 +424,85 @@ def fit_LevyWalk(nicknamelist, plottitle, start_bout=None, end_bout=None, log_sc
     TA_results, TR_results = get_turnsegment(nicknamelist, start_bout, end_bout)
     plot_freq(TA_results, xlabel='TA segment length', plottitle=plottitle, mode='cum_freq', log_scale=log_scale)
     plot_freq(TR_results, xlabel='TR segment length', plottitle=plottitle, mode='cum_freq', log_scale=log_scale)
+
+
+def get_decision_biases(tfs, re):
+    # 4-bias of all animals during exploration, mean ± SD across nodes for each animal
+    print('Four biases during exploration only, mean and std dev across all nodes')
+    print('     SF             SA             BF             BS')
+    # old Bf/Ba/Lf/Lo | bottom (B), left (L), or right (R); forward (f) out (o) alternating (a)
+    ma = NewMaze(6)
+    bi = []
+    bis = []
+    for i, tf in enumerate(tfs):
+        cl = SplitModeClips(tf, ma, re)  # find the clips
+        be, bes = ComputeFourBiasClips2(tf, ma, cl, mode=EXPLORE)  # bias using exploration only
+        print('%2d' %i + ': {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}  {:5.2f} ± {:5.2f}'.
+              format(be[0], bes[0], be[1], bes[1], be[2], bes[2], be[3], bes[3]))
+        bi += [be]
+        bis += [bes]
+    bi = np.array(bi)
+    bis = np.array(bis)
+    return bi, bis
+
+
+def markov_fit_non_pooling(episodes, re):
+    # Markov Fits - No Pooling
+    # all animals, T-junctions, Explore, variable and fixed, test and train
+
+    # takes some time to run
+
+    tju = True
+    exp = True
+    seg = 5
+    ma = NewMaze(6)
+
+    tf = convert_episodes_to_traj_class(episodes)
+    rew = re
+
+    var = True
+    hv5, cv5 = MarkovFit2(tf, ma, var, tju, exp, rew, seg, train=False)  # evaluate on testing set
+    hv5tr, cv5tr = MarkovFit2(tf, ma, var, tju, exp, rew, seg, train=True)  # evaluate on training set
+
+    var = False
+    hf5, cf5 = MarkovFit2(tf, ma, var, tju, exp, rew, seg, train=False)  # evaluate on testing set
+    hf5tr, cf5tr = MarkovFit2(tf, ma, var, tju, exp, rew, seg, train=True)  # evaluate on training set
+
+    return [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr]
+
+
+def markov_fit_pooling(episodes, re):
+    # Markov Fits - Pooling
+    # all animals, T-junctions, Explore, variable and fixed, test and train
+
+    # takes some time to run
+    tju = True
+    exp = True
+    seg = 3
+    ma = NewMaze(6)
+
+    tf = convert_episodes_to_traj_class(episodes)
+    rew = re
+
+    tra = TranslLevelsLR(ma)
+
+    var = True
+    hv5, cv5 = MarkovFit3(tf, ma, var, tju, exp, rew, seg, False, tra)  # var test
+    hv5tr, cv5tr = MarkovFit3(tf, ma, var, tju, exp, rew, seg, True, tra)  # var train
+
+    var = False
+    hf5, cf5 = MarkovFit3(tf, ma, var, tju, exp, rew, seg, False, tra)  # fix test
+    hf5tr, cf5tr = MarkovFit3(tf, ma, var, tju, exp, rew, seg, True, tra)  # fix train
+
+    return [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr]
+
+
+def min_cross_entropy(episodes, re, pooling):
+    if not pooling:
+        [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = markov_fit_non_pooling(episodes, re)
+    else:
+        [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = markov_fit_pooling(episodes, re)
+
+    ef = min(cf5)
+    ev = min(cv5)
+    return ef, ev
