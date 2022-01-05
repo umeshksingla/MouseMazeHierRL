@@ -38,13 +38,13 @@ class BaseModel:
         a.remove(RWD_STATE)
         return np.random.choice(a)    # Random initial state
 
-    def extract_trajectory_data(self, orig_data_dir='../outdata/', save_dir=None):
+    def extract_trajectory_data(self, mice_subject_list, orig_data_dir='../outdata/', save_dir=None):
         """
         save_dir: path to the directory where you want to save the pickled
         data object.
         """
         trajectory_data = []
-        for mouseId, nickname in enumerate(RWD_NAMES):
+        for mouseId, nickname in enumerate(mice_subject_list):
             trajectory_data.append(self.__get_trajectory_data_by_nickname__(orig_data_dir, nickname))
         if save_dir:
             with open(os.path.join(save_dir, f'{self.file_suffix}.p'), 'wb') as f:
@@ -208,7 +208,7 @@ class BaseModel:
         for agentId in sub_fits:
             print("agentId", agentId, sub_fits[agentId])
             tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
-        with Pool(8) as p:  # running in parallel in 4 processes
+        with Pool(4) as p:  # running in parallel in 4 processes
             simulation_results = p.starmap(self.simulate, tasks)
         return dict([(a[0], simulation_results[i]) for i, a in enumerate(tasks)])
 
