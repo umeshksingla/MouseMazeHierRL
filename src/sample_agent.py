@@ -10,25 +10,34 @@ import re
 from plot_utils import plot_trajs, plot_episode_lengths, \
     plot_exploration_efficiency, plot_maze_stats, plot_visit_freq, \
     plot_decision_biases, plot_markov_fit_pooling, plot_markov_fit_non_pooling,\
-    plot_trajectory_features
+    plot_trajectory_features, plot_reward_path_lengths
 import evaluation_metrics as em
 from utils import convert_episodes_to_traj_class
 
 
-def analyse_episodes(stats, save_file_path, params):
+def analyse_episodes(stats, save_file_path, model_name, params):
     """todo
     episodes:
 
     """
     episodes = stats["episodes_positions"]
-    # plot_reward_path_lengths(episodes, params, save_file_path)
+    parameters = {
+        'axes.labelsize': 14,
+        'axes.titlesize': 5,
+        'xtick.labelsize': 13,
+        'ytick.labelsize': 13,
+        'legend.fontsize': 14
+    }
+    plt.rcParams.update(parameters)
+    plot_reward_path_lengths(episodes, params, save_file_path)
     plot_episode_lengths(episodes, title=params, save_file_path=save_file_path)
-    plot_exploration_efficiency(episodes, re=False, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(episodes, re=False, title=None, save_file_path=save_file_path)
     plot_visit_freq(stats["visit_frequency"], title=params, save_file_path=save_file_path)
     plot_markov_fit_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
-    # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
-    plot_decision_biases([convert_episodes_to_traj_class(episodes, stats["episodes_states"])], re=False, title=params, save_file_path=save_file_path, display=False)
-    plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=True)
+    # # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
+    plot_decision_biases([convert_episodes_to_traj_class(episodes, stats["episodes_states"])], re=False,
+                         title=params, save_file_path=save_file_path, display=False)
+    # plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=False)
     plot_maze_stats(stats["visit_frequency"], interpolate_cell_values=True, colormap_name='Blues',
                     colorbar_label="visit freq",
                     save_file_name=os.path.join(save_file_path, f'visit_frequency_maze.png'),
@@ -43,7 +52,7 @@ def analyse_state_values(model, V, save_file_path, params):
     V:
     """
     state_values = model.get_maze_state_values(V)
-    print("state_values", state_values)
+    # print("state_values", state_values)
     plot_maze_stats(state_values, interpolate_cell_values=True,
                     save_file_name=os.path.join(save_file_path, f'state_values.png'),
                     display=False,
@@ -121,26 +130,27 @@ def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
         episodes = stats["episodes_positions"]
         LL = stats["LL"]
         V = stats["V"]
+        model_name = model.__class__.__name__
         if success:
             print("#Episodes: ", len(episodes))
             save_file_path = f'{base_path}/' \
-                             f'{model.__class__.__name__}/' \
+                             f'{model_name}/' \
                              f'MAX_LENGTH={MAX_LENGTH}/' \
                              f'{params.__str__()}_rand{np.random.randint(1, 10000)}/'
             Path(save_file_path).mkdir(parents=True, exist_ok=True)
             with open(os.path.join(save_file_path, f'episodes_{agent_id}_{params.__str__()}_LL={LL}.pkl'), 'wb') as f:
                 pickle.dump(stats, f)
             # print("episodes", episodes)
-            analyse_state_values(model, V, save_file_path, params)
-            analyse_episodes(stats, save_file_path, params)
-            print(">>> Done with params!", params, "- Check results at:", save_file_path)
+            # analyse_state_values(model, V, save_file_path, params)
+            analyse_episodes(stats, save_file_path, model_name, params)
+            print(">>> Done with params!", params, "\nCheck results at:", save_file_path)
             # plot_trajs(stats["episodes_positions"], save_file_path, params)
     return
 
 
 if __name__ == '__main__':
     # np.random.seed(0)
-    MAX_LENGTH = 20001
+    MAX_LENGTH = 20002
     N_BOUTS_TO_GENERATE = 1
     # from utils import convert_traj_to_episodes
     # from MM_Traj_Utils import LoadTrajFromPath
@@ -172,15 +182,21 @@ if __name__ == '__main__':
     #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
     # }
 
-    from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
-    model = TDLambdaOptimisticInitialization()
-    param_sets = {
-        1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
-        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
-        3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
-        4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.8, "epsilon": 0.0},
-        5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.99, "epsilon": 0.0},
-    }
+    # from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
+    # model = TDLambdaOptimisticInitialization()
+    # param_sets = {
+    #     # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
+    #     # 2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
+    #     # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
+    #     # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.8, "epsilon": 0.0},
+    #     5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.99, "epsilon": 0.0},
+    # }
+
+    # from EpsilonGreedy_model import EpsilonGreedy
+    # model = EpsilonGreedy()
+    # param_sets = {
+    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.9, "epsilon": 1.0},
+    # }
 
     # from BayesianQL import BayesianQL
     # model = BayesianQL()
@@ -197,13 +213,29 @@ if __name__ == '__main__':
     #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
     # }
 
-    # from EpsilonTemporalGreedy import EpsilonZGreedy
-    # model = EpsilonZGreedy()
+    from EpsilonTemporalGreedy import EpsilonZGreedy
+    model = EpsilonZGreedy()
+    param_sets = {
+        # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
+        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
+        # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5},
+        # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7},
+    }
+
+    # from EpsilonDirectionGreedy_model import EpsilonDirectionGreedy
+    # model = EpsilonDirectionGreedy()
     # param_sets = {
-    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
-    #     2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
-    #     3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5},
-    #     4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7},
+    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1, "random_dir": False, "version": 1},
+    #     # 2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3, "random_dir": False, "version": 1},
+    #     # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5, "random_dir": False, "version": 1},
+    #     # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7, "random_dir": False, "version": 1},
+    #     # 5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.9, "random_dir": False, "version": 1},
+    #     #
+    #     # 6: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1, "random_dir": True, "version": 1},
+    #     # 7: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3, "random_dir": True, "version": 1},
+    #     # 8: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5, "random_dir": True, "version": 1},
+    #     # 9: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7, "random_dir": True, "version": 1},
+    #     # 10: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.9, "random_dir": True, "version": 1},
     # }
 
     run(model, param_sets, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE)

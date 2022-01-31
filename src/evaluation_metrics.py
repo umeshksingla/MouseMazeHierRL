@@ -75,7 +75,7 @@ def exploration_efficiency(episodes, re):
     ns = ne[np.isin(ne, ln)]  # restricted to desired nodes
     _, c, n = NewNodes4(ns, nf[2] / len(ns))  # compute new nodes vs all nodes for exploration mode only
     steps_taken = dict(zip(c, n))
-    # print(steps_taken)
+    print(steps_taken)
     return steps_taken
 
 
@@ -182,7 +182,19 @@ def get_dfs_ee():
     """
     Returns DFS exploration efficiency
     """
-    return dict([(i, i if i <= 64 else 64) for i in range(1000)])
+    return dict([(i, i) for i in range(64)])
+
+
+def get_random_ee():
+    """
+    Returns exploration efficiency for a random agent
+    """
+    return {2.0: 1.6145410235580828, 3.0: 2.0658135283363803,
+            6.0: 3.071951219512195, 10.0: 4.193089430894309,
+            18.0: 6.029304029304029, 32.0: 8.88888888888889,
+            56.0: 12.908045977011493, 100.0: 19.775510204081634,
+            180.0: 29.11111111111111, 320.0: 40.4, 560.0: 53.125,
+            1000.0: 61.0, 1800.0: 62.5, 3200.0: 64.0, 4924.0: 64.0}
 
 
 def get_unrewarded_ee():
