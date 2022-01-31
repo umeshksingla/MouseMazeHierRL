@@ -28,6 +28,7 @@ LVL_2_NODES = dict.fromkeys(list(range(3,7)), True)
 LVL_1_NODES = dict.fromkeys(list(range(1,3)), True)
 LVL_0_NODES = dict.fromkeys(list(range(0,1)), True)
 NODE_LVL = {0:LVL_0_NODES, 1:LVL_1_NODES, 2:LVL_2_NODES, 3:LVL_3_NODES, 4:LVL_4_NODES, 5:LVL_5_NODES, 6:LVL_6_NODES}
+LVL_BY_NODE = dict([(node, lvl) for lvl in NODE_LVL for node in NODE_LVL[lvl]])
 
 # Define nodes belonging to each quadrant
 QUAD1 = [3, 7, 8, 15, 16, 17, 18, 31, 32, 33, 34, 35, 36, 37, 38, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78]

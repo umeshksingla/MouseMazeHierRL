@@ -7,6 +7,7 @@ from matplotlib.collections import LineCollection
 from matplotlib import patches
 import matplotlib.pyplot as plt
 import os
+import time
 import numpy as np
 from matplotlib.pyplot import figure, subplot, title, suptitle
 from numpy import ones
@@ -408,32 +409,35 @@ def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, d
     to treat a visit to 116 as rewarded then True. If there is no reward and it's
     only exploration, keep it False).
     """
-    colormap = plt.cm.gist_ncar
 
     new_end_nodes_found = em.exploration_efficiency(episodes, re=re)
     plt.figure()
-    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'o-', label='agent')
+    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'go-', label='agent')
 
     # DFS
     new_end_nodes_found_dfs = em.get_dfs_ee()
-    plt.plot(new_end_nodes_found_dfs.keys(), new_end_nodes_found_dfs.values(), 'black', label='DFS')
+    plt.plot(new_end_nodes_found_dfs.keys(), new_end_nodes_found_dfs.values(), 'black', label='optimal')
+
+    # random
+    new_end_nodes_found_dfs = em.get_random_ee()
+    plt.plot(new_end_nodes_found_dfs.keys(), new_end_nodes_found_dfs.values(), 'blue', linestyle='-', label='random')
 
     # one unrewarded animal
     new_end_nodes_found_unrew = em.get_unrewarded_ee()
     plt.plot(new_end_nodes_found_unrew.keys(),
-             new_end_nodes_found_unrew.values(), color=colormap(0),
-             linestyle='-.', label='Unrewarded: B5')
+             new_end_nodes_found_unrew.values(), color='red',
+             linestyle='-.', label='mouse B5')
 
-    # one rewarded animal
-    new_end_nodes_found_rew = em.get_rewarded_ee()
-    plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(),
-             color=colormap(1), linestyle='-.', label='Rewarded: B1')
+    # # one rewarded animal
+    # new_end_nodes_found_rew = em.get_rewarded_ee()
+    # plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(),
+    #          color=colormap(1), linestyle='-.', label='Rewarded: B1')
 
     plt.xscale('log', base=10)
 
     if title: plt.title(title)
-    plt.xlabel("end nodes visited")
-    plt.ylabel("new end nodes found")
+    plt.xlabel("End nodes visited")
+    plt.ylabel("New end nodes found")
     plt.legend()
     if save_file_path:
         plt.savefig(os.path.join(save_file_path, f'exp_efficiency.png'))
@@ -460,7 +464,7 @@ def plot_decision_biases(tfs, re, title=None, save_file_path=None, display=False
     SF_MEAN = 0.77
     RANDOM_F = 2/3  # chance of going forward
     plot([bi[:, 0], [SF_MEAN], [RANDOM_F]], [bi[:, 2], [BF_MEAN],  [RANDOM_F]],
-         fmts=['.', 'b^', 'k+'], markersize=5, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
+         fmts=['.', 'b^', 'k+'], markersize=10, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
              legend=['agent', 'mean mice', 'random'], xlabel='$P_{\mathrm{SF}}$', ylabel='$P_{\mathrm{BF}}$', loc='lower left')
     ax = subplot(122)
     # plot biases BS vs SA
@@ -468,7 +472,7 @@ def plot_decision_biases(tfs, re, title=None, save_file_path=None, display=False
     SA_MEAN = 0.72
     RANDOM_CHOICE = 0.5
     plot([bi[:, 1], [SA_MEAN], [RANDOM_CHOICE]], [bi[:, 3], [BS_MEAN], [RANDOM_CHOICE]],
-         fmts=['.', 'b^', 'k+'], markersize=5, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
+         fmts=['.', 'b^', 'k+'], markersize=10, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
              legend=['agent', 'mean mice', 'random'], xlabel='$P_{\mathrm{SA}}$', ylabel='$P_{\mathrm{BS}}$', loc='lower left')
     if save_file_path:
         plt.savefig(os.path.join(save_file_path, f'decision_biases.png'))
@@ -482,7 +486,9 @@ def plot_decision_biases(tfs, re, title=None, save_file_path=None, display=False
 def plot_markov_fit_non_pooling(episodes, re, title=None, save_file_path=None, display=False):
     """
     """
-    import time
+    if len(episodes) <= 5:
+        print("Not plotting markov_fit_pooling coz of insufficient number of episodes.")
+        return
     start = time.time()
     print("plotting markov_fit_non_pooling")
     [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = em.markov_fit_non_pooling(episodes, re)
@@ -496,8 +502,7 @@ def plot_markov_fit_non_pooling(episodes, re, title=None, save_file_path=None, d
     print("avg depth for min cross entropy")
     ef, hf = sorted(zip(cf5, hf5))[0]
     ev, hv = sorted(zip(cv5, hv5))[0]
-    print("fix", hf, ef)
-    print("var", hv, ev)
+
     # mark the minimum ones
     plt.plot(hf, ef, fillstyle='none', markersize=15, color='tab:red', marker='o')
     plt.plot(hv, ev, fillstyle='none', markersize=15, color='tab:green', marker='o')
@@ -514,7 +519,9 @@ def plot_markov_fit_non_pooling(episodes, re, title=None, save_file_path=None, d
 def plot_markov_fit_pooling(episodes, re, title=None, save_file_path=None, display=False):
     """
     """
-    import time
+    if len(episodes) <= 6:
+        print("Not plotting markov_fit_pooling coz of insufficient number of episodes.")
+        return
     start = time.time()
     print("plotting markov_fit_pooling")
     [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = em.markov_fit_pooling(episodes, re)
@@ -553,19 +560,19 @@ def plot_trajectory_features(episodes, title=None, save_file_path=None, display=
     mouse_features = em.get_feature_vectors(mouse_episodes)
     print("mouse_features", mouse_features.shape)
 
-    tsne = TSNE()
-    tsne_results = tsne.fit_transform(simulated_features)
-    plt.scatter(tsne_results[:, 0], tsne_results[:, 1], label='agent')
-
-    tsne_1 = TSNE()
-    tsne_results_1 = tsne_1.fit_transform(mouse_features)
-    plt.scatter(tsne_results_1[:, 0], tsne_results_1[:, 1], label='mouse B5')
-    plt.xlabel('t-sne1')
-    plt.ylabel('t-sne2')
-
-    plt.legend()
-    plt.show()
-    plt.close()
+    # tsne = TSNE()
+    # tsne_results = tsne.fit_transform(simulated_features)
+    # plt.scatter(tsne_results[:, 0], tsne_results[:, 1], label='agent')
+    #
+    # tsne_1 = TSNE()
+    # tsne_results_1 = tsne_1.fit_transform(mouse_features)
+    # plt.scatter(tsne_results_1[:, 0], tsne_results_1[:, 1], label='mouse B5')
+    # plt.xlabel('t-sne1')
+    # plt.ylabel('t-sne2')
+    #
+    # plt.legend()
+    # plt.show()
+    # plt.close()
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
