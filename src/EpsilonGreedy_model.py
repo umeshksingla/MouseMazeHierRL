@@ -64,7 +64,6 @@ class EpsilonGreedy(BaseModel):
     def generate_exploration_episode(self, alpha, gamma, lamda, epsilon, MAX_LENGTH, Q):
 
         self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
-        print(" === nodemap start ===\n", self.nodemap, "\n === nodemap end ===")
 
         episode_state_traj = []
         e = np.zeros((self.S, self.A))  # eligibility trace vector for all states
@@ -81,7 +80,6 @@ class EpsilonGreedy(BaseModel):
             # acting
             a, a_prob = self.choose_action(s, Q, epsilon)
             s_next = self.take_action(s, a)     # Take action
-            print("action: ", a, f": {s} => {s_next}")
 
             # update Q values
             td_error = 0.0 + gamma * np.max([Q[s_next, a_i] for a_i in self.get_valid_actions(s_next)]) - Q[s, a]   # R = 0
@@ -116,8 +114,7 @@ class EpsilonGreedy(BaseModel):
         epsilon = params["epsilon"]     # epsilon
         initial_v = 1   # params["V"]
 
-        print("alpha, gamma, lamda, epsilon, V, agentId",
-              alpha, gamma, lamda, epsilon, initial_v, agentId)
+        print("alpha, gamma, lamda, epsilon, V, agentId", alpha, gamma, lamda, epsilon, initial_v, agentId)
         Q = np.zeros((self.S, self.A)) * initial_v  # Initialize state values
         Q[HOME_NODE, :] = 0
         Q[RWD_STATE, :] = 0

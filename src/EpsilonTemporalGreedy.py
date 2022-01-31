@@ -19,7 +19,7 @@ class EpsilonZGreedy(EpsilonGreedy):
         self.duration = self.sample_duration()
 
     def choose_action(self, s, Q, epsilon, *args, **kwargs):
-        if self.duration == 0:
+        if self.duration == 0 or kwargs['prev_action'] not in self.get_valid_actions(s):
             if np.random.random() <= epsilon:
                 self.duration = self.sample_duration()
                 action = self.__random_action__(s)
@@ -28,14 +28,9 @@ class EpsilonZGreedy(EpsilonGreedy):
                 action = self.__greedy_action__(s, Q)
                 # print("greedy")
         else:
-            if kwargs['prev_action'] in self.get_valid_actions(s):
-                action = kwargs['prev_action']
-                self.duration -= 1
-                # print("prev")
-            else:
-                # print("prev invalid")
-                self.duration = 0
-                return self.choose_action(s, Q, epsilon)
+            action = kwargs['prev_action']
+            self.duration -= 1
+
         return action, 1.0
 
     @staticmethod
