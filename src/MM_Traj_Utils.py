@@ -966,7 +966,7 @@ def FindPathsToNode(n,tr,maze):
     for i, node_in_bout in enumerate(tr.no):
         if len(node_in_bout)>1: # ignore bouts with just one state
             d=wd[node_in_bout[:-1,0]] # distance to target node excluding exit state
-            js=np.where(d[1:]==0)[0]+1 # states at the target, ignore first state
+            js=np.where(d[1:]==0)[0]+1 # states "AT" the target, ignore first state
             for j in js:
                 k = j-1
                 while d[k]>d[k+1]:
@@ -975,6 +975,29 @@ def FindPathsToNode(n,tr,maze):
                         break
                 k+=1 # first state in this path    
                 ptn.append([i, k, j-k, node_in_bout[k,1]+tr.fr[i,0]]) # bout, frame in bout, node distance, absolute frame
+    return np.array(ptn,dtype=int) # bout, state in bout, node distance, absolute frame
+
+def FindPathsToAnyNode(n,tr,maze):
+    '''
+    Only differs by FindPathsToNode in what it returns:
+    It returns starting node instead of frame (index number) in the bout
+    i.e. this:
+    Returns nx4 array containing bout, starting node, node distance, absolute frame
+    '''
+    wd=np.array([maze.di[r[-1],maze.ru[n][-1]] for r in maze.ru]) # cell distance to target for every node
+    ptn=[]
+    for i, node_in_bout in enumerate(tr.no):
+        if len(node_in_bout)>1: # ignore bouts with just one state
+            d=wd[node_in_bout[:-1,0]] # distance to target node excluding exit state
+            js=np.where(d[1:]==0)[0]+1 # states AT the target, ignore first state
+            for j in js:
+                k = j-1
+                while d[k]>d[k+1]:
+                    k-=1
+                    if k==-1:
+                        break
+                k+=1 # first state in this path
+                ptn.append([i, node_in_bout[k,0], j-k, node_in_bout[k,1]+tr.fr[i,0]]) # bout, frame in bout, node distance, absolute frame
     return np.array(ptn,dtype=int) # bout, state in bout, node distance, absolute frame
 
 def PlotPathsToNode(n,tr,ma):
