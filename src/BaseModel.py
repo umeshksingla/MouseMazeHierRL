@@ -13,9 +13,9 @@ import numpy as np
 import pickle
 from multiprocessing import Pool
 
-from MM_Traj_Utils import LoadTrajFromPath
-from parameters import INVALID_STATE, RWD_STATE, WATERPORT_NODE, RWD_NAMES, HOME_NODE, NODE_LVL
-
+from MM_Traj_Utils import LoadTrajFromPath, NewMaze, StepType2
+from parameters import INVALID_STATE, RWD_STATE, WATERPORT_NODE, LVL_BY_NODE, HOME_NODE, NODE_LVL, ALL_MAZE_NODES
+from collections import defaultdict
 
 class BaseModel:
     def __init__(self, file_suffix='BaseModel'):
@@ -26,6 +26,8 @@ class BaseModel:
         self.A = 3    # Number of max actions for a state
         self.file_suffix = file_suffix
         self.nodemap = self.get_SAnodemap()
+        self.base_nodemap = self.get_SAnodemap_orig()
+        self.nodemap_direction_dict = self.get_nodemap_direction_dict()
         self.terminal_nodes = {HOME_NODE, RWD_STATE}
 
     def get_initial_state(self):
@@ -107,7 +109,7 @@ class BaseModel:
                     )[0][0] + 1
         return TrajA
 
-    def get_SAnodemap(self):
+    def get_SAnodemap_orig(self):
         """
         Creates a mapping based on the maze layout where current states and actions
         are linked to the 3 possible future states (the states that would be the result
@@ -150,6 +152,86 @@ class BaseModel:
         # being used
         SAnodemap[WATERPORT_NODE, 1] = RWD_STATE
         return SAnodemap
+
+    def get_SAnodemap(self):
+        ma = NewMaze()
+        SAnodemap = np.ones((self.S, self.A), dtype=int) * INVALID_STATE
+        for i in range(0, self.S):
+            if i not in ALL_MAZE_NODES:
+                continue
+            SAnodemap[i, 0] = ma.pa[i]
+            if i not in NODE_LVL[6]:
+                for j in [2 * i + 1, 2 * i + 2]:
+                    a = StepType2(i, j, ma) + 1
+                    print(i, '=>', j, "action", a)
+                    SAnodemap[i, a] = j
+                print("==")
+        SAnodemap[0, 0] = HOME_NODE
+        # Nodes available from home node
+        SAnodemap[HOME_NODE, 0] = INVALID_STATE
+        SAnodemap[HOME_NODE, 1] = 0
+        SAnodemap[HOME_NODE, 2] = INVALID_STATE
+
+        # Nodes at WATERPORT_NODE, see original def of get_SAnodemap
+        SAnodemap[WATERPORT_NODE, 1] = RWD_STATE
+        SAnodemap = SAnodemap.astype(int)
+        # print(SAnodemap)
+        return SAnodemap
+
+    @staticmethod
+    def get_action_direction_mapping_orig(state):
+        """ mapping of direction to actions in the original nodemap for each state in the order
+             **Note: each output "directions" list has to be length 3 **
+        """
+
+        if state == HOME_NODE:
+            return ['', 'east', '']
+        if state == RWD_STATE:
+            return ['', '', '']
+
+        node_lvl = LVL_BY_NODE[state]
+        if node_lvl == 6:
+            if state % 2 == 0:
+                directions = ['west', '', '']      # e.g. 84, 108, 72
+            else:
+                directions = ['east', '', '']     # e.g. 99, 111, 83
+        elif node_lvl % 2 == 0:
+            # i.e. level is 0, 2, 4
+            if state % 2 == 0:
+                directions = ['west', 'north', 'south']    # e.g. 6, 28, 16
+            else:
+                directions = ['east', 'north', 'south']  # e.g. 5, 27, 21
+        else:
+            # i.e. level is 1, 3, 5
+            if state % 2 == 0:
+                directions = ['north', 'west', 'east']    # e.g. 10, 42, 2
+            else:
+                directions = ['south', 'west', 'east']  # e.g. 13, 1, 35
+        return directions
+
+    def get_nodemap_direction_dict(self):
+        from collections import defaultdict
+        directions = defaultdict(dict)
+
+        # Get directions for each node-action using the global direction mapping at a node
+        for i in range(self.S):
+            global_direction_mapping = self.get_action_direction_mapping_orig(i)
+            directions[i][self.base_nodemap[i][0]] = global_direction_mapping[0]
+            directions[i][self.base_nodemap[i][1]] = global_direction_mapping[1]
+            directions[i][self.base_nodemap[i][2]] = global_direction_mapping[2]
+            print(self.base_nodemap[i], self.nodemap[i], directions[i])
+
+        # Now Get action for each node-direction using the new nodemap i.e. inverse
+        nodemap_dict = defaultdict(dict)
+        for s, l in enumerate(self.nodemap):
+            for node, direction in directions[s].items():
+                if direction != '':
+                    nodemap_dict[s][direction] = np.where(self.nodemap[s] == node)[0].tolist()[0]
+        return nodemap_dict
+
+    def get_action_direction_mapping(self, state):
+        # print(self.nodemap_direction_dict[state])
+        return self.nodemap_direction_dict[state]
 
     def get_action_probabilities(self, state, beta, V):
         raise NotImplementedError(
