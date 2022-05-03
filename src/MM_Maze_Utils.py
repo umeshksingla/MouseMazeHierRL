@@ -291,7 +291,7 @@ def PlotMazeWall(m,axes=None,figsize=4):
     figsize: in inches (only if axes=None)
     '''
     if axes:
-        plot(m.wa[:,0],m.wa[:,1],fmts=['k-'],equal=True,linewidth=2,
+        plot(m.wa[:,0],m.wa[:,1],fmts=['k-'],equal=True,linewidth=2,yflip=True,
              xhide=True,yhide=True,axes=axes) # this way we can add to an existing graph
     else:
         axes = plot(m.wa[:,0],m.wa[:,1],fmts=['k-'],equal=True,linewidth=2,yflip=True,
