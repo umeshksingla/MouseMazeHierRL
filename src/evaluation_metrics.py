@@ -7,12 +7,14 @@ from scipy.optimize import curve_fit
 import numpy as np
 import matplotlib.pyplot as plt
 
+import parameters
 from parameters import NODE_LVL
-from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips, LoadTrajFromPath
+from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips, LoadTrajFromPath, Entropy
+from MM_Plot_Utils import hist
 from MM_Models import MarkovFit2, MarkovFit3, TranslLevelsLR
 from utils import nodes2cell, convert_episodes_to_traj_class, convert_traj_to_episodes
 from decision_bias_analysis_tools import ComputeFourBiasClips2
-from parameters import EXPLORE
+from parameters import EXPLORE, RewNames, UnrewNamesSub
 
 outdata_path = '../outdata/'
 if outdata_path not in sys.path:
@@ -518,3 +520,107 @@ def min_cross_entropy(episodes, re, pooling):
     ef = min(cf5)
     ev = min(cv5)
     return ef, ev
+
+
+def outside_inside_ratio(episodes):
+    """
+    Systematic node preferences: Visitations to nodes on the periphery vs visitations to inner most nodes.
+    """
+
+    def get_ratio_for_each(tf, ma):
+        le = 6
+        explore = 2
+        ln = list(NODE_LVL[le].keys())
+        cl0 = SplitModeClips(tf, ma)  # find the clips
+        cn = np.cumsum(cl0[:, 2])  # cumulative number of nodes visited
+        ha = np.where(cn > cn[-1] / 2)[0][0]  # index for half the number of nodes
+        cl1 = cl0[:ha]
+        cl2 = cl0[ha:]  # two clip arrays for first and second half of nodes
+        ns = []
+        for j, cl in enumerate([cl1, cl2]):
+            ce = cl[np.where(cl[:, 3] == explore)]  # clips of exploration
+            ne = np.concatenate(
+                [tf.no[c[0]][c[1]:c[1] + c[2], 0] for c in ce])  # nodes excluding the last state in each clip
+            ns += [ne[np.isin(ne, ln)]]
+        _, Vis, _, _ = hist([ns[0], ns[1]], bins=np.arange(2 ** le - 1, 2 ** (le + 1)) - 0.5)
+        Num = [np.sum(Vis[0]), np.sum(Vis[1])]
+        Ent = [Entropy(Vis[0]), Entropy(Vis[1])]
+        # print('Nodes:   1st = {:5.0f}, 2nd = {:5.0f}'.format(Num[0], Num[1]))
+        # print('Entropy: 1st = {:4.3f}, 2nd = {:4.3f}'.format(Ent[0], Ent[1]))
+        return [np.array(Vis)], [Ent], [Num]
+
+    # Compute distribution of end nodes visited in first and second half of experiment
+    # k = len(RewNames)
+    traj = convert_episodes_to_traj_class(episodes)
+    ma = NewMaze(6)
+    vi, en, nu = get_ratio_for_each(traj, ma)
+
+    Vi = np.array(vi)  # Vi[i,j,k]=visits animal i, half j, node k
+    En = np.array(en)  # En[i,j]=entropy of node visits animal i, half j
+    Nu = np.array(nu)  # Nu[i,j]=total node visits animal i, half j
+
+    # Visits to various end nodes, average across animals, by group, by half
+    # Vu = np.sum(Vi, axis=(0)) / np.sum(Nu, axis=(0)).reshape(-1, 1)   # avg across animals only
+
+    # Visits to various end nodes, average across animals
+    # Vu = np.sum(Vi, axis=(0, 1)) / np.sum(Nu)
+
+    # distribution of fraction of visits to end nodes, mean and SD across animals
+    Vu = np.sum(Vi, axis=(1)) / np.sum(Nu, axis=1).reshape(-1, 1)
+    Vua = np.mean(Vu, axis=0)
+    Vus = np.std(Vu, axis=0)
+
+    # Original paper
+    inner = np.array([75, 76, 77, 78, 87, 88, 89, 90, 99, 100, 101, 102, 111, 112, 113, 114]) - 63
+    outer = np.array([63, 65, 71, 73, 95, 97, 103, 105, 106, 109, 110, 121, 122, 125, 126, 124, 94, 92, 86, 84, 83, 80, 79, 68, 67, 64]) - 63
+
+    # # LoS nodes
+    # outer = {63, 65, 71, 73, 95, 97, 103, 105, 68, 70, 76, 78, 100, 102, 108, 110, 79, 81, 87, 89, 111, 113, 119, 121, 84, 86, 92, 94, 116, 118, 124, 126}
+    # inner = set(parameters.LVL_6_NODES.keys()).difference(outer)
+    # assert ((len(outer)+len(inner)) == 64)
+    # assert (len(outer.intersection(inner)) == 0)
+    # outer = np.array(list(outer)) - 63
+    # inner = np.array(list(inner)) - 63
+
+    # # LoS nodes without reward node and its neighbor
+    # outer = {63, 65, 71, 73, 95, 97, 103, 105, 68, 70, 76, 78, 100, 102, 108, 110, 79, 81, 87, 89, 111, 113, 119, 121, 84, 86, 92, 94, 124, 126}
+    # inner = set(parameters.LVL_6_NODES.keys()).difference(outer).difference({116, 118})
+    # assert ((len(outer)+len(inner)) == 62)
+    # assert (len(outer.intersection(inner)) == 0)
+    # outer = np.array(list(outer)) - 63
+    # inner = np.array(list(inner)) - 63
+    #
+    inner = np.array([75, 76, 77, 78, 87, 88, 89, 90, 99, 100, 101, 102, 111, 112, 113, 114]) - 63
+    outer = np.array([63, 65, 71, 73, 95, 97, 103, 105, 106, 109, 110, 121, 122, 125, 126, 124, 94, 92, 86, 84, 83, 80, 79, 68, 67, 64]) - 63
+
+    ratio = np.mean(Vua[outer]) / np.mean(Vua[inner])
+    print('Agent: Ratio of visits to outer vs inner leaf nodes = {:.3f}'.format(ratio))
+    return ratio
+
+
+results = []
+k = len(RewNames)
+
+# plt.rcParams.update({
+#     'axes.labelsize': 9,
+#     'axes.titlesize': 9,
+#     'xtick.labelsize': 9,
+#     'ytick.labelsize': 9,
+#     'legend.fontsize': 5
+# })
+
+# for sub in RewNames+UnrewNamesSub:
+#     ratio = outside_inside_ratio(convert_traj_to_episodes(LoadTrajFromPath(outdata_path + sub + "-tf")))
+#     print(f'{sub}\t{ratio}')
+#     results.append(ratio)
+
+print('rewarded', np.mean(results[:k]), np.std(results[:k]))
+print('unrewarded', np.mean(results[k:]), np.std(results[k:]))
+
+# plt.clf()
+# plt.boxplot([results[:k], results[k:]])
+# plt.title('Original periphery-inner definition')
+# plt.ylabel('outside/inside ratio')
+# plt.ylim([0.5, 3.5])
+# plt.errorbar(results[k:], 'b')
+# plt.show()
