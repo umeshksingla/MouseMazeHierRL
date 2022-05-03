@@ -7,7 +7,8 @@ import random
 
 from parameters import *
 from BaseModel import BaseModel
-from utils import break_simulated_traj_into_episodes, calculate_visit_frequency
+from utils import break_simulated_traj_into_episodes, calculate_normalized_visit_frequency, \
+    calculate_normalized_visit_frequency_by_level, calculate_visit_frequency
 import evaluation_metrics as em
 
 
@@ -24,12 +25,7 @@ class EpsilonGreedy(BaseModel):
         Get valid actions available at the "state".
         Note: back_action=False is not verified yet.
         """
-        if state == HOME_NODE:
-            return [1]
-        if state in LVL_6_NODES:
-            return [0]
-        else:
-            return [0, 1, 2]
+        return np.where(self.nodemap[state] != INVALID_STATE)[0].tolist()
 
     def __greedy_action__(self, state, Q):
         """
@@ -117,7 +113,8 @@ class EpsilonGreedy(BaseModel):
         print("alpha, gamma, lamda, epsilon, V, agentId", alpha, gamma, lamda, epsilon, initial_v, agentId)
         Q = np.zeros((self.S, self.A)) * initial_v  # Initialize state values
         Q[HOME_NODE, :] = 0
-        Q[RWD_STATE, :] = 0
+        if self.S == 129:
+            Q[RWD_STATE, :] = 0
         all_episodes_state_trajs = []
         all_episodes_pos_trajs = []
         LL = 0.0
@@ -136,7 +133,9 @@ class EpsilonGreedy(BaseModel):
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
             "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
-            "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs)
+            "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs),
+            "normalized_visit_frequency": calculate_normalized_visit_frequency(all_episodes_state_trajs),
+            "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(all_episodes_state_trajs)
         }
         return success, stats
 

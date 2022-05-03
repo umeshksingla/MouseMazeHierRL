@@ -1,6 +1,6 @@
 from MM_Traj_Utils import add_node_times_to_tf, add_reward_times_to_tf, NewMaze, Traj
 from parameters import FRAME_RATE, WATERPORT_NODE, HOME_NODE, RWD_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
-    TIME_EACH_MOVE, INVALID_STATE, NODE_LVL
+    TIME_EACH_MOVE, INVALID_STATE, NODE_LVL, LVL_BY_NODE
 import numpy as np
 from numpy import array, arange
 
@@ -288,3 +288,34 @@ def calculate_visit_frequency(episodes):
         for node in episode:
             node_visit_freq[node] += 1
     return node_visit_freq
+
+
+def calculate_normalized_visit_frequency(episodes):
+    """
+    :param episodes: episodes: [[], [], ...]
+    :return: 127-length list of number of times each node was visited in all the
+    input episodes
+    """
+    node_visit_freq = np.zeros(len(ALL_VISITABLE_NODES))
+    for episode in episodes:
+        for node in episode:
+            node_visit_freq[node] += 1
+    node_visit_freq = node_visit_freq / np.sum([len(e) for e in episodes])
+    return node_visit_freq
+
+
+def calculate_normalized_visit_frequency_by_level(episodes):
+    """
+    :param episodes: episodes: [[], [], ...]
+    :return: 127-length list of number of times each node was visited in all the
+    input episodes
+    """
+    node_level_visit_freq = np.zeros(len(NODE_LVL))
+    for episode in episodes:
+        for node in episode:
+            if node not in ALL_MAZE_NODES: continue
+            node_level_visit_freq[LVL_BY_NODE[node]] += 1
+    node_level_visit_freq = node_level_visit_freq / np.sum([len(e) for e in episodes])
+    return node_level_visit_freq
+
+

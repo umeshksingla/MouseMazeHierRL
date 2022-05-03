@@ -29,20 +29,24 @@ def analyse_episodes(stats, save_file_path, model_name, params):
         'legend.fontsize': 14
     }
     plt.rcParams.update(parameters)
-    plot_reward_path_lengths(episodes, params, save_file_path)
+
+    plot_trajs(episodes, title=params, save_file_path=save_file_path)
+    # plot_reward_path_lengths(episodes, params, save_file_path)
     plot_episode_lengths(episodes, title=params, save_file_path=save_file_path)
     plot_exploration_efficiency(episodes, re=False, title=None, save_file_path=save_file_path)
-    plot_visit_freq(stats["visit_frequency"], title=params, save_file_path=save_file_path)
-    plot_markov_fit_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
+    plot_visit_freq(stats["normalized_visit_frequency"], by_level=False, title=params, save_file_path=save_file_path)
+    plot_visit_freq(stats["normalized_visit_frequency_by_level"], by_level=True, title=params, save_file_path=save_file_path)
+    # plot_markov_fit_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
     # # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
     plot_decision_biases([convert_episodes_to_traj_class(episodes, stats["episodes_states"])], re=False,
                          title=params, save_file_path=save_file_path, display=False)
-    # plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=False)
+    # # plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=False)
     plot_maze_stats(stats["visit_frequency"], interpolate_cell_values=True, colormap_name='Blues',
                     colorbar_label="visit freq",
                     save_file_name=os.path.join(save_file_path, f'visit_frequency_maze.png'),
                     display=False,
                     figtitle=f'state visit freq\n{params}')
+    print(em.outside_inside_ratio(episodes))
     return
 
 
@@ -119,8 +123,9 @@ def load(save_file_path):
     return
 
 
-def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
-
+def run(model, params_all, base_path, VARIATION, N_BOUTS_TO_GENERATE):
+    MAX_LENGTH = int(VARIATION.split('_', 1)[0])
+    var = VARIATION.split('_', 1)[1]
     simulation_results = model.simulate_multiple(params_all, MAX_LENGTH, N_BOUTS_TO_GENERATE)
 
     # analyse results
@@ -132,25 +137,27 @@ def run(model, params_all, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE):
         V = stats["V"]
         model_name = model.__class__.__name__
         if success:
+            run_id = np.random.randint(1, 100000)
             print("#Episodes: ", len(episodes))
             save_file_path = f'{base_path}/' \
                              f'{model_name}/' \
                              f'MAX_LENGTH={MAX_LENGTH}/' \
-                             f'{params.__str__()}_rand{np.random.randint(1, 10000)}/'
+                             f'{params.__str__()}_rand{run_id}_{var}/'
             Path(save_file_path).mkdir(parents=True, exist_ok=True)
             with open(os.path.join(save_file_path, f'episodes_{agent_id}_{params.__str__()}_LL={LL}.pkl'), 'wb') as f:
                 pickle.dump(stats, f)
             # print("episodes", episodes)
             # analyse_state_values(model, V, save_file_path, params)
             analyse_episodes(stats, save_file_path, model_name, params)
-            print(">>> Done with params!", params, "\nCheck results at:", save_file_path)
-            # plot_trajs(stats["episodes_positions"], save_file_path, params)
+            print(">>> Done with params!", params, "\nCheck results at:", save_file_path, "\nrun_id", run_id)
     return
 
 
 if __name__ == '__main__':
     # np.random.seed(0)
-    MAX_LENGTH = 20002
+    # should always start with an int denoting max number of steps in the total trajectory
+    VARIATION = '1000_'
+
     N_BOUTS_TO_GENERATE = 1
     # from utils import convert_traj_to_episodes
     # from MM_Traj_Utils import LoadTrajFromPath
@@ -213,29 +220,33 @@ if __name__ == '__main__':
     #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
     # }
 
-    from EpsilonTemporalGreedy import EpsilonZGreedy
-    model = EpsilonZGreedy()
-    param_sets = {
-        # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
-        2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
-        # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5},
-        # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7},
-    }
+    # from EpsilonTemporalGreedy import EpsilonZGreedy
+    # model = EpsilonZGreedy()
+    # param_sets = {
+    #     # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
+    #     # 2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
+    #     # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5},
+    #     # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7},
+    #     5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
+    # }
 
     # from EpsilonDirectionGreedy_model import EpsilonDirectionGreedy
     # model = EpsilonDirectionGreedy()
     # param_sets = {
-    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1, "random_dir": False, "version": 1},
-    #     # 2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3, "random_dir": False, "version": 1},
-    #     # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5, "random_dir": False, "version": 1},
-    #     # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7, "random_dir": False, "version": 1},
-    #     # 5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.9, "random_dir": False, "version": 1},
-    #     #
-    #     # 6: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1, "random_dir": True, "version": 1},
-    #     # 7: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3, "random_dir": True, "version": 1},
-    #     # 8: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5, "random_dir": True, "version": 1},
-    #     # 9: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7, "random_dir": True, "version": 1},
-    #     # 10: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.9, "random_dir": True, "version": 1},
+    #     12: {"epsilon": 0.9, "is_strict": True, "version": 3, "remember_corners": False, "x": 2},
     # }
 
-    run(model, param_sets, base_path, MAX_LENGTH, N_BOUTS_TO_GENERATE)
+    # from CustomDirection_model import CustomDirection
+    # model = CustomDirection()
+    # param_sets = {
+    #     1: {"is_strict": True, "version": 2, "z_type": "zipf"},
+    #     2: {"is_strict": False, "version": 2, "z_type": "zipf"},
+    # }
+
+    from IDDFS_model import IDDFS
+    model = IDDFS()
+    param_sets = {
+        1: {},
+    }
+
+    run(model, param_sets, base_path, VARIATION, N_BOUTS_TO_GENERATE)

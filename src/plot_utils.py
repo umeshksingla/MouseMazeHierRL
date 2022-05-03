@@ -625,18 +625,19 @@ def plot_reward_path_lengths(episodes, title, save_file_path=None, dots=True, di
     return
 
 
-def plot_visit_freq(visit_frequency, title, save_file_path=None, display=False):
+def plot_visit_freq(visit_frequency, title, by_level=False, save_file_path=None, display=False):
     """todo
     visit_frequency: 1x127 array
-
+    by_level: boolean (True if frequency is being plotted for each level, False if for each node)
+    this merely changes the file name though
     """
     plt.figure()
-    ax = plt.plot(visit_frequency)
+    ax = plt.plot(visit_frequency, 'bo')
     plt.title(title)
-    plt.xlabel("node")
-    plt.ylabel("no of visits")
+    plt.xlabel("node level" if by_level else "node")
+    plt.ylabel(f"fraction of visits to each {'node level' if by_level else 'node'}")
     if save_file_path:
-        plt.savefig(os.path.join(save_file_path, f'visit_frequency_plot.png'))
+        plt.savefig(os.path.join(save_file_path, f'norm_visit_frequency_{"by_level_" if by_level else ""}plot.png'))
     if display:
         plt.show()
     plt.clf()
