@@ -1,6 +1,8 @@
 from MM_Traj_Utils import add_node_times_to_tf, add_reward_times_to_tf, NewMaze, Traj
 from parameters import FRAME_RATE, WATERPORT_NODE, HOME_NODE, RWD_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
-    TIME_EACH_MOVE, INVALID_STATE, NODE_LVL, LVL_BY_NODE
+    TIME_EACH_MOVE, INVALID_STATE, NODE_LVL, LVL_BY_NODE, HALF_UP, HALF_DOWN, QUAD1, QUAD2, QUAD3, QUAD4, \
+    HALF_LEFT, HALF_RIGHT, ROW_3, ROW_1, COL_3, COL_1
+import parameters as p
 import numpy as np
 from numpy import array, arange
 
@@ -307,7 +309,7 @@ def calculate_normalized_visit_frequency(episodes):
 def calculate_normalized_visit_frequency_by_level(episodes):
     """
     :param episodes: episodes: [[], [], ...]
-    :return: 127-length list of number of times each node was visited in all the
+    :return: 7-length list of number of times each level was visited in all the
     input episodes
     """
     node_level_visit_freq = np.zeros(len(NODE_LVL))
@@ -318,4 +320,151 @@ def calculate_normalized_visit_frequency_by_level(episodes):
     node_level_visit_freq = node_level_visit_freq / np.sum([len(e) for e in episodes])
     return node_level_visit_freq
 
+
+def get_parent_node(n):
+    return (n + (n % 2) - 1) // 2
+
+
+def home_path_node(n):
+    """
+    Returns the node path that leads from node n to the start of the maze
+    Includes both start and end nodes
+    """
+    ret = []
+    while n >= 0:
+        ret.append(n)
+        n = get_parent_node(n)
+    return ret
+
+
+def connect_path_node(n1, n2):
+    """
+    Returns the shortest path that connects nodes n1 and n2
+    Includes both start and end nodes
+    """
+    r1 = home_path_node(n1)
+    r2 = home_path_node(n2)[::-1] # reversed
+    for i in r1:
+        if i in r2:
+            return r1[:r1.index(i)]+r2[r2.index(i):]
+
+
+def get_outward_pref_order(turn_node):
+    le = LVL_BY_NODE[turn_node]
+    l_child, h_child = 2 * turn_node + 1, 2 * turn_node + 2
+    if le == 2:
+        pref_order = [l_child, h_child] if turn_node in HALF_UP else [h_child, l_child]
+    elif le == 3:
+        pref_order = [l_child, h_child] if turn_node in HALF_LEFT else [h_child, l_child]
+    elif le == 4:
+        pref_order = [l_child, h_child] if ((turn_node in ROW_1) or (turn_node in ROW_3)) else [h_child, l_child]
+    elif le == 5:
+        pref_order = [l_child, h_child] if ((turn_node in COL_1) or (turn_node in COL_3)) else [h_child, l_child]
+    else:
+        raise Exception(f"Illegal level specified = {le}")
+    return pref_order
+
+
+def get_part_trajs_from_tf(tf, phase):
+    if phase == 'all':
+        trajs = tf.no
+    elif phase == 'first_half':
+        trajs = tf.no[:len(tf.no) // 2]
+    elif phase == 'second_half':
+        trajs = tf.no[len(tf.no) // 2:]
+    elif phase == 'first_third':
+        trajs = tf.no[:len(tf.no) // 3]
+    elif phase == 'second_third':
+        trajs = tf.no[len(tf.no) // 3:2 * len(tf.no) // 3]
+    elif phase == 'third_third':
+        trajs = tf.no[2 * len(tf.no) // 3:]
+    elif isinstance(phase, int):
+        trajs = tf.no[:phase]
+    else:
+        raise Exception(f'wrong phase specified: {phase}')
+    return trajs
+
+
+def get_revisits(tf, phase='all'):
+    """
+    Revisits to a node in terms of number of nodes visited
+    """
+    revisits = defaultdict(list)
+    trajs = get_part_trajs_from_tf(tf, phase)
+    for t in trajs:
+        node_seq = t[:, 0]
+        for node in p.ALL_VISITABLE_NODES:
+            visits_node = np.where(node_seq == node)[0]
+            if len(visits_node) >= 2:
+                revisits[node] += list(np.diff(visits_node) - 1)
+    return revisits
+
+
+def get_end_nodes_revisits(tf, phase='all'):
+    """
+    Revisits to a node in terms of number of end-nodes visited
+    """
+    revisits = defaultdict(list)
+    trajs = get_part_trajs_from_tf(tf, phase)
+    for t in trajs:
+        orig_node_seq = t[:, 0]
+        for node in p.ALL_VISITABLE_NODES:
+            node_seq = np.array(list(filter(lambda x: x == node or x in p.LVL_6_NODES, orig_node_seq)))
+            visits_node = np.where(node_seq == node)[0]
+            if len(visits_node) >= 2:
+                revisits[node] += list(np.diff(visits_node) - 1)
+    return revisits
+
+
+def get_unique_node_revisits(tf, phase='all'):
+    """
+    Revisits to a node in terms of number of unique nodes visited
+    """
+
+    def split_seq(seq, sep):
+        start = 0
+        while start < len(seq):
+            try:
+                stop = start + seq[start:].index(sep)
+                yield seq[start:stop]
+                start = stop + 1
+            except ValueError:
+                yield seq[start:]
+                break
+
+    revisits = dict()
+    trajs = get_part_trajs_from_tf(tf, phase)
+    for t in trajs:
+        orig_node_seq = list(t[:, 0])
+        # print(orig_node_seq)
+        for node in p.ALL_VISITABLE_NODES:
+            paths = list(split_seq(orig_node_seq, node))[1:-1]
+            # print(node, paths)
+            if len(paths) >= 2:
+                if node not in revisits:
+                    revisits[node] = []
+                [revisits[node].append(len(np.unique(i))) for i in paths]
+    # print(revisits)
+    return revisits
+
+
+def locate_first_k_endnodes(bout, k, predicate_to_skip=lambda x: False):
+    assert k == 1 or k == 2     # mark it OUTSIDE as soon as it moves outside the current subquad
+    visits = []
+    first_subq = None
+    for i, n in enumerate(bout):
+        if n in p.LVL_6_NODES:
+            if predicate_to_skip(n):
+                # print(n, "here", p.node_subquadrant_dict[n])
+                continue
+            curr_subq = p.node_subquadrant_dict[n]
+            # if first_subq and curr_subq != first_subq:
+            #     visits.append((i, n, p.node_quadrant_dict[n], curr_subq, 'OUTSIDE'))
+            #     break
+            visits.append((i, n, p.node_quadrant_dict[n], curr_subq, p.node_subquadrant_label_dict[n]))
+            # if not first_subq:
+            #     first_subq = curr_subq
+            k -= 1
+        if not k: break
+    return visits
 

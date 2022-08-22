@@ -453,11 +453,10 @@ def PlotNodeBias(tr,ma):
     tu = TallyNodeStepTypes(tr,ma)
     n = 2**ma.le-1 # number of nodes below end node level
     bo = (tu[:n,2]+tu[:n,3])/np.sum(tu[:n,:],axis=1) # (outleft+outright)/(outleft+outright+inleft+inright)
-    so = np.sqrt((tu[:n,2]+tu[:n,3])*(tu[:n,0]+tu[:n,1])/np.sum(tu[:n,:],axis=1)**3) # std dev
-    plot(bo,fmts=['g-'],legend=['back'],linewidth=2,
-         xlabel='Node',ylabel='back(back+left+right)',figsize=(10,3),grid=True);
-    plt.errorbar(range(len(bo)),bo,yerr=so,fmt='none');  
-    plt.show()
+    # so = np.sqrt((tu[:n,2]+tu[:n,3])*(tu[:n,0]+tu[:n,1])/np.sum(tu[:n,:],axis=1)**3) # std dev
+    # plot(bo,fmts=['g-'],legend=['back'],linewidth=2,
+    #      xlabel='Node',ylabel='back(back+left+right)',figsize=(10,3),grid=True);
+    # plt.errorbar(range(len(bo)),bo,yerr=so,fmt='none');
     bl = tu[:n,0]/(tu[:n,0]+tu[:n,1]) # inleft/(inleft+inright)
     sl = np.sqrt(tu[:n,0]*tu[:n,1]/(tu[:n,0]+tu[:n,1])**3) # std dev
     plot(bl,fmts=['r-'],legend=['left'],linewidth=2,

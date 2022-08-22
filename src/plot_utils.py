@@ -2,10 +2,12 @@
 Several useful plotting functions
 Plot the node trajectories on maze
 """
+import pickle
 
 from matplotlib.collections import LineCollection
 from matplotlib import patches
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 import os
 import time
 import numpy as np
@@ -13,13 +15,16 @@ from matplotlib.pyplot import figure, subplot, title, suptitle
 from numpy import ones
 from sklearn.manifold import TSNE
 
-from MM_Maze_Utils import NewMaze, PlotMazeWall
+from MM_Maze_Utils import NewMaze, PlotMazeWall, PlotMazeFunction
 from MM_Plot_Utils import plot
-from MM_Traj_Utils import LoadTrajFromPath
-from parameters import HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES
+from MM_Traj_Utils import LoadTrajFromPath, PlotNodeBiasLocation, PlotNodeBias, TallyNodeStepTypes
+from parameters import OUTDATA_PATH, HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES, UnrewNamesSub, \
+    full_labels
+import parameters as p
 from utils import get_node_visit_times, get_all_night_nodes_and_times, \
     get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times, \
-    convert_traj_to_episodes
+    convert_traj_to_episodes, get_outward_pref_order, get_revisits, get_end_nodes_revisits, get_unique_node_revisits
+import utils
 import evaluation_metrics as em
 
 
@@ -366,7 +371,7 @@ def plot_trajs(episodes_mouse, save_file_path, title):
     print("# Trajectories", len(episodes_mouse))
     k = 5
     for i, traj in enumerate(episodes_mouse):
-        if i >= 50:
+        if i >= 100:
             break
         if len(episodes_mouse) >= 20 and i >= 10 and i%k != 0:
             continue
@@ -380,29 +385,26 @@ def plot_trajs(episodes_mouse, save_file_path, title):
     return
 
 
-def plot_episode_lengths(episodes_mouse, title, save_file_path=None, display=False):
-    """todo
+def plot_episode_lengths(episodes, title, save_file_path=None, display=False):
+    """
     A bar plot of all episode lengths
-    episodes_mouse:
-
     """
     plt.figure()
-    ax = plt.bar(range(len(episodes_mouse)), [len(e) for e in episodes_mouse],
-            label='Episodes length')
-    plt.title(title)
+    plt.bar(range(len(episodes)), [len(e) for e in episodes])
+    if title:
+        plt.title(title)
     plt.xlabel("time")
-    plt.ylabel("number of steps")
-    plt.legend()
+    plt.ylabel("episode length in number of nodes")
     if save_file_path:
-        plt.savefig(os.path.join(save_file_path, f'epi_lengths_bars.png'))
+        plt.savefig(os.path.join(save_file_path, f'epi_lengths_bars.png'), bbox_inches='tight', dpi='figure')
     if display:
         plt.show()
     plt.clf()
     plt.close()
-    return ax
+    return
 
 
-def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, display=False):
+def plot_exploration_efficiency(tf, re, le=6, title=None, save_file_path=None, display=False):
     """
     :param episodes: [[], [], ...] (list of list of nodes for each trajectory)
     :param re: True for rewarded animals, False for unrewarded (i.e. if you want
@@ -410,37 +412,36 @@ def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, d
     only exploration, keep it False).
     """
 
-    new_end_nodes_found = em.exploration_efficiency(episodes, re=re)
     plt.figure()
-    plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(), 'go-', label='agent')
 
     # DFS
-    new_end_nodes_found_dfs = em.get_dfs_ee()
-    plt.plot(new_end_nodes_found_dfs.keys(), new_end_nodes_found_dfs.values(), 'black', label='optimal')
+    c, n = em.get_dfs_ee(le)
+    plt.plot(c, n, 'green', label='optimal')
 
     # random
-    new_end_nodes_found_dfs = em.get_random_ee()
-    plt.plot(new_end_nodes_found_dfs.keys(), new_end_nodes_found_dfs.values(), 'blue', linestyle='-', label='random')
+    c, n = em.get_random_ee(le)
+    plt.plot(c, n, 'black', linestyle='-.', label='random')
 
-    # one unrewarded animal
-    new_end_nodes_found_unrew = em.get_unrewarded_ee()
-    plt.plot(new_end_nodes_found_unrew.keys(),
-             new_end_nodes_found_unrew.values(), color='red',
-             linestyle='-.', label='mouse B5')
+    # animal data
+    unrewarded_animals_ee_dict = em.get_unrewarded_ee(le)
+    c, n = unrewarded_animals_ee_dict[UnrewNamesSub[0]]     # plot one animal (to get the legend right)
+    plt.plot(c, n, color='blue', linestyle='-.', alpha=0.4, linewidth=1, label='unrewarded')
+    for nickname in UnrewNamesSub[1:]:  # plot rest of the animals
+        c, n = unrewarded_animals_ee_dict[nickname]
+        plt.plot(c, n, color='blue', linestyle='-.', alpha=0.4, linewidth=1)
 
-    # # one rewarded animal
-    # new_end_nodes_found_rew = em.get_rewarded_ee()
-    # plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(),
-    #          color=colormap(1), linestyle='-.', label='Rewarded: B1')
+    # Get this agent's ee
+    c, n = em.exploration_efficiency(tf, re=re, le=le)
+    plt.plot(c, n, 'ro-', label='agent')
 
     plt.xscale('log', base=10)
-
-    if title: plt.title(title)
-    plt.xlabel("End nodes visited")
-    plt.ylabel("New end nodes found")
+    if title:
+        plt.title(title)
+    plt.xlabel(f"Nodes visited (level={le})")
+    plt.ylabel(f"New nodes found (level={le})")
     plt.legend()
     if save_file_path:
-        plt.savefig(os.path.join(save_file_path, f'exp_efficiency.png'))
+        plt.savefig(os.path.join(save_file_path, f'exp_efficiency_le{le}.png'))
     if display:
         plt.show()
     plt.clf()
@@ -448,34 +449,391 @@ def plot_exploration_efficiency(episodes, re, title=None, save_file_path=None, d
     return
 
 
-def plot_decision_biases(tfs, re, title=None, save_file_path=None, display=False):
+def nodebias(tr, ma):
+    tu = TallyNodeStepTypes(tr,ma)
+    n = 2**ma.le-1 # number of nodes below end node level
+    # bo = (tu[:n,2]+tu[:n,3])/np.sum(tu[:n,:],axis=1) # (outleft+outright)/(outleft+outright+inleft+inright)
+    # so = np.sqrt((tu[:n,2]+tu[:n,3])*(tu[:n,0]+tu[:n,1])/np.sum(tu[:n,:],axis=1)**3) # std dev
+    # plot(bo,fmts=['g-'],legend=['back'],linewidth=2,
+    #      xlabel='Node',ylabel='back(back+left+right)',figsize=(10,3),grid=True);
+    # plt.errorbar(range(len(bo)),bo,yerr=so,fmt='none');
+    bl = tu[:n,0]/(tu[:n,0]+tu[:n,1]) # inleft/(inleft+inright)
+    sl = np.sqrt(tu[:n,0]*tu[:n,1]/(tu[:n,0]+tu[:n,1])**3) # std dev
+    # plot(bl,fmts=['r-'],legend=['left'],linewidth=2,
+    #      xlabel='Node',ylabel='left/(left+right)',figsize=(10,3),grid=True)
+    # plt.errorbar(range(len(bl)),bl,yerr=sl,fmt='none')
+    return bl, sl
+
+
+def plot_percent_turns(tf, title=None, save_file_path=None, display=False):
+
+    ma = NewMaze(6)
+    plt.figure()
+
+    bla, sla = nodebias(LoadTrajFromPath(OUTDATA_PATH + 'B1-tf'), ma)
+    bl, sl = nodebias(tf, ma)
+    plot([bla, bl], fmts=['b-', 'r-'],legend=['mouse B1', 'agent'],linewidth=2,
+         xlabel='Node',ylabel='Left bias',figsize=(10,3), grid=True, loc='lower left')
+
+    plt.errorbar(range(len(bla)),bla,yerr=sla,fmt='none')
+    plt.errorbar(range(len(bl)), bl, yerr=sl, fmt='none')
+
+    plt.plot(range(64), [0.5] * 64, 'k:', linewidth=1, label='random')
+    if title:
+        plt.title(f'Node bias\n{title}')
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'node_bias.png'), bbox_inches='tight', dpi='figure')
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+
+    plt.figure()
+    PlotNodeBiasLocation(tf, ma)
+    if title:
+        plt.title(f'Spatial distribution of left-right bias\n{title}')
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'node_bias_maze.png'), bbox_inches='tight', dpi='figure')
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+def plot_percent_turns_check(tf, title=None, save_file_path=None, display=False):
+    seqs_level2 = [[0, 1, 4],
+                   [0, 1, 3],
+                   [0, 2, 6],
+                   [0, 2, 5]]
+
+    seqs_level3 = []
+    for s in seqs_level2:
+        l, r = 2*s[-1]+1, 2*s[-1] + 2
+        seqs_level3.append(s + [l])
+        seqs_level3.append(s + [r])
+
+    seqs_level4 = []
+    for s in seqs_level3:
+        l, r = 2*s[-1]+1, 2*s[-1] + 2
+        seqs_level4.append(s + [l])
+        seqs_level4.append(s + [r])
+
+    seqs_level5 = []
+    for s in seqs_level4:
+        l, r = 2*s[-1]+1, 2*s[-1] + 2
+        seqs_level5.append(s + [l])
+        seqs_level5.append(s + [r])
+
+    # data
+    with open(p.OUTDATA_PATH + 'outward_turns_unrewarded.pkl', 'rb') as f:
+        pref_unrewarded_le = pickle.load(f)
+
+    plt.figure()
+    for le, seqs_level in zip([2, 3, 4, 5], [seqs_level2, seqs_level3, seqs_level4, seqs_level5]):
+        outward_prefs = [0]
+        total = 0
+        for node_seq in seqs_level:
+            turn_node = node_seq[-1]
+            pref_order = get_outward_pref_order(turn_node)
+            assert len(pref_order) == 2
+            counts, seq_samples = em.percent_turns(tf, node_seq, pref_order[0], pref_order[1])
+            # print(node_seq, turn_node, pref_order, counts, seq_samples)
+            if seq_samples < 2:
+                continue
+            outward_prefs.append(counts[pref_order[0]])
+            total += seq_samples
+        print(f"le={le}:", outward_prefs)
+
+        plt.plot([le]*len(pref_unrewarded_le[le]), pref_unrewarded_le[le],  'b.', label=f'unrewarded' if le == 2 else '')
+        plt.plot(le, sum(outward_prefs)*100/total, 'ro', label=f'agent' if le == 2 else '')
+        plt.plot(le, 50.0, 'ko', label=f'random' if le == 2 else '')
+
+    plt.xlabel('Level')
+    plt.ylabel('Percentage outward turns')
+    plt.ylim([0, 100])
+    plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
+    plt.legend(loc='lower right')
+    if title:
+        plt.title(title)
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'percent_outward_turns.png'), bbox_inches='tight', dpi='figure')
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+def plot_first_endnode_labels(tf, title=None, save_file_path=None, display=False):
+
+    # data
+    with open(p.OUTDATA_PATH + 'first_endnode_label_unrewarded.pkl', 'rb') as f:
+        first_endnode_label_unrewarded = pickle.load(f)
+
+    print(first_endnode_label_unrewarded)
+
+    first_visit_label_fracs = em.first_endnode_label(tf)
+    print("first_visit_label_fracs", first_visit_label_fracs)
+    plt.figure()
+
+    for i, k in enumerate(first_endnode_label_unrewarded):
+        plt.plot([k]*len(first_endnode_label_unrewarded[k]), first_endnode_label_unrewarded[k], 'b.', label='unrewarded' if i == 0 else '')
+    plt.plot(list(first_visit_label_fracs.keys()), list(first_visit_label_fracs.values()), 'ro', label='agent')
+    plt.plot(list(first_endnode_label_unrewarded.keys()), [25.0] * len(first_endnode_label_unrewarded), 'ko', label='random')
+    plt.xticks(rotation=5)
+    plt.ylim([0, 100])
+    plt.ylabel('Preference node type in the corner')
+    plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
+    plt.legend(loc='upper right')
+    if title:
+        plt.title(title)
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'first_endnode_hits.png'), bbox_inches='tight', dpi='figure')
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return first_visit_label_fracs
+
+    plt.figure()
+    first_visit_plot = np.array([0]*len(ALL_MAZE_NODES))
+    first_visit_plot[63] = first_visit_label_fracs.get(p.full_labels[p.STRAIGHT], 0)  # s
+    first_visit_plot[64] = first_visit_label_fracs.get(p.full_labels[p.OPP_STRAIGHT], 0)  # o_s
+    first_visit_plot[65] = first_visit_label_fracs.get(p.full_labels[p.BENT_STRAIGHT], 0)  # bs
+    first_visit_plot[66] = first_visit_label_fracs.get(p.full_labels[p.OPP_BENT_STRAIGHT], 0)  # o_bs
+    PlotMazeFunction(first_visit_plot/100, NewMaze(6), mode='nodes', numcol='g', figsize=6)
+    if title:
+        plt.title(title)
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'first_endnode_hits_maze.png'), bbox_inches='tight', dpi='figure')
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+def plot_opposite_node_preference(tf, title=None, save_file_path=None, display=False):
+
+    label_transition_counts = em.second_endnode_label(tf)
+    print("same", label_transition_counts)
+    percents = [
+        label_transition_counts[p.STRAIGHT].get(p.OPP_STRAIGHT, 0),
+        label_transition_counts[p.OPP_STRAIGHT].get(p.STRAIGHT, 0),
+        label_transition_counts[p.BENT_STRAIGHT].get(p.OPP_BENT_STRAIGHT, 0),
+        label_transition_counts[p.OPP_BENT_STRAIGHT].get(p.BENT_STRAIGHT, 0)
+    ]
+    print("same", percents)
+    percents = np.array(percents)
+    percents = percents[percents != 0]
+    print("same", percents)
+    plt.figure()
+    plt.plot([1]*len(percents), percents, 'bo')
+    # plt.boxplot(percents)
+    plt.xticks([1], ['same subquad'])
+    plt.ylabel('opposite node preference at endnodes')
+    plt.ylim([0, 100])
+    plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
+    if title:
+        plt.title(title)
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'opposite_endnode_preference.png'), bbox_inches='tight', dpi='figure')
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return percents
+
+
+def plot_revisits():
+    raise NotImplementedError
+    for sub in p.UnrewNamesSub[:2]:
+        revisit = get_revisits(sub)
+        for node in [0]:
+            total = len(revisit[node])
+            plt.figure(figsize=(15, 4))
+            plt.plot(range(total), revisit[node])
+            plt.title(f"animal {sub}, node {node}")
+            plt.xlabel("as time goes by")
+            plt.ylabel("number of nodes in between revisits")
+            plt.show()
+    return
+
+
+def plot_end_node_revisits(tf, title='', save_file_path=None, display=False):
+    raise NotImplementedError
+    N = 63
+    end_nodes_revisit = get_end_nodes_revisits(tf)
+    for node in [N]:
+        revisits = end_nodes_revisit[node]
+        total = len(revisits)
+        plt.figure(figsize=(15, 4))
+        plt.plot(range(total), revisits, 'o')
+        plt.title(f"{title} node {node}")
+        plt.xlabel("as time goes by")
+        #         plt.ylim([-1, 10])
+        plt.gca().yaxis.set_major_locator(mtick.MaxNLocator(integer=True))
+        plt.gca().xaxis.set_major_locator(mtick.MaxNLocator(integer=True))
+        plt.ylabel("Count of end-nodes in between revisits")
+        if save_file_path:
+            plt.savefig(os.path.join(save_file_path, f'fraction_endnode_revisits_node{node}_alltime.png'),
+                        bbox_inches='tight', dpi='figure')
+        if display:
+            plt.show()
+        plt.clf()
+        plt.close()
+    return
+
+
+def plot_node_revisits_level_halves(tf, levels=p.NODE_LVL, title='', save_file_path=None, display=False):
+    revisit_phase = [None, None]
+    revisit_phase[0] = get_revisits(tf, 'first_half')
+    revisit_phase[1] = get_revisits(tf, 'second_half')
+    for level in levels:
+        fig, ax = plt.subplots(1, 2, figsize=(15, 4))
+        for half in [0, 1]:
+            revisit = revisit_phase[half]
+            to_plot = []
+            for node in p.NODE_LVL[level]:
+                to_plot += revisit[node]
+            total = len(to_plot)
+            d = {x: to_plot.count(x) / total for x in to_plot}
+            ax[half].bar(d.keys(), d.values(), width=0.45)
+            ax[half].set_title(f"{title}\nLevel {level}:   Sample size={len(to_plot)}  Half={half + 1}")
+            ax[half].set_xlabel("number of nodes before revisiting the same node")
+            ax[half].set_ylabel("fraction of total revisits")
+            ax[half].set_xlim([-1, 50])
+            ax[half].set_ylim([0.0, max(d.values()) + 0.05])
+        if save_file_path:
+            os.makedirs(save_file_path, exist_ok=True)
+            plt.savefig(os.path.join(save_file_path, f'fraction_node_revisits_level{level}_{title}_halves.png'),
+                        bbox_inches='tight', dpi='figure')
+        if display:
+            plt.show()
+        plt.clf()
+        plt.close()
+    return
+
+
+def plot_end_node_revisits_level_all_time(tf, levels=p.NODE_LVL, title='', save_file_path=None, display=False):
+    revisits = get_end_nodes_revisits(tf, 'all')
+    for level in levels:
+        plt.figure(figsize=(15, 3))
+        to_plot = []
+        for node in p.NODE_LVL[level]:
+            to_plot += revisits[node]
+        total = len(to_plot)
+        d = {x: to_plot.count(x) / total for x in to_plot}
+        #     d = dict(filter(lambda x: x[0] <= 50, d.items()))
+        plt.bar(d.keys(), d.values(), width=0.4)
+        plt.title(f"{title}\nLevel {level}:   Sample size={len(to_plot)}")
+        plt.xlabel("number of endnodes before revisiting the same node")
+        plt.ylabel("fraction of total revisits")
+        plt.xlim([-1, 50])
+        plt.ylim([0.0, max(d.values()) + 0.05])
+        if save_file_path:
+            os.makedirs(save_file_path, exist_ok=True)
+            plt.savefig(os.path.join(save_file_path, f'fraction_endnode_revisits_level{level}_{title}_alltime.png'),
+                        bbox_inches='tight', dpi='figure')
+        if display:
+            plt.show()
+        plt.clf()
+        plt.close()
+    return
+
+
+def plot_end_node_revisits_level_halves(tf, levels=p.NODE_LVL, title='', save_file_path=None, display=False):
+    revisit_phase = [None, None]
+    revisit_phase[0] = get_end_nodes_revisits(tf, 'first_half')
+    revisit_phase[1] = get_end_nodes_revisits(tf, 'second_half')
+    for level in levels:
+        fig, ax = plt.subplots(1, 2, figsize=(15, 4))
+        for half in [0, 1]:
+            revisit = revisit_phase[half]
+            to_plot = []
+            for node in p.NODE_LVL[level]:
+                to_plot += revisit[node]
+            total = len(to_plot)
+            d = {x: to_plot.count(x) / total for x in to_plot}
+            ax[half].bar(d.keys(), d.values(), width=0.45)
+            ax[half].set_title(f"{title}\nLevel {level}:   Sample size={len(to_plot)}  Half={half + 1}")
+            ax[half].set_xlabel("number of endnodes before revisiting the same node")
+            ax[half].set_ylabel("fraction of total revisits")
+            ax[half].set_xlim([-1, 50])
+            ax[half].set_ylim([0.0, max(d.values()) + 0.05])
+        if save_file_path:
+            os.makedirs(save_file_path, exist_ok=True)
+            plt.savefig(os.path.join(save_file_path, f'fraction_endnode_revisits_level{level}_{title}_halves.png'),
+                        bbox_inches='tight', dpi='figure')
+        if display:
+            plt.show()
+        plt.clf()
+        plt.close()
+    return
+
+
+def plot_unique_node_revisits_level_halves(tf, levels=p.NODE_LVL, title='', save_file_path=None, display=False):
+    revisit_phase = [None, None]
+    revisit_phase[0] = get_unique_node_revisits(tf, 'first_half')
+    revisit_phase[1] = get_unique_node_revisits(tf, 'second_half')
+    for level in levels:
+        fig, ax = plt.subplots(1, 2, figsize=(15, 4))
+        for half in [0, 1]:
+            revisit = revisit_phase[half]
+            to_plot = []
+            for node in p.NODE_LVL[level]:
+                if node not in revisit: continue
+                to_plot += revisit[node]
+            total = len(to_plot)
+            d = {x: to_plot.count(x) / total for x in to_plot}
+            ax[half].bar(d.keys(), d.values(), width=0.45)
+            ax[half].set_title(f"{title}\nLevel {level}:   Sample size={len(to_plot)}  Half={half + 1}")
+            ax[half].set_xlabel("number of unique nodes before revisiting the same node")
+            ax[half].set_ylabel("fraction of total revisits")
+            ax[half].set_xlim([-1, 50])
+            ax[half].set_ylim([0.0, max(d.values()) + 0.05])
+        if save_file_path:
+            os.makedirs(save_file_path, exist_ok=True)
+            plt.savefig(os.path.join(save_file_path, f'fraction_uniquenode_revisits_level{level}_{title}_halves.png'),
+                        bbox_inches='tight', dpi='figure')
+        if display:
+            plt.show()
+        plt.clf()
+        plt.close()
+    return
+
+
+def plot_decision_biases(tf, re, title=None, save_file_path=None, display=False):
     """
     Plots the decision biases and prints their standard deviation for each agent
     :param tfs: list of `tf` trajectory files converted from simulated episodes
     """
 
-    bi, bis = em.get_decision_biases(tfs, re)
-
     figure()
-    suptitle(f"Decision biases - {title}")
-    ax = subplot(121)
+
+    # get this agent's biases
+    bi, _ = em.get_decision_biases([tf], re)
+
+    # get precomputed biases from data
+    with open(OUTDATA_PATH + 'decision_biases_unrewarded.pkl', 'rb') as f:
+        bi_data = pickle.load(f)
+
     # plot biases BF vs SF
-    BF_MEAN = 0.82
-    SF_MEAN = 0.77
-    RANDOM_F = 2/3  # chance of going forward
-    plot([bi[:, 0], [SF_MEAN], [RANDOM_F]], [bi[:, 2], [BF_MEAN],  [RANDOM_F]],
-         fmts=['.', 'b^', 'k+'], markersize=10, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
-             legend=['agent', 'mean mice', 'random'], xlabel='$P_{\mathrm{SF}}$', ylabel='$P_{\mathrm{BF}}$', loc='lower left')
-    ax = subplot(122)
+    ax = subplot(121)
+    plot([bi_data[:, 0], [2 / 3], [bi[:, 0]]], [bi_data[:, 2], [2 / 3], [bi[:, 2]]], fmts=['b.', 'k+', 'r.'], markersize=7,
+         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=['unrewarded', 'random', 'agent'],
+         xlabel='$P_{\mathrm{SF}}$', ylabel='$P_{\mathrm{BF}}$', loc='lower left')
+
     # plot biases BS vs SA
-    BS_MEAN = 0.64
-    SA_MEAN = 0.72
-    RANDOM_CHOICE = 0.5
-    plot([bi[:, 1], [SA_MEAN], [RANDOM_CHOICE]], [bi[:, 3], [BS_MEAN], [RANDOM_CHOICE]],
-         fmts=['.', 'b^', 'k+'], markersize=10, xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
-             legend=['agent', 'mean mice', 'random'], xlabel='$P_{\mathrm{SA}}$', ylabel='$P_{\mathrm{BS}}$', loc='lower left')
+    ax = subplot(122)
+    plot([bi_data[:, 1], [1 / 2], [bi[:, 1]]], [bi_data[:, 3], [1 / 2], [bi[:, 3]]], fmts=['b.', 'k+', 'r.'], markersize=7,
+         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=['unrewarded', 'random', 'agent'],
+         xlabel='$P_{\mathrm{SA}}$', ylabel='$P_{\mathrm{BS}}$', loc='lower left')
+
+    suptitle(f"Decision biases \n {title}")
     if save_file_path:
-        plt.savefig(os.path.join(save_file_path, f'decision_biases.png'))
+        plt.savefig(os.path.join(save_file_path, f'decision_biases.png'), bbox_inches='tight', dpi='figure')
     if display:
         plt.show()
     plt.clf()
@@ -483,7 +841,7 @@ def plot_decision_biases(tfs, re, title=None, save_file_path=None, display=False
     return
 
 
-def plot_markov_fit_non_pooling(episodes, re, title=None, save_file_path=None, display=False):
+def plot_markov_fit_non_pooling(episodes, re, title='', save_file_path=None, display=False):
     """
     """
     if len(episodes) <= 5:
@@ -497,7 +855,7 @@ def plot_markov_fit_non_pooling(episodes, re, title=None, save_file_path=None, d
              fmts=['r.-', 'g.-', 'b.-', 'y.-'], markersize=8, linewidth=1,
              xlabel='Average depth of history', ylabel='Cross-entropy',
              legend=['fix test', 'var test', 'fix train', 'var train'],
-             loc='upper center', figsize=(5, 4), title='markov_fit_non_pooling')
+             loc='upper center', figsize=(5, 4), title=f'Markov Fit (non pooling)\n{title}')
 
     print("avg depth for min cross entropy")
     ef, hf = sorted(zip(cf5, hf5))[0]
@@ -516,7 +874,7 @@ def plot_markov_fit_non_pooling(episodes, re, title=None, save_file_path=None, d
     return
 
 
-def plot_markov_fit_pooling(episodes, re, title=None, save_file_path=None, display=False):
+def plot_markov_fit_pooling(episodes, re, title='', save_file_path=None, display=False):
     """
     """
     if len(episodes) <= 6:
@@ -530,7 +888,7 @@ def plot_markov_fit_pooling(episodes, re, title=None, save_file_path=None, displ
              fmts=['r.-', 'g.-', 'b.-', 'y.-'], markersize=8, linewidth=1,
              xlabel='Average depth of history', ylabel='Cross-entropy',
              legend=['fix test', 'var test', 'fix train', 'var train'],
-             loc='upper center', figsize=(5, 4), title='markov_fit_pooling')
+             loc='lower left', figsize=(5, 4), title=f'Markov Fit (pooling)\n{title}')
 
     print("avg depth for min cross entropy")
     ef, hf = sorted(zip(cf5, hf5))[0]
@@ -541,7 +899,6 @@ def plot_markov_fit_pooling(episodes, re, title=None, save_file_path=None, displ
     # mark the minimum ones
     plt.plot(hf, ef, fillstyle='none', markersize=15, color='tab:red', marker='o')
     plt.plot(hv, ev, fillstyle='none', markersize=15, color='tab:green', marker='o')
-
     if save_file_path:
         plt.savefig(os.path.join(save_file_path, f'markov_fit_pooling.png'))
     if display:
@@ -556,7 +913,8 @@ def plot_trajectory_features(episodes, title=None, save_file_path=None, display=
     simulated_features = em.get_feature_vectors(episodes)
     print("simulated_features", simulated_features.shape)
 
-    mouse_episodes = convert_traj_to_episodes(LoadTrajFromPath('../outdata/B5-tf'))
+    # animal data
+    mouse_episodes = convert_traj_to_episodes(LoadTrajFromPath(p.OUTDATA_PATH + 'B5-tf'))
     mouse_features = em.get_feature_vectors(mouse_episodes)
     print("mouse_features", mouse_features.shape)
 
@@ -574,31 +932,56 @@ def plot_trajectory_features(episodes, title=None, save_file_path=None, display=
     # plt.show()
     # plt.close()
 
+    plt.figure()
+    plt.scatter(mouse_features[:, 0], mouse_features[:, 1], s=10, alpha=0.6, label='mouse')
+    plt.scatter(simulated_features[:, 0], simulated_features[:, 1], s=10, label='agent')
+    plt.xlabel('rotational velocity')
+    plt.ylabel('mean diffusivity')
+    plt.legend()
+    if save_file_path: plt.savefig(os.path.join(save_file_path, f'rot_vs_diff.png'))
+    if display: plt.show()
+    plt.clf(); plt.close()
+
+    plt.figure()
+    plt.scatter(mouse_features[:, 1], mouse_features[:, 2], s=10, alpha=0.6, label='mouse')
+    plt.scatter(simulated_features[:, 1], simulated_features[:, 2], s=10, label='agent')
+    plt.xlabel('mean diffusivity')
+    plt.ylabel('tortuosity')
+    plt.legend()
+    if save_file_path: plt.savefig(os.path.join(save_file_path, f'diff_vs_tort.png'))
+    if display: plt.show()
+    plt.clf(); plt.close()
+
+    plt.figure()
+    plt.scatter(mouse_features[:, 0], mouse_features[:, 2], s=10, alpha=0.6, label='mouse')
+    plt.scatter(simulated_features[:, 0], simulated_features[:, 2], s=10, label='agent')
+    plt.xlabel('rotational velocity')
+    plt.ylabel('tortuosity')
+    plt.legend()
+    if save_file_path: plt.savefig(os.path.join(save_file_path, f'rot_vs_tort.png'))
+    if display: plt.show()
+    plt.clf(); plt.close()
+
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
-
-    ax.scatter(
-        simulated_features[:, 0],
-        simulated_features[:, 1],
-        simulated_features[:, 2],
-        color='r', label='agent')
     ax.scatter(
         mouse_features[:, 0],
         mouse_features[:, 1],
         mouse_features[:, 2],
-        color='y', label='mouse B5')
-
+        color='b', s=10, alpha=0.6, label='mouse B5')
+    ax.scatter(
+        simulated_features[:, 0],
+        simulated_features[:, 1],
+        simulated_features[:, 2],
+        color='r', s=10, label='agent')
     ax.set_xlabel('mean rotational_velocity')
     ax.set_ylabel('mean diffusivity')
     ax.set_zlabel('tortuosity')
     ax.set_title(title)
     plt.legend()
-    if save_file_path:
-        plt.savefig(os.path.join(save_file_path, f'trajectory_features.png'))
-    if display:
-        plt.show()
-    plt.clf()
-    plt.close()
+    if save_file_path: plt.savefig(os.path.join(save_file_path, f'trajectory_features.png'))
+    if display: plt.show()
+    plt.clf(); plt.close()
     return
 
 
@@ -629,13 +1012,17 @@ def plot_visit_freq(visit_frequency, title, by_level=False, save_file_path=None,
     """todo
     visit_frequency: 1x127 array
     by_level: boolean (True if frequency is being plotted for each level, False if for each node)
-    this merely changes the file name though
+    this merely changes the file name and y-scale though
     """
     plt.figure()
     ax = plt.plot(visit_frequency, 'bo')
     plt.title(title)
     plt.xlabel("node level" if by_level else "node")
     plt.ylabel(f"fraction of visits to each {'node level' if by_level else 'node'}")
+    if by_level:
+        plt.ylim([0.0, 0.4])
+    else:
+        plt.ylim([0.0, 0.07])
     if save_file_path:
         plt.savefig(os.path.join(save_file_path, f'norm_visit_frequency_{"by_level_" if by_level else ""}plot.png'))
     if display:
@@ -643,3 +1030,57 @@ def plot_visit_freq(visit_frequency, title, by_level=False, save_file_path=None,
     plt.clf()
     plt.close()
     return ax
+
+
+def plot_outside_inside_ratio(tf, re, title, save_file_path=None, display=False):
+    print(f"calculating outside inside ratio...")
+
+    # animal data
+    with open(OUTDATA_PATH + 'oiratio_unrewarded.pkl', 'rb') as f:
+        unrewarded_ratios = pickle.load(f)
+
+    # get this agent's oi ratio
+    ratio = em.outside_inside_ratio(tf, re)
+
+    plt.figure()
+    plt.plot([1], [ratio], 'ro', label=f'agent - {round(ratio, 2)}')
+    plt.plot([1], [1.0], 'ko', label='random')
+    plt.plot([1]*len(unrewarded_ratios), list(unrewarded_ratios.values()), 'b.', label='unrewarded')
+    plt.ylim([0, 4])
+    plt.title(f"Ratio of visits to outer vs inner leaf nodes\n{title}")
+    plt.ylabel(f"ratio")
+    plt.legend()
+    if save_file_path:
+        plt.savefig(os.path.join(save_file_path, f'outside_inside_ratio.png'))
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+    return
+
+
+if __name__ == '__main__':
+    from MM_Traj_Utils import LoadTrajFromPath
+    from collections import defaultdict
+
+    # all_mice_prefs = []
+    # for sub in p.UnrewNamesSub:
+    #     print(sub)
+    #     tf = LoadTrajFromPath(p.OUTDATA_PATH + f'{sub}-tf')
+    #     percents = plot_opposite_node_preference(tf, title=sub, display=False)
+    #     all_mice_prefs.extend(percents)
+    # plt.figure()
+    # plt.plot([1]*len(all_mice_prefs), all_mice_prefs, 'b.')
+    # plt.ylim([0, 100])
+    # plt.title('opposite node preference %age - Unrewarded animals (except water subq)')
+    # plt.show()
+
+    for sub in p.UnrewNamesSub:
+        print(sub)
+        tf = LoadTrajFromPath(p.OUTDATA_PATH + f'{sub}-tf')
+        plot_node_revisits_level_halves(tf, [6], title=sub, save_file_path=f'../../figs/samples_from_data/{sub}', display=False)
+        plot_end_node_revisits_level_halves(tf, [6], title=sub, save_file_path=f'../../figs/samples_from_data/{sub}', display=False)
+        plot_unique_node_revisits_level_halves(tf, [6], title=sub, save_file_path=f'../../figs/samples_from_data/{sub}', display=False)
+        # print("\n")
+        # episodes = convert_traj_to_episodes(tf)
+        # plot_trajs(episodes, title=sub, save_file_path=f'../../figs/samples_from_data/{sub}_trajs')
