@@ -10,44 +10,12 @@ import re
 from plot_utils import plot_trajs, plot_episode_lengths, \
     plot_exploration_efficiency, plot_maze_stats, plot_visit_freq, \
     plot_decision_biases, plot_markov_fit_pooling, plot_markov_fit_non_pooling,\
-    plot_trajectory_features, plot_reward_path_lengths
+    plot_trajectory_features, plot_reward_path_lengths, plot_outside_inside_ratio, \
+    plot_percent_turns, plot_opposite_node_preference, plot_first_endnode_labels, \
+    plot_end_node_revisits_level_halves, plot_end_node_revisits_level_all_time, \
+    plot_unique_node_revisits_level_halves, plot_node_revisits_level_halves
 import evaluation_metrics as em
 from utils import convert_episodes_to_traj_class
-
-
-def analyse_episodes(stats, save_file_path, model_name, params):
-    """todo
-    episodes:
-
-    """
-    episodes = stats["episodes_positions"]
-    parameters = {
-        'axes.labelsize': 14,
-        'axes.titlesize': 5,
-        'xtick.labelsize': 13,
-        'ytick.labelsize': 13,
-        'legend.fontsize': 14
-    }
-    plt.rcParams.update(parameters)
-
-    plot_trajs(episodes, title=params, save_file_path=save_file_path)
-    # plot_reward_path_lengths(episodes, params, save_file_path)
-    plot_episode_lengths(episodes, title=params, save_file_path=save_file_path)
-    plot_exploration_efficiency(episodes, re=False, title=None, save_file_path=save_file_path)
-    plot_visit_freq(stats["normalized_visit_frequency"], by_level=False, title=params, save_file_path=save_file_path)
-    plot_visit_freq(stats["normalized_visit_frequency_by_level"], by_level=True, title=params, save_file_path=save_file_path)
-    # plot_markov_fit_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
-    # # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
-    plot_decision_biases([convert_episodes_to_traj_class(episodes, stats["episodes_states"])], re=False,
-                         title=params, save_file_path=save_file_path, display=False)
-    # # plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=False)
-    plot_maze_stats(stats["visit_frequency"], interpolate_cell_values=True, colormap_name='Blues',
-                    colorbar_label="visit freq",
-                    save_file_name=os.path.join(save_file_path, f'visit_frequency_maze.png'),
-                    display=False,
-                    figtitle=f'state visit freq\n{params}')
-    print(em.outside_inside_ratio(episodes))
-    return
 
 
 def analyse_state_values(model, V, save_file_path, params):
@@ -72,7 +40,6 @@ def load(save_file_path):
 
     episode_files_list = glob.glob(save_file_path + '/*_rand*/episodes*')
     episode_files_list = sorted(episode_files_list)
-    c = 0
 
     plt.figure(figsize=(20, 10))
     plt.xscale('log', base=10)
@@ -90,29 +57,6 @@ def load(save_file_path):
 
         with open(os.path.join(each), 'rb') as f:
             stats = pickle.load(f)
-        episodes = stats["episodes_positions"]
-        new_end_nodes_found = em.exploration_efficiency(episodes, re=False)
-        plt.plot(new_end_nodes_found.keys(), new_end_nodes_found.values(),
-                 color=colormap(0.2 + (0.03) * c), linestyle='-', marker="o",
-                 label=label)
-        c += 1
-        print()
-
-    # DFS
-    new_end_nodes_found_dfs = em.get_dfs_ee()
-    plt.plot(new_end_nodes_found_dfs.keys(), new_end_nodes_found_dfs.values(), 'black', label='DFS')
-
-    # one unrewarded animal
-    new_end_nodes_found_unrew = em.get_unrewarded_ee()
-    plt.plot(new_end_nodes_found_unrew.keys(), new_end_nodes_found_unrew.values(), color=colormap(0), linestyle='-.', label='Unrewarded: B5')
-
-    # one rewarded animal
-    new_end_nodes_found_rew = em.get_rewarded_ee()
-    plt.plot(new_end_nodes_found_rew.keys(), new_end_nodes_found_rew.values(), color=colormap(1), linestyle='-.', label='Rewarded: B1')
-    plt.title("exploration efficiency as defined in orig paper")
-    plt.xlabel("end nodes visited")
-    plt.ylabel("new end nodes found")
-    plt.legend()
 
     # sort legend labels with some logic if you need to
     # handles, labels = plt.gca().get_legend_handles_labels()
@@ -123,10 +67,51 @@ def load(save_file_path):
     return
 
 
-def run(model, params_all, base_path, VARIATION, N_BOUTS_TO_GENERATE):
+def analyse_episodes(stats, save_file_path, params):
+    episodes = stats["episodes_positions"]
+    parameters = {
+        'axes.labelsize': 12,
+        'axes.titlesize': 10,
+        'xtick.labelsize': 12,
+        'ytick.labelsize': 12,
+        'legend.fontsize': 12
+    }
+    plt.rcParams.update(parameters)
+    tf = convert_episodes_to_traj_class(episodes, stats["episodes_states"])
+    plot_node_revisits_level_halves(tf, [6], title=params, save_file_path=save_file_path + 'n_revisits', display=False)
+    plot_end_node_revisits_level_halves(tf, [6], title=params, save_file_path=save_file_path + 'en_revisits', display=False)
+    plot_unique_node_revisits_level_halves(tf, [6], title=params, save_file_path=save_file_path + 'un_revisits', display=False)
+    plot_first_endnode_labels(tf, title=params, save_file_path=save_file_path, display=False)
+    plot_opposite_node_preference(tf, title=params, save_file_path=save_file_path, display=False)
+    plot_percent_turns(tf, title=params, save_file_path=save_file_path, display=False)
+    # plot_reward_path_lengths(episodes, params, save_file_path)
+    plot_episode_lengths(episodes, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=False, le=6, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=False, le=5, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=False, le=4, title=params, save_file_path=save_file_path)
+    # plot_exploration_efficiency(tf, re=False, le=3, title=params, save_file_path=save_file_path)
+    # plot_exploration_efficiency(tf, re=False, le=2, title=params, save_file_path=save_file_path)
+    plot_visit_freq(stats["normalized_visit_frequency"], by_level=False, title=params, save_file_path=save_file_path)
+    plot_visit_freq(stats["normalized_visit_frequency_by_level"], by_level=True, title=params, save_file_path=save_file_path)
+
+    # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
+    plot_outside_inside_ratio(tf, re=False, title=params, save_file_path=save_file_path)
+    plot_decision_biases(tf, re=False, title=params, save_file_path=save_file_path, display=False)
+    # plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=False)
+    # plot_maze_stats(stats["visit_frequency"], interpolate_cell_values=True, colormap_name='Blues',
+    #                 colorbar_label="visit freq",
+    #                 save_file_name=os.path.join(save_file_path, f'visit_frequency_maze.png'),
+    #                 display=False,
+    #                 figtitle=f'state visit freq\n{params}')
+    plot_markov_fit_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
+    plot_trajs(episodes, title=params, save_file_path=save_file_path)
+    return
+
+
+def run(model, params_all, base_path, VARIATION):
     MAX_LENGTH = int(VARIATION.split('_', 1)[0])
-    var = VARIATION.split('_', 1)[1]
-    simulation_results = model.simulate_multiple(params_all, MAX_LENGTH, N_BOUTS_TO_GENERATE)
+    var = VARIATION.split('_', 1)[1:]
+    simulation_results = model.simulate_multiple(params_all, MAX_LENGTH)
 
     # analyse results
     for agent_id, params in params_all.items():
@@ -134,8 +119,8 @@ def run(model, params_all, base_path, VARIATION, N_BOUTS_TO_GENERATE):
         success, stats = simulation_results[agent_id]
         episodes = stats["episodes_positions"]
         LL = stats["LL"]
-        V = stats["V"]
         model_name = model.__class__.__name__
+        params['model'] = model_name
         if success:
             run_id = np.random.randint(1, 100000)
             print("#Episodes: ", len(episodes))
@@ -146,9 +131,8 @@ def run(model, params_all, base_path, VARIATION, N_BOUTS_TO_GENERATE):
             Path(save_file_path).mkdir(parents=True, exist_ok=True)
             with open(os.path.join(save_file_path, f'episodes_{agent_id}_{params.__str__()}_LL={LL}.pkl'), 'wb') as f:
                 pickle.dump(stats, f)
-            # print("episodes", episodes)
             # analyse_state_values(model, V, save_file_path, params)
-            analyse_episodes(stats, save_file_path, model_name, params)
+            analyse_episodes(stats, save_file_path, params)
             print(">>> Done with params!", params, "\nCheck results at:", save_file_path, "\nrun_id", run_id)
     return
 
@@ -156,13 +140,7 @@ def run(model, params_all, base_path, VARIATION, N_BOUTS_TO_GENERATE):
 if __name__ == '__main__':
     # np.random.seed(0)
     # should always start with an int denoting max number of steps in the total trajectory
-    VARIATION = '1000_'
-
-    N_BOUTS_TO_GENERATE = 1
-    # from utils import convert_traj_to_episodes
-    # from MM_Traj_Utils import LoadTrajFromPath
-    # episodes = convert_traj_to_episodes(LoadTrajFromPath('../outdata/B5-tf'))
-    # plot_markov_fit_pooling(episodes, re=False, display=True)
+    VARIATION = '20004'
 
     # base path to save figs or other results in
     base_path = '/Users/usingla/mouse-maze/figs'
@@ -202,7 +180,7 @@ if __name__ == '__main__':
     # from EpsilonGreedy_model import EpsilonGreedy
     # model = EpsilonGreedy()
     # param_sets = {
-    #     1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.9, "epsilon": 1.0},
+    #     1: {"epsilon": 1.0},
     # }
 
     # from BayesianQL import BayesianQL
@@ -220,16 +198,6 @@ if __name__ == '__main__':
     #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
     # }
 
-    # from EpsilonTemporalGreedy import EpsilonZGreedy
-    # model = EpsilonZGreedy()
-    # param_sets = {
-    #     # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.1},
-    #     # 2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
-    #     # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.5},
-    #     # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.7},
-    #     5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.3},
-    # }
-
     # from EpsilonDirectionGreedy_model import EpsilonDirectionGreedy
     # model = EpsilonDirectionGreedy()
     # param_sets = {
@@ -243,10 +211,36 @@ if __name__ == '__main__':
     #     2: {"is_strict": False, "version": 2, "z_type": "zipf"},
     # }
 
-    from IDDFS_model import IDDFS
-    model = IDDFS()
+    # from IDDFS_model import IDDFS
+    # model = IDDFS()
+    # param_sets = {
+    #     1: {},
+    # }
+
+    # from random_backprob_model import RandomLessBackProb
+    # model = RandomLessBackProb()
+    # param_sets = {
+    #     1: {"back_prob": 0.3},
+    # }
+
+    # from EpsilonZGreedy_model import EpsilonZGreedy
+    # model = EpsilonZGreedy()
+    # param_sets = {
+    #     # 4: {"epsilon": 0.4, "enable_alternate_action": True, "enable_LoS": False},
+    #     5: {"epsilon": 0.3, "enable_alternate_action": True, "enable_LoS": False},
+    # }
+
+    from v1_model import BiasedModelV1
+    model = BiasedModelV1()
     param_sets = {
-        1: {},
+        # 1: {'back_prob': 0.4},
+        # 2: {'back_prob': 0.2},
+        # 3: {'back_prob': 0.3},
+        2: {'back_prob': 0.2, 'node_preferred_prob': 0.7},
+        3: {'back_prob': 0.2, 'node_preferred_prob': 0.55},
+        4: {'back_prob': 0.2, 'node_preferred_prob': 0.8},
+        5: {'back_prob': 0.2, 'node_preferred_prob': 0.6},
+        6: {'back_prob': 0.2, 'node_preferred_prob': 0.75},
     }
 
-    run(model, param_sets, base_path, VARIATION, N_BOUTS_TO_GENERATE)
+    run(model, param_sets, base_path, VARIATION)
