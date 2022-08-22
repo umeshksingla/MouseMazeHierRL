@@ -93,6 +93,11 @@ class TDLambdaXStepsRewardReceived(BaseModel):
 
         return action_prob
 
+    def choose_action(self, s, beta, V, *args, **kwargs):
+        action_prob = self.get_action_probabilities(s, beta, V)
+        action = np.random.choice(range(self.A), 1, p=action_prob)[0]
+        return action, action_prob[action]
+
     def generate_episode(self, alpha, beta, gamma, lamda, MAX_LENGTH, V, et):
         """
 

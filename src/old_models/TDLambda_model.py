@@ -197,21 +197,6 @@ class TDLambda(BaseModel):
         }
         return success, stats
 
-    def simulate_multiple(self, agent_params, n=1, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
-        """
-        This function calls `simulate` in multiple processes
-        :param agent_params: dictionary with agent_ids as keys and value is a list of parameters to
-        be used in the model [alpha, beta, gamma, lambda]. I.e. {agent_id: [alpha, beta, gamma, lambda]}
-        Example usage: success, stats = agentObj.simulate_multiple(dict([(0, [0.3, 3, 0.89, 0.3])]))
-        """
-        print("agent_params", agent_params)
-        tasks = []
-        for agent_id in agent_params:
-            tasks.append((agent_id, agent_params[agent_id], MAX_LENGTH, N_BOUTS_TO_GENERATE))
-        with Pool(4) as p:  # running in parallel in 4 processes
-            simulation_results = p.starmap(self.simulate, tasks)
-        return simulation_results
-
 
 if __name__ == '__main__':
     agnt = TDLambda()

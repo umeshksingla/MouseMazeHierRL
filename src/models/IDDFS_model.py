@@ -90,6 +90,24 @@ class IDDFS(EpsilonGreedy):
         self.episode_state_traj.append(src)
         return
 
+    def DFS_limited_memory(self, visited, src, parent, max_depth):
+        """DFS with limited memory"""
+        # print("at", src)
+        if max_depth == 0:
+            self.episode_state_traj.append(src)
+            return
+        if visited[src]:
+            return
+        visited[src] = 1
+        for a in self.get_valid_actions(src):
+            s_next = self.take_action(src, a)
+            # if s_next == parent:
+            #     continue
+            self.episode_state_traj.append(src)
+            self.DFS_limited_memory(visited, s_next, src, max_depth-1)
+        self.episode_state_traj.append(src)
+        return
+
     def generate_exploration_episode(self, MAX_LENGTH, Q):
 
         self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
@@ -103,21 +121,14 @@ class IDDFS(EpsilonGreedy):
         while len(self.episode_state_traj) <= MAX_LENGTH:
             assert self.s != RWD_STATE   # since it's pure exploration
 
-            # Record current state
-            # self.episode_state_traj.append(self.s)
+            # for depth in range(1, 7):
+            #     self.DLS(self.s, -1, depth)
+            #     print("self.s", self.s)
+            #     self.episode_state_traj.append(HOME_NODE)
 
-            # acting
-            # a, a_prob = self.choose_action()   # NOTE: there's a side-affect to some versions where they change s
-            # s_next = self.take_action(self.s, a)     # Take action
+            visited = np.zeros(self.S)
+            self.DFS_limited_memory(visited, self.s, -1, 6)
 
-            for depth in range(1, 7):
-                self.DLS(self.s, -1, depth)
-                print("self.s", self.s)
-                self.episode_state_traj.append(HOME_NODE)
-
-            # print("action: ", a, f": {self.s} => {s_next}")
-
-            # self.s = s_next
             break
 
             if len(self.episode_state_traj) % 1000 == 0:
@@ -156,7 +167,7 @@ class IDDFS(EpsilonGreedy):
             "count_total": len(all_episodes_state_trajs),
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
-            "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
+            # "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
             "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs),
             "normalized_visit_frequency": calculate_normalized_visit_frequency(all_episodes_state_trajs),
             "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(
