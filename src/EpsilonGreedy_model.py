@@ -16,16 +16,12 @@ class EpsilonGreedy(BaseModel):
 
     def __init__(self, file_suffix='_EpsilonGreedyTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
+        self.S = 128  # total states
+        self.episode_state_traj = []
+        self.s = HOME_NODE  # start from s
 
     def get_action_probabilities(self, state, beta, V):
         raise Exception("wasn't supposed to be called")
-
-    def get_valid_actions(self, state):
-        """
-        Get valid actions available at the "state".
-        Note: back_action=False is not verified yet.
-        """
-        return np.where(self.nodemap[state] != INVALID_STATE)[0].tolist()
 
     def __greedy_action__(self, state, Q):
         """
@@ -34,6 +30,7 @@ class EpsilonGreedy(BaseModel):
         :param Q:
         :return: greedy action index based on SA_nodemap
         """
+        return self.__random_action__(state)
         action_values = dict([(a_i, round(Q[state, a_i], 10)) for a_i in self.get_valid_actions(state)])
         # print("action_values", action_values, action_values.keys())
         if len(set(list(action_values.values()))) == 1:
@@ -48,103 +45,82 @@ class EpsilonGreedy(BaseModel):
         Random action from the actions available in this state.
         :return: random action index
         """
-        return np.random.choice(self.get_valid_actions(state))
+        actions = self.get_valid_actions(state)
+        return np.random.choice(actions)
 
-    def choose_action(self, s, Q, epsilon, *args, **kwargs):
-        if np.random.random() <= epsilon:
-            action = self.__random_action__(s)
+    def choose_action(self, Q, *args, **kwargs):
+        if np.random.random() <= self.epsilon:
+            action = self.__random_action__(self.s)
         else:
-            action = self.__greedy_action__(s, Q)
+            action = self.__greedy_action__(self.s, Q)
         return action, 1.0
 
-    def generate_exploration_episode(self, alpha, gamma, lamda, epsilon, MAX_LENGTH, Q):
+    def generate_exploration_episode(self, MAX_LENGTH, Q):
 
         self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
 
-        episode_state_traj = []
-        e = np.zeros((self.S, self.A))  # eligibility trace vector for all states
-
-        s = HOME_NODE  # Start from HOME
-        a = 1   # Take action 1 at HOME NODE
-        print("Starting at", s)
-        while len(episode_state_traj) <= MAX_LENGTH:
-            assert s != RWD_STATE   # since it's pure exploration
+        print("Starting at", self.s)
+        while len(self.episode_state_traj) <= MAX_LENGTH:
+            assert self.s != RWD_STATE   # since it's pure exploration
 
             # Record current state
-            episode_state_traj.append(s)
+            self.episode_state_traj.append(self.s)
 
             # acting
-            a, a_prob = self.choose_action(s, Q, epsilon)
-            s_next = self.take_action(s, a)     # Take action
+            a, _ = self.choose_action(Q)
+            s_next = self.take_action(self.s, a)     # Take action
+            print(self.s, a, s_next)
+            if np.random.random() <= 0.8:   # make it go home forcibly just to have more data
+                if s_next != HOME_NODE and self.s == 0:
+                    s_next = HOME_NODE
+            self.s = s_next
 
-            # update Q values
-            td_error = 0.0 + gamma * np.max([Q[s_next, a_i] for a_i in self.get_valid_actions(s_next)]) - Q[s, a]   # R = 0
-            e[s, a] += 1
-            for n in np.arange(self.S):
-                Q[n, :] += alpha * td_error * e[n, :]
-                e[n, :] = gamma * lamda * e[n, :]
-
-            Q[s, a] = self.is_valid_state_value(Q[s, a])
-
-            s = s_next
-            if len(episode_state_traj)%1000 == 0:
-                print("current state", s, "step", len(episode_state_traj))
+            if len(self.episode_state_traj) % 1000 == 0:
+                print("current state", self.s, "step", len(self.episode_state_traj))
 
         print('Max trajectory length reached. Ending this trajectory.')
-
-        episode_state_trajs = break_simulated_traj_into_episodes(episode_state_traj)
-        episode_state_trajs = list(filter(lambda e: len(e), episode_state_trajs))  # remove empty or short episodes
-        episode_maze_trajs = episode_state_trajs    # in pure exploration, both are same
-
+        episode_state_trajs, episode_maze_trajs = self.wrap(self.episode_state_traj)
+        # print(episode_maze_trajs)
         return True, episode_state_trajs, episode_maze_trajs, 0.0
 
     def generate_episode(self):
         raise Exception("Nope!")
 
     def simulate(self, agentId, params, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+
         print("Simulating agent with id", agentId)
         success = 1
-        alpha = params["alpha"]         # learning rate
-        gamma = params["gamma"]         # discount factor
-        lamda = params["lamda"]         # eligibility trace-decay
-        epsilon = params["epsilon"]     # epsilon
-        initial_v = 1   # params["V"]
+        self.epsilon = params["epsilon"]     # epsilon
 
-        print("alpha, gamma, lamda, epsilon, V, agentId", alpha, gamma, lamda, epsilon, initial_v, agentId)
-        Q = np.zeros((self.S, self.A)) * initial_v  # Initialize state values
+        print("epsilon, V, agentId", self.epsilon, agentId)
+        Q = np.zeros((self.S, self.A))  # Initialize state values
         Q[HOME_NODE, :] = 0
         if self.S == 129:
             Q[RWD_STATE, :] = 0
         all_episodes_state_trajs = []
         all_episodes_pos_trajs = []
-        LL = 0.0
+
         while len(all_episodes_state_trajs) < N_BOUTS_TO_GENERATE:
-            _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(alpha, gamma, lamda, epsilon, MAX_LENGTH, Q)
+            _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(MAX_LENGTH, Q)
             all_episodes_state_trajs.extend(episode_state_trajs)
             all_episodes_pos_trajs.extend(episode_maze_trajs)
-            LL += episode_ll
+
         stats = {
             "agentId": agentId,
             "episodes_states": all_episodes_state_trajs,
             "episodes_positions": all_episodes_pos_trajs,
-            "LL": LL,
+            "LL": 0.0,
             "MAX_LENGTH": MAX_LENGTH,
             "count_total": len(all_episodes_state_trajs),
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
-            "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
+            # "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
             "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs),
             "normalized_visit_frequency": calculate_normalized_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(all_episodes_state_trajs)
+            "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(
+                all_episodes_state_trajs)
         }
         return success, stats
-
-    def get_maze_state_values(self, V):
-        """
-        Get state values to plot against the nodes on the maze.
-        Do any transformations here if you need to on V matrix.
-        """
-        return V
 
     def get_maze_state_values_from_action_values(self, Q):
         """
@@ -154,4 +130,12 @@ class EpsilonGreedy(BaseModel):
 
 
 if __name__ == '__main__':
-    pass
+    from sample_agent import run
+    param_sets = {
+        1: {"epsilon": 1},
+        # 2: {"epsilon": 1},
+        # 3: {"epsilon": 1},
+        # 4: {"epsilon": 1},
+    }
+    run(EpsilonGreedy(), param_sets, '/Users/usingla/mouse-maze/figs', '100000_')
+

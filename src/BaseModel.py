@@ -16,6 +16,8 @@ from multiprocessing import Pool
 from MM_Traj_Utils import LoadTrajFromPath, NewMaze, StepType2
 from parameters import INVALID_STATE, RWD_STATE, WATERPORT_NODE, LVL_BY_NODE, HOME_NODE, NODE_LVL, ALL_MAZE_NODES
 from collections import defaultdict
+from utils import break_simulated_traj_into_episodes
+
 
 class BaseModel:
     def __init__(self, file_suffix='BaseModel'):
@@ -154,6 +156,7 @@ class BaseModel:
         return SAnodemap
 
     def get_SAnodemap(self):
+        print(f"Constructing the nodemap in {BaseModel.__name__} model ..")
         ma = NewMaze()
         SAnodemap = np.ones((self.S, self.A), dtype=int) * INVALID_STATE
         for i in range(0, self.S):
@@ -172,7 +175,7 @@ class BaseModel:
         SAnodemap[HOME_NODE, 1] = 0
         SAnodemap[HOME_NODE, 2] = INVALID_STATE
 
-        # Nodes at WATERPORT_NODE, see original def of get_SAnodemap
+        # Nodes at WATERPORT_NODE, see original def of nodemap in get_SAnodemap_orig
         SAnodemap[WATERPORT_NODE, 1] = RWD_STATE
         SAnodemap = SAnodemap.astype(int)
         # print(SAnodemap)
@@ -251,10 +254,10 @@ class BaseModel:
     def take_action(self, s: int, a: int) -> int:
         return int(self.nodemap[s, a])
 
-    def choose_action(self, s, beta, V, *args, **kwargs):
-        action_prob = self.get_action_probabilities(s, beta, V)
-        action = np.random.choice(range(self.A), 1, p=action_prob)[0]
-        return action, action_prob[action]
+    def choose_action(self):
+        raise NotImplementedError(
+            "You need to define your own get_action_probabilities function."
+            " Base model doesn't have any.")
 
     def is_valid_state_value(self, v):
         if np.isnan(v):
@@ -288,7 +291,7 @@ class BaseModel:
         """
         tasks = []
         for agentId in sub_fits:
-            print("agentId", agentId, sub_fits[agentId])
+            print("agentId=", agentId, "params=", sub_fits[agentId])
             tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
         with Pool(4) as p:  # running in parallel in 4 processes
             simulation_results = p.starmap(self.simulate, tasks)
@@ -300,6 +303,37 @@ class BaseModel:
         """
         raise NotImplementedError(
             "You need to define your own state_values function. Base model "
-            "doesn't have any.If your states are the maze nodes, then it could"
+            "doesn't have any. If your states are the maze nodes, then it could"
             " just be as simple as `return V`.")
 
+    def get_valid_actions(self, s):
+        """
+        Get valid actions available at state s
+        """
+        return np.where(self.nodemap[s] != INVALID_STATE)[0].tolist()
+
+    def get_valid_next_states(self, s):
+        """
+        Get valid next states available at state s
+        """
+        return self.nodemap[s][self.nodemap[s] != INVALID_STATE]
+
+    @staticmethod
+    def test_traj(traj):
+        for i, j in zip(traj, traj[1:]):
+            assert i != j
+        return
+
+    def test_episodes(self, episode_state_traj):
+        try:
+            for i, t in enumerate(episode_state_traj):
+                self.test_traj(t)
+        except:
+            raise Exception(f"Corrupt traj {i} with adjacent similar nodes found: {t}")
+
+    def wrap(self, episode_state_traj):
+        episode_state_trajs = break_simulated_traj_into_episodes(episode_state_traj)
+        self.test_episodes(episode_state_trajs)
+        episode_state_trajs = list(filter(lambda e: len(e) >= 3, episode_state_trajs))  # remove empty or short episodes
+        episode_maze_trajs = episode_state_trajs  # in pure exploration, both are same
+        return episode_state_trajs, episode_maze_trajs
