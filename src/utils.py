@@ -147,27 +147,28 @@ def get_SAnodemap():
 
 def nodes2cell(state_hist_all):
     '''
-    Simulated trajectories
-    :param state_hist_all: {mouseID: [[TrajID x TrajSize]]}
+    param state_hist_all:
     '''
     state_hist_cell = []
     state_hist_xy = {}
     ma=NewMaze(6)
     for epID, epi in enumerate(state_hist_all):
         cells = []
-        if not epi:
+        if not len(epi):
             continue
-        for id,node in enumerate(epi):
-            if id != 0 and node != HOME_NODE and node != RWD_STATE:
-                if node > epi[id-1]:
-                    # if going to a deeper node
-                    cells.extend(ma.ru[node])
-                elif node < epi[id-1]:
-                    # if going to a shallower node
-                    reverse_path = list(reversed(ma.ru[epi[id-1]]))
-                    reverse_path = reverse_path + [ma.ru[node][-1]]
-                    cells.extend(reverse_path[1:])
-        if node==HOME_NODE:
+        for i in range(len(epi)-1):
+            node = epi[i]
+            assert node != HOME_NODE
+            if node == RWD_STATE: continue
+            if (i == 0 and node == 0) or node > epi[i-1]:
+                # if going to a deeper node
+                cells.extend(ma.ru[node])
+            elif node < epi[i-1]:
+                # if going to a shallower node
+                reverse_path = list(reversed(ma.ru[epi[i-1]]))
+                reverse_path = reverse_path + [ma.ru[node][-1]]
+                cells.extend(reverse_path[1:])
+        if epi[-1] == HOME_NODE:
             home_path = list(reversed(ma.ru[0]))
             cells.extend(home_path[1:])  # cells from node 0 to maze exit
         state_hist_cell.append(cells)
@@ -325,6 +326,15 @@ def get_parent_node(n):
     return (n + (n % 2) - 1) // 2
 
 
+def get_children(n):
+    return 2*n+1, 2*n+2
+
+
+def get_opp_children(n, c):
+    c1, c2 = get_children(n)
+    return c1 if c == c2 else c2
+
+
 def home_path_node(n):
     """
     Returns the node path that leads from node n to the start of the maze
@@ -349,10 +359,13 @@ def connect_path_node(n1, n2):
             return r1[:r1.index(i)]+r2[r2.index(i):]
 
 
-def get_outward_pref_order(turn_node):
+def get_outward_pref_order(turn_node, pref_prob, back_prob):
     le = LVL_BY_NODE[turn_node]
     l_child, h_child = 2 * turn_node + 1, 2 * turn_node + 2
-    if le == 2:
+    back_child = get_parent_node(turn_node)
+    if le == 0 or le == 1:
+        pref_order = [l_child, h_child]
+    elif le == 2:
         pref_order = [l_child, h_child] if turn_node in HALF_UP else [h_child, l_child]
     elif le == 3:
         pref_order = [l_child, h_child] if turn_node in HALF_LEFT else [h_child, l_child]
@@ -361,7 +374,12 @@ def get_outward_pref_order(turn_node):
     elif le == 5:
         pref_order = [l_child, h_child] if ((turn_node in COL_1) or (turn_node in COL_3)) else [h_child, l_child]
     else:
-        raise Exception(f"Illegal level specified = {le}")
+        raise Exception(f"Node of an illegal level specified: {le}")
+    pref_order = {
+        pref_order[0]: pref_prob * (1-back_prob),
+        pref_order[1]: (1 - pref_prob)*(1-back_prob),
+        back_child: back_prob,
+    }
     return pref_order
 
 
@@ -385,7 +403,7 @@ def get_part_trajs_from_tf(tf, phase):
     return trajs
 
 
-def get_revisits(tf, phase='all'):
+def get_revisits(tf, le, phase='all'):
     """
     Revisits to a node in terms of number of nodes visited
     """
@@ -393,14 +411,16 @@ def get_revisits(tf, phase='all'):
     trajs = get_part_trajs_from_tf(tf, phase)
     for t in trajs:
         node_seq = t[:, 0]
-        for node in p.ALL_VISITABLE_NODES:
+        for node in p.NODE_LVL[le]:
+            if node in p.SUBQUADRANT_dict[28]:
+                continue
             visits_node = np.where(node_seq == node)[0]
             if len(visits_node) >= 2:
                 revisits[node] += list(np.diff(visits_node) - 1)
     return revisits
 
 
-def get_end_nodes_revisits(tf, phase='all'):
+def get_end_nodes_revisits(tf, le, phase='all'):
     """
     Revisits to a node in terms of number of end-nodes visited
     """
@@ -408,7 +428,7 @@ def get_end_nodes_revisits(tf, phase='all'):
     trajs = get_part_trajs_from_tf(tf, phase)
     for t in trajs:
         orig_node_seq = t[:, 0]
-        for node in p.ALL_VISITABLE_NODES:
+        for node in p.NODE_LVL[le]:
             node_seq = np.array(list(filter(lambda x: x == node or x in p.LVL_6_NODES, orig_node_seq)))
             visits_node = np.where(node_seq == node)[0]
             if len(visits_node) >= 2:
@@ -416,7 +436,7 @@ def get_end_nodes_revisits(tf, phase='all'):
     return revisits
 
 
-def get_unique_node_revisits(tf, phase='all'):
+def get_unique_node_revisits(tf, le, phase='all'):
     """
     Revisits to a node in terms of number of unique nodes visited
     """
@@ -437,7 +457,7 @@ def get_unique_node_revisits(tf, phase='all'):
     for t in trajs:
         orig_node_seq = list(t[:, 0])
         # print(orig_node_seq)
-        for node in p.ALL_VISITABLE_NODES:
+        for node in p.NODE_LVL[le]:
             paths = list(split_seq(orig_node_seq, node))[1:-1]
             # print(node, paths)
             if len(paths) >= 2:

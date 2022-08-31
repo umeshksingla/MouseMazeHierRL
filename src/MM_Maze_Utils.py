@@ -82,6 +82,7 @@ def NewMaze(n=6): # n must be even for square maze
                 ch[p,0]=i
             else:
                 ch[p,1]=i
+    ru.append([0])  # to accomodate distances from HOME_NODE (making home equivalent to cell 0)
     xc = np.array([lo[c][0] for c in range(nc)])
     yc = np.array([lo[c][1] for c in range(nc)])
     ma = Maze(le=n,ru=ru,pa=pa,ch=ch,xc=xc,yc=yc,ce=ce,rc=None,di=None,cl=None,wa=None,st=None)

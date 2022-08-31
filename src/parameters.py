@@ -1,5 +1,7 @@
 # Paths
 OUTDATA_PATH = '../outdata/'
+COLORS = 'rcmywg'
+ANIMAL_COLOR = 'b'
 
 # Constants
 UNRWD_NAMES = ['B5','B6','B7','D3','D4','D5','D6','D7','D8','D9']

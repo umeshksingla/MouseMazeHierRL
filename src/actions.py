@@ -67,3 +67,21 @@ def next_state_from_action_dict(action_dict, a, current_s):
     next_node = action_dict[current_s][a]
     return f'{current_node}-{next_node}'
 
+
+def state_from_nodes(prev_node, current_node):
+    return f'{prev_node}-{current_node}'
+
+
+actions_dict = construct_actions_dict()
+
+
+class State:
+    def __init__(self, prev_n, n):
+        self.s = state_from_nodes(prev_n, n)
+        self.action_node_map = actions_dict[self.s]
+        self.node_action_map = {v: k for k, v in self.action_node_map.items()}
+        self.curr_n = n
+        self.prev_n = prev_n
+
+    def __str__(self):
+        return "s" + self.s
