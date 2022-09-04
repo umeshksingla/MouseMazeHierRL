@@ -1,0 +1,128 @@
+"""
+Our model: version 1
+"""
+
+import os
+import numpy as np
+import random
+
+from parameters import *
+from BaseModel import BaseModel
+from regression import NodeMaze
+from scipy.special import logsumexp
+
+
+def softmax_dict(d):
+    x = np.array(list(d.values()))
+    den_x = logsumexp(x, keepdims=True)
+    return {k: np.exp(v - den_x)[0] for k, v in d.items()}
+
+
+class CoeffModel(BaseModel):
+
+    def __init__(self, file_suffix='_coeffTrajectories'):
+        BaseModel.__init__(self, file_suffix=file_suffix)
+
+        self.S = 128  # total states
+        self.episode_state_traj = [0, random.choice([1, 2]), 0, random.choice([1, 2]), 0]
+        self.s = self.episode_state_traj[-1]
+        self.prev_s = self.episode_state_traj[-2]
+        self.nodemaze = NodeMaze()
+
+    name = 'coeff'
+
+    @staticmethod
+    def sample_key_from_dict(d):
+        d = list(d.items())
+        next_node = random.choices([k[0] for k in d], weights=[k[1] for k in d], k=1)[0]
+        return next_node
+
+    def choose_action(self):
+
+        # if self.s == HOME_NODE:
+        #     return 0, 1.0
+
+        tcell = self.episode_state_traj[-len(self.coef):]
+        print(tcell)
+        assert tcell[-1] == self.s
+        assert tcell[-2] == self.prev_s
+
+        scores = {next_n: self.nodemaze.get_feature2(next_n, tcell).dot(self.coef) for next_n in self.get_valid_next_states(self.s)}
+        prob_scores = softmax_dict(scores)
+        # next_s = self.sample_key_from_dict(log_scores)
+        next_s = self.sample_key_from_dict(prob_scores)
+        return next_s, np.log(prob_scores[next_s])
+
+    def generate_exploration_episode(self, MAX_LENGTH):
+
+        self.nodemap[WATERPORT_NODE][1] = -1    # No action to go to RWD_STATE
+
+        print("Starting at", self.s, "with prev at", self.prev_s)
+        LL = 0.0
+        while len(self.episode_state_traj) <= MAX_LENGTH:
+            assert self.s != RWD_STATE   # since it's pure exploration
+
+            # Act
+            ret = self.choose_action()
+            # print(ret)
+            s_next, s_next_prob = ret
+            # s_next = self.take_action(self.s, a)  # Take action
+            # print("traj till now", self.episode_state_traj)
+            # print(f"moving from {self.s} => {s_next}")
+            self.prev_s = self.s
+            self.s = s_next
+            LL += s_next_prob
+
+            # Record current state
+            self.episode_state_traj.append(self.s)
+
+            if len(self.episode_state_traj) % 1000 == 0:
+                print("current state", self.s, "step", len(self.episode_state_traj))
+
+        print('Max trajectory length reached. Ending this trajectory.')
+        episode_state_trajs, episode_maze_trajs = self.wrap(self.episode_state_traj)
+        return True, episode_state_trajs, episode_maze_trajs, LL
+
+    def simulate(self, agentId, params, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
+        print("Simulating agent with id", agentId)
+        success = 1
+        print("params", params)
+        self.coef = params['coef']
+        all_episodes_state_trajs = []
+        all_episodes_pos_trajs = []
+        Q = np.zeros((self.S, self.A))  # Initialize state values
+        _, episode_state_trajs, episode_maze_trajs, LL = self.generate_exploration_episode(MAX_LENGTH)
+        all_episodes_state_trajs.extend(episode_state_trajs)
+        all_episodes_pos_trajs.extend(episode_maze_trajs)
+        print(all_episodes_state_trajs)
+
+        stats = {
+            "agentId": agentId,
+            "episodes_states": all_episodes_state_trajs,
+            "episodes_positions": all_episodes_pos_trajs,
+            "LL": LL,
+            "MAX_LENGTH": MAX_LENGTH,
+            "count_total": len(all_episodes_state_trajs),
+            "Q": Q,
+            "V": self.get_maze_state_values_from_action_values(Q),
+        }
+        return success, stats
+
+    def get_maze_state_values_from_action_values(self, Q):
+        """
+        Get state values to plot against the nodes on the maze
+        """
+        return np.array([np.max([Q[n, a_i] for a_i in self.get_valid_actions(n)]) for n in np.arange(self.S)])
+
+
+# Driver Code
+if __name__ == '__main__':
+    from sample_agent import run
+    param_sets = {
+        1: {'coef': [0.8, 0.0, 0.2, 0.0]},
+        # 2: {'back_prob': 0.2},
+        # 2: {'back_prob': 0.3},
+        # 3: {'back_prob': 0.2},
+    }
+    run(CoeffModel(), param_sets, '/Users/usingla/mouse-maze/figs', '20000_l4')
+
