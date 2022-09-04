@@ -225,10 +225,7 @@ def convert_episodes_to_traj_class(episodes_pos_trajs, episodes_state_trajs=None
 
 def convert_traj_to_episodes(tf):
     """
-    Convert a Traj to list of lists with tf.no containing episode information.
-    At the moment, simply using the index as time. This is so that simulated episodes
-    can use some of the functions provided original authors that operate on Traj
-    class instances.
+    Convert a Traj to list of lists of visited nodes.
 
     tf: Traj
     Returns episodes: [[], [], ..]

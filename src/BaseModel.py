@@ -156,7 +156,7 @@ class BaseModel:
         return SAnodemap
 
     def get_SAnodemap(self):
-        print(f"Constructing the nodemap in {BaseModel.__name__} model ..")
+        # print(f"Constructing the nodemap in {BaseModel.__name__} model ..")
         ma = NewMaze()
         SAnodemap = np.ones((self.S, self.A), dtype=int) * INVALID_STATE
         for i in range(0, self.S):
@@ -166,9 +166,9 @@ class BaseModel:
             if i not in NODE_LVL[6]:
                 for j in [2 * i + 1, 2 * i + 2]:
                     a = StepType2(i, j, ma) + 1
-                    print(i, '=>', j, "action", a)
+                    # print(i, '=>', j, "action", a)
                     SAnodemap[i, a] = j
-                print("==")
+                # print("==")
         SAnodemap[0, 0] = HOME_NODE
         # Nodes available from home node
         SAnodemap[HOME_NODE, 0] = INVALID_STATE
@@ -222,7 +222,7 @@ class BaseModel:
             directions[i][self.base_nodemap[i][0]] = global_direction_mapping[0]
             directions[i][self.base_nodemap[i][1]] = global_direction_mapping[1]
             directions[i][self.base_nodemap[i][2]] = global_direction_mapping[2]
-            print(self.base_nodemap[i], self.nodemap[i], directions[i])
+            # print(self.base_nodemap[i], self.nodemap[i], directions[i])
 
         # Now Get action for each node-direction using the new nodemap i.e. inverse
         nodemap_dict = defaultdict(dict)
