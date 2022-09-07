@@ -6,11 +6,9 @@ import parameters as p
 import numpy as np
 import utils
 from BaseModel import BaseModel
-from actions import State
-from scipy.special import softmax, logsumexp
-
-
-b5tf = LoadTrajFromPath(p.OUTDATA_PATH + 'B5-tf')
+from actions import State, actions_node_matrix
+from maze_spatial_mapping import NODE_CELL_MAPPING, CELL_XY
+from scipy.special import softmax, logsumexp, log_softmax
 
 
 def levelup_path(n, go_up):
@@ -52,15 +50,18 @@ def _count_query_paths_fixed_len(tf, query_paths):
                 query_path_counts[curr_path] += 1
     return query_path_counts
 
-def log_softmax(d):
+
+def softmax_dict(d):
     x = np.array(list(d.values()))
     den_x = logsumexp(x, keepdims=True)
-    return {k: np.log(np.exp(v - den_x))[0] for k, v in d.items()}
+    return {k: np.exp(v - den_x)[0] for k, v in d.items()}
+
+
+
 
 
 class NodeMaze:
     def __init__(self):
-        self.ma = NewMaze(6)
         # self.basemodel = BaseModel()
         self.num_features = 3
         # self.S = p.ALL_VISITABLE_NODES
@@ -74,13 +75,13 @@ class NodeMaze:
             pref_order = utils.get_outward_pref_order(n, 0.7, 0.1)
             self.node_features[n, 0] = max(pref_order, key=lambda key: pref_order[key])
             self.outer_nodes_dict[self.node_features[n, 0]] = True
+
+        self.action_node_matrix = actions_node_matrix
             # print(n, self.node_features[n], pref_order)
         # print(self.outer_nodes_dict)
 
         # LoS feature
         # print(b5tf.ce[77:78])
-
-
 
     def get_feature(self, curr_s, last_lr_action, next_n):
         outer = next_n in self.outer_nodes_dict
@@ -90,7 +91,7 @@ class NodeMaze:
         return [outer, alternating, straight, out_maze]
 
     def build_logical_spatial_features(self):
-        for i, b in enumerate(b5tf.no[77:78]):
+        for i, b in enumerate(tf.no[77:78]):
             traj = b[:, 0]
             last_lr_action = None
             for j in range(2, len(traj)-1):
@@ -106,55 +107,70 @@ class NodeMaze:
                     print("=>", next_n, self.get_feature(curr_s, last_lr_action, next_n))
 
     def get_feature1(self, choice_node, tcell):
-        choice_cell = self.ma.ru[choice_node][-1]
-        return np.array([self.ma.di[(self.ma.ru[s][-1], choice_cell)] for s in tcell[::-1]])
+        choice_cell = get_cell(choice_node)
+        return np.array([ma.di[(get_cell(s), choice_cell)] for s in tcell[::-1]])
 
-    def get_feature2(self, choice_node, tcell):
-
-        choice_cell = self.ma.ru[choice_node][-1]
-        choice_cell_coors = np.array([self.ma.xc[choice_cell], self.ma.yc[choice_cell]])
-        d = []
-        for s in tcell[::-1]:
-            s_cell = self.ma.ru[s][-1]
-            s_cell_coors = np.array([self.ma.xc[s_cell], self.ma.yc[s_cell]])
-            euc_d = np.linalg.norm(choice_cell_coors - s_cell_coors)
-            # print(choice_cell_coors, s_cell_coors, euc_d)
-            d.append(euc_d)
+    def get_feature2(self, choice_node, s_cell_coors_arr):
+        """
+        TODO: euclidean distance is not really the end solution but simple to try
+        """
+        choice_cell_coors = CELL_XY[NODE_CELL_MAPPING[choice_node]]
+        d = [np.linalg.norm(choice_cell_coors - s_cell_coors) for s_cell_coors in s_cell_coors_arr]
         return np.array(d)
 
-    def get_distance_LL(self, episodes, coef):
-        n_time_steps = len(coef)
+    def get_distance_LL(self, episodes, c):
+        n_time_steps = len(c)
         assert n_time_steps >= 2
         LL = 0.0
-        for i, b in enumerate(episodes):
-            traj = b + [p.HOME_NODE]
-            for j in range(n_time_steps, len(traj)-1):
-                tcell = traj[j-n_time_steps:j]
-                prev_n = tcell[-2]
-                n = tcell[-1]
-                actual_next_n = traj[j]
-                curr_s = State(prev_n, n)
-                scores = {next_n: self.get_feature2(next_n, tcell).dot(coef) for next_n in curr_s.node_action_map}
-                log_scores = log_softmax(scores)
-                # print(tcell, ": ", scores, log_scores, actual_next_n, log_scores[actual_next_n])
-                LL += log_scores[actual_next_n]
+        for b in episodes:
+            for step in range(n_time_steps, len(b)):
+                ts = b[step-n_time_steps:step]
+                actual_next_n = b[step]
+                prev_n = ts[-2]
+                n = ts[-1]
+                V = np.zeros(n_time_steps)
+                d = np.zeros(n_time_steps)
+                actual_next_a = None
+                next_possible_action_nodes = self.action_node_matrix[prev_n][n]
+                # print(prev_n, n, actual_next_n, next_possible_action_nodes)
+                for a in range(len(next_possible_action_nodes)):
+                    next_n = next_possible_action_nodes[a]
+                    # print(a, next_n)
+                    if next_n == actual_next_n:
+                        actual_next_a = a
+                    if next_n == p.INVALID_STATE:
+                        assert actual_next_a != a
+                        V[a] = -1e10
+                        continue
+                    choice_cell_coors = CELL_XY[NODE_CELL_MAPPING[next_n]]
+                    for i in range(step-n_time_steps+1, step):
+                        d[step - i] = np.linalg.norm(choice_cell_coors - CELL_XY[NODE_CELL_MAPPING[b[i]]])
+                    # print(d, c)
+                    V[a] = d.dot(c)
+                # print(ts, c, self.action_node_matrix[prev_n][n], V)
+                assert actual_next_a is not None
+                scores = log_softmax(V)     # softmax_dict(scores)
+                LL += scores[actual_next_a]
         return LL
 
 
 class Regression:
     def __init__(self):
+        tf = LoadTrajFromPath(p.OUTDATA_PATH + 'B5-tf')
+        eps = utils.convert_traj_to_episodes(tf)
         self.nodemaze = NodeMaze()
-        c1_ll_dict = {}
-        step = 0.5
-        for c1 in np.arange(0, 1, step):
-            for c2 in np.arange(0, 1, step):
-                for c3 in np.arange(0, 1, step):
-                    for c4 in np.arange(0, 1, step):
-                        coef = np.array([c1, c2, c3, c4])
-                        print(coef, end="\t ")
-                        ll = self.nodemaze.get_distance_LL(b5tf.no, coef)
-                        print(ll)
-                        c1_ll_dict = {c1: ll}
-        plt.plot(c1_ll_dict.keys(), c1_ll_dict.values())
-        plt.show()
+        # step = 0.8
+        # for c1 in np.arange(0, 1, step):
+        #     for c2 in np.arange(0, 1, step):
+        #         for c3 in np.arange(0, 1, step):
+        #             for c4 in np.arange(0, 1, step):
+        #                 coef = np.array([c1, c2, c3, c4])
+        #                 # print(coef, end="\t ")
+        #                 ll = self.nodemaze.get_distance_LL(eps[77:78], coef)
+        #                 print(ll)
+        coef = np.array([0.05, 0.22, 0.26, -0.1])
+        ll = self.nodemaze.get_distance_LL(eps[1:200], coef)
+        print(ll)
 
+
+# Regression()
