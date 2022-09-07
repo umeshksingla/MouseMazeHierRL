@@ -48,6 +48,8 @@ class BiasedModelV1(BaseModel):
         self.s = 0  # Start from 0
         self.prev_s = HOME_NODE
 
+    name = 'V2'
+
     @staticmethod
     def lowest_level_transition_biases(label):
         return sorted({
@@ -136,7 +138,7 @@ class BiasedModelV1(BaseModel):
             self.episode_state_traj.append(self.s)
         return
 
-    def make_it_go_to_target_node(self, target_node):
+    def make_it_go_to(self, target_node):
         p = connect_path_node(self.s, target_node)[1:]
         # print("connect", self.s, target_node, p)
 
@@ -156,24 +158,16 @@ class BiasedModelV1(BaseModel):
 
         # print("forward", self.s, self.prev_s)
 
-        n = self.s
-        l_child, h_child = 2 * n + 1, 2 * n + 2
-        back_child = get_parent_node(n)
+        back_child = get_parent_node(self.s)
         assert self.prev_s == back_child
 
-        if n in LVL_0_NODES:    # 50-50
-            pref_order = {l_child: 0.5, h_child: 0.5}
-        elif n in LVL_1_NODES:  # 50-50
-            pref_order = {l_child: 0.5, h_child: 0.5}
-        elif (n in LVL_2_NODES) or (n in LVL_3_NODES) or (n in LVL_4_NODES) or (n in LVL_5_NODES): # tendency to go outwards
-            pref_order = get_outward_pref_order(n)
-            pref_order = {pref_order[0]: self.NODE_PREFERRED_PROB, pref_order[1]: 1-self.NODE_PREFERRED_PROB}
+        if (self.s in LVL_1_NODES) or (self.s in LVL_0_NODES):  # 50-50
+            pref_order = get_outward_pref_order(self.s, 0.5, self.FORWARD_GOBACK_PROB)
+        elif (self.s in LVL_2_NODES) or (self.s in LVL_3_NODES) or (self.s in LVL_4_NODES) or (self.s in LVL_5_NODES): # tendency to go outwards
+            pref_order = get_outward_pref_order(self.s, self.NODE_PREFERRED_PROB, self.FORWARD_GOBACK_PROB)
         else:
-            raise Exception(f"Error in forward biases. At level 6 probably. n = {n}")
+            raise Exception(f"Error in forward biases. At level 6 probably. self.s = {self.s}")
 
-        # Add back prob
-        pref_order = {k: v * (1-self.FORWARD_GOBACK_PROB) for k, v in pref_order.items()}
-        pref_order[back_child] = self.FORWARD_GOBACK_PROB
         # print("at", n, "got fwd pref_order", pref_order)
         next_node = self.sample_key_from_dict(pref_order)
         return next_node
@@ -198,15 +192,15 @@ class BiasedModelV1(BaseModel):
         while self.s in LVL_6_NODES:    # as long as it is at a level 6 node
             # TODO: change how to decide when to go out and how much
             prob = np.random.random()
-            if prob <= 0.33:
+            if prob <= 0.5:
                 # print("going somewhere else in this subQ", prob)
                 target_node = self.within_subq_biases()
                 # print("got target in same subQ", target_node, "self.s prev_s", self.s, self.prev_s)
-                self.make_it_go_to_target_node(target_node)
-            elif prob <= 0.66:
+                self.make_it_go_to(target_node)
+            elif prob <= 0.8:
                 # print("going out of this subQ but staying in the same Q", prob)
                 target_node = self.within_q_biases()  # returns a subq node  # TODO: think on picking a random subq anywhere in maze as well
-                self.make_it_go_to_target_node(target_node)
+                self.make_it_go_to(target_node)
             else:
                 # print("going out of this Q", prob)
                 self.get_out_of_the_maze(1)
@@ -263,6 +257,7 @@ class BiasedModelV1(BaseModel):
             _, episode_state_trajs, episode_maze_trajs, _ = self.generate_exploration_episode(MAX_LENGTH)
             all_episodes_state_trajs.extend(episode_state_trajs)
             all_episodes_pos_trajs.extend(episode_maze_trajs)
+        print(all_episodes_state_trajs)
         stats = {
             "agentId": agentId,
             "episodes_states": all_episodes_state_trajs,
@@ -290,11 +285,11 @@ class BiasedModelV1(BaseModel):
 if __name__ == '__main__':
     from sample_agent import run
     param_sets = {
-        1: {'back_prob': 0.2},
+        1: {'back_prob': 0.2, 'node_preferred_prob': 0.75, 'model': 'V2'},
         # 2: {'back_prob': 0.2},
         # 2: {'back_prob': 0.3},
         # 3: {'back_prob': 0.2},
     }
-    run(BiasedModelV1(), param_sets, '/Users/usingla/mouse-maze/figs', '20000_opp')
+    run(BiasedModelV1(), param_sets, '/Users/usingla/mouse-maze/figs', '2000_opp')
 
 
