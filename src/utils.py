@@ -327,9 +327,14 @@ def get_children(n):
     return 2*n+1, 2*n+2
 
 
-def get_opp_children(n, c):
-    c1, c2 = get_children(n)
-    return c1 if c == c2 else c2
+def get_the_other_children(parent, current_child):
+    c1, c2 = get_children(parent)
+    return c1 if current_child == c2 else c2
+
+
+def get_opp_children(current_child):
+    c1, c2 = get_children(get_parent_node(current_child))
+    return c1 if current_child == c2 else c2
 
 
 def home_path_node(n):
@@ -354,6 +359,21 @@ def connect_path_node(n1, n2):
     for i in r1:
         if i in r2:
             return r1[:r1.index(i)]+r2[r2.index(i):]
+
+
+def get_all_end_nodes_from_level4_node(level4_node):
+    """Returns all 4 end nodes in that particular subquadrant"""
+    assert level4_node in p.LVL_4_NODES
+    p1, p2 = level4_node * 2 + 1, level4_node * 2 + 2
+    n1, n2, n3, n4 = p1 * 2 + 1, p1 * 2 + 2, p2 * 2 + 1, p2 * 2 + 2
+    return n1, n2, n3, n4
+
+
+def get_all_subq_from_current_subq(subq):
+    """Returns all 4 subquadrants in that particular quadrant"""
+    for sq in p.subquadrant_sets:
+        if subq in p.subquadrant_sets[sq]:
+            return p.subquadrant_sets[sq]
 
 
 def get_outward_pref_order(turn_node, pref_prob, back_prob):
