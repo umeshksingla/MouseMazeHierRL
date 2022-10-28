@@ -34,7 +34,7 @@ def get_all_subq_from_current_subq(subq):
             return subquadrant_sets[sq]
 
 
-class BiasedModelV1(BaseModel):
+class BiasedModel(BaseModel):
 
     def __init__(self, file_suffix='_V1Trajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
@@ -47,8 +47,6 @@ class BiasedModelV1(BaseModel):
         print(self.nodemap_direction_dict)
         self.s = 0  # Start from 0
         self.prev_s = HOME_NODE
-
-    name = 'V2'
 
     @staticmethod
     def lowest_level_transition_biases(label):
@@ -189,30 +187,31 @@ class BiasedModelV1(BaseModel):
         if self.s == HOME_NODE:
             return 0
 
-        while self.s in LVL_6_NODES:    # as long as it is at a level 6 node
-            # TODO: change how to decide when to go out and how much
-            prob = np.random.random()
-            if prob <= 0.5:
-                # print("going somewhere else in this subQ", prob)
-                target_node = self.within_subq_biases()
-                # print("got target in same subQ", target_node, "self.s prev_s", self.s, self.prev_s)
-                self.make_it_go_to(target_node)
-            elif prob <= 0.8:
-                # print("going out of this subQ but staying in the same Q", prob)
-                target_node = self.within_q_biases()  # returns a subq node  # TODO: think on picking a random subq anywhere in maze as well
-                self.make_it_go_to(target_node)
-            else:
-                # print("going out of this Q", prob)
-                self.get_out_of_the_maze(1)
-
-        # if self.s in LVL_6_NODES:
-        #     return get_parent_node(self.s)
+        if self.version == 'V2':
+            while self.s in LVL_6_NODES:    # as long as it is at a level 6 node
+                # TODO: change how to decide when to go out and how much
+                prob = np.random.random()
+                if prob <= self.staySQp:
+                    # print("going somewhere else in this subQ", prob)
+                    target_node = self.within_subq_biases()
+                    # print("got target in same subQ", target_node, "self.s prev_s", self.s, self.prev_s)
+                    self.make_it_go_to(target_node)
+                elif prob <= self.stayQp:
+                    # print("going out of this subQ but staying in the same Q", prob)
+                    target_node = self.within_q_biases()  # returns a subq node  # TODO: think on picking a random subq anywhere in maze as well
+                    self.make_it_go_to(target_node)
+                else:
+                    # print("going out of this Q", prob)
+                    self.get_out_of_the_maze(1)
+        elif self.version == 'V1':
+            if self.s in LVL_6_NODES:
+                return get_parent_node(self.s)
 
         # print("levels", LVL_BY_NODE[self.s], LVL_BY_NODE[self.prev_s], LVL_BY_NODE[self.s] != LVL_BY_NODE[self.prev_s] + 1)
         if LVL_BY_NODE[self.s] == LVL_BY_NODE[self.prev_s] + 1:     # if moving down the tree, forward biases apply with less prob to moving up
             next_node = self.forward_biases()
         else:
-            next_node = self.backward_biases()                      # if moving up the tree, backward biases apply with less prob to moving down
+            next_node = self.backward_biases()                      # if moving up the tree, backward biases apply with less prob to moving down where it just came from
         # assert next_node in self.nodemap[self.s, :]
         return next_node
 
@@ -249,6 +248,11 @@ class BiasedModelV1(BaseModel):
 
         self.BACKWARD_GOBACK_PROB = self.FORWARD_GOBACK_PROB = self.STRAIGHT_BACK_PROB = params['back_prob']
         self.NODE_PREFERRED_PROB = params['node_preferred_prob']
+        self.version = params['model']
+
+        self.staySQp = params['staySQ']
+        self.stayQp = params['stayQ']
+
 
         all_episodes_state_trajs = []
         all_episodes_pos_trajs = []
@@ -264,13 +268,8 @@ class BiasedModelV1(BaseModel):
             "episodes_positions": all_episodes_pos_trajs,
             "LL": 0.0,
             "MAX_LENGTH": MAX_LENGTH,
-            "count_total": len(all_episodes_state_trajs),
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
-            # "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
-            "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency": calculate_normalized_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(all_episodes_state_trajs)
         }
         return success, stats
 
@@ -284,12 +283,12 @@ class BiasedModelV1(BaseModel):
 # Driver Code
 if __name__ == '__main__':
     from sample_agent import run
-    param_sets = {
-        1: {'back_prob': 0.2, 'node_preferred_prob': 0.75, 'model': 'V2'},
-        # 2: {'back_prob': 0.2},
-        # 2: {'back_prob': 0.3},
-        # 3: {'back_prob': 0.2},
-    }
-    run(BiasedModelV1(), param_sets, '/Users/usingla/mouse-maze/figs', '2000_opp')
+    param_sets = [
+        {'back_prob': 0.1, 'node_preferred_prob': 0.75, "model": "V1", "staySQ": 0.6, "stayQ": 0.8},
+        {'back_prob': 0.1, 'node_preferred_prob': 0.75, "model": "V2", "staySQ": 0.6, "stayQ": 0.8},
+        {'back_prob': 0.2, 'node_preferred_prob': 0.75, "model": "V1", "staySQ": 0.6, "stayQ": 0.8},
+        {'back_prob': 0.2, 'node_preferred_prob': 0.75, "model": "V2", "staySQ": 0.6, "stayQ": 0.8},
+    ]
+    run(BiasedModel(), param_sets, '/Users/usingla/mouse-maze/figs', '30001')
 
 

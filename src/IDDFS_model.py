@@ -121,25 +121,18 @@ class IDDFS(EpsilonGreedy):
         while len(self.episode_state_traj) <= MAX_LENGTH:
             assert self.s != RWD_STATE   # since it's pure exploration
 
-            # for depth in range(1, 7):
-            #     self.DLS(self.s, -1, depth)
-            #     print("self.s", self.s)
-            #     self.episode_state_traj.append(HOME_NODE)
+            for depth in range(1, 7):
+                self.DLS(self.s, -1, depth)
+                print("self.s", self.s)
+                self.episode_state_traj.append(HOME_NODE)
 
-            visited = np.zeros(self.S)
-            self.DFS_limited_memory(visited, self.s, -1, 6)
+            # visited = np.zeros(self.S)
+            # self.DFS_limited_memory(visited, self.s, -1, 6)
 
-            break
+            # break
 
-            if len(self.episode_state_traj) % 1000 == 0:
-                print("current state", self.s, "step", len(self.episode_state_traj))
-
-        print(self.episode_state_traj)
         print('Max trajectory length reached. Ending this trajectory.')
-        episode_state_trajs = break_simulated_traj_into_episodes(self.episode_state_traj)
-        episode_state_trajs = list(filter(lambda e: len(e), episode_state_trajs))  # remove empty or short episodes
-        episode_maze_trajs = episode_state_trajs    # in pure exploration, both are same
-        print(episode_maze_trajs)
+        episode_state_trajs, episode_maze_trajs = self.wrap(self.episode_state_traj)
         return True, episode_state_trajs, episode_maze_trajs, 0.0
 
     def simulate(self, agentId, params, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
@@ -157,20 +150,27 @@ class IDDFS(EpsilonGreedy):
             _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(MAX_LENGTH, Q)
             all_episodes_state_trajs.extend(episode_state_trajs)
             all_episodes_pos_trajs.extend(episode_maze_trajs)
-            LL += episode_ll
         stats = {
             "agentId": agentId,
             "episodes_states": all_episodes_state_trajs,
             "episodes_positions": all_episodes_pos_trajs,
             "LL": LL,
             "MAX_LENGTH": MAX_LENGTH,
-            "count_total": len(all_episodes_state_trajs),
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
-            # "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
-            "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency": calculate_normalized_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(
-                all_episodes_state_trajs)
         }
         return success, stats
+
+
+# Driver Code
+if __name__ == '__main__':
+    from sample_agent import run, load
+    param_sets = [
+        {'model': 'Optimal'},
+    ]
+    runids = run(IDDFS(), param_sets, '/Users/usingla/mouse-maze/figs', '10000')
+    print(runids)
+    base_path = '/Users/usingla/mouse-maze/figs/'
+    load([
+        ('Optimal', runids)
+    ], base_path)

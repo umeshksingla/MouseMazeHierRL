@@ -3,3 +3,4 @@ dataclasses
 numpy
 scipy
 pystan==2.19.1.1
+sklearn
