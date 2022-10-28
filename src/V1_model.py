@@ -8,33 +8,18 @@ import random
 from collections import defaultdict
 from copy import deepcopy
 
-from parameters import *
+import parameters as p
 from BaseModel import BaseModel
-from EpsilonDirectionGreedy_model import EpsilonDirectionGreedy
-from EpsilonGreedy_model import EpsilonGreedy
-from utils import calculate_visit_frequency, calculate_normalized_visit_frequency, \
-    calculate_normalized_visit_frequency_by_level, get_outward_pref_order
-from MM_Traj_Utils import StepType2, NewMaze
-import evaluation_metrics as em
-from utils import get_parent_node, connect_path_node
+from utils import get_outward_pref_order, get_parent_node, connect_path_node
 
 
-def get_all_end_nodes_from_level4_node(level4_node):
-    """Returns all 4 end nodes in that particular subquadrant"""
-    assert level4_node in LVL_4_NODES
-    p1, p2 = level4_node * 2 + 1, level4_node * 2 + 2
-    n1, n2, n3, n4 = p1 * 2 + 1, p1 * 2 + 2, p2 * 2 + 1, p2 * 2 + 2
-    return n1, n2, n3, n4
+class V1(BaseModel):
+    """
+    outward preference
+    backward preference
 
-
-def get_all_subq_from_current_subq(subq):
-    """Returns all 4 subquadrants in that particular quadrant"""
-    for sq in subquadrant_sets:
-        if subq in subquadrant_sets[sq]:
-            return subquadrant_sets[sq]
-
-
-class BiasedModel(BaseModel):
+    At L6: go tp L5
+    """
 
     def __init__(self, file_suffix='_V1Trajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
@@ -43,50 +28,8 @@ class BiasedModel(BaseModel):
 
         # self.curr_directions = None
         self.episode_state_traj = []
-        print("self.nodemap_direction_dict")
-        print(self.nodemap_direction_dict)
         self.s = 0  # Start from 0
-        self.prev_s = HOME_NODE
-
-    @staticmethod
-    def lowest_level_transition_biases(label):
-        return sorted({
-            STRAIGHT: {OPP_STRAIGHT: 0.65,
-                       BENT_STRAIGHT: 0.3,
-                       OPP_BENT_STRAIGHT: 0.05},
-
-            OPP_STRAIGHT: {STRAIGHT: 0.65,
-                           BENT_STRAIGHT: 0.3,
-                           OPP_BENT_STRAIGHT: 0.05},
-
-            BENT_STRAIGHT: {STRAIGHT: 0.3,
-                            OPP_STRAIGHT: 0.05,
-                            OPP_BENT_STRAIGHT: 0.65},
-
-            OPP_BENT_STRAIGHT: {STRAIGHT: 0.3,
-                                OPP_STRAIGHT: 0.05,
-                                BENT_STRAIGHT: 0.65}
-        }[label].items(), key=lambda x: x[1], reverse=True)
-
-    @staticmethod
-    def subq_level_transition_biases(label):
-        return sorted({
-            STRAIGHT: {OPP_STRAIGHT: 0.6,
-                       BENT_STRAIGHT: 0.25,
-                       OPP_BENT_STRAIGHT: 0.15},
-
-            OPP_STRAIGHT: {STRAIGHT: 0.6,
-                           BENT_STRAIGHT: 0.25,
-                           OPP_BENT_STRAIGHT: 0.15},
-
-            BENT_STRAIGHT: {STRAIGHT: 0.25,
-                            OPP_STRAIGHT: 0.15,
-                            OPP_BENT_STRAIGHT: 0.6},
-
-            OPP_BENT_STRAIGHT: {STRAIGHT: 0.25,
-                                OPP_STRAIGHT: 0.15,
-                                BENT_STRAIGHT: 0.6}
-        }[label].items(), key=lambda x: x[1], reverse=True)
+        self.prev_s = p.HOME_NODE
 
     @staticmethod
     def sample_key_from_dict(pref_order):
@@ -100,58 +43,6 @@ class BiasedModel(BaseModel):
         next_node = random.choices([k[0] for k in pref_order], k=1)[0]
         return next_node
 
-    def within_subq_biases(self):
-        # pref to go to opposite node in same subq
-
-        n = self.s
-        assert n in LVL_6_NODES
-        label = node_subquadrant_label_dict[n]
-        level4_parent = get_parent_node(get_parent_node(n))
-        n1, n2, n3, n4 = get_all_end_nodes_from_level4_node(level4_parent)
-        labels_nodes = {node_subquadrant_label_dict[n1]: n1, node_subquadrant_label_dict[n2]: n2,
-                        node_subquadrant_label_dict[n3]: n3, node_subquadrant_label_dict[n4]: n4}
-        pref_order = {labels_nodes[l]: p for l, p in self.lowest_level_transition_biases(label)}
-        # print("at", n, "got within subq pref_order", pref_order)
-        next_node = self.sample_key_from_dict(pref_order)
-        return next_node
-
-    def within_q_biases(self):
-        # pref to go to opposite subq
-
-        current_subq = node_subquadrant_dict[self.s]
-        current_subq_label = subquadrant_label_dict[current_subq]
-
-        n1, n2, n3, n4 = get_all_subq_from_current_subq(current_subq)
-        labels_subqs = {subquadrant_label_dict[n1]: n1, subquadrant_label_dict[n2]: n2,
-                        subquadrant_label_dict[n3]: n3, subquadrant_label_dict[n4]: n4}
-        pref_order = {labels_subqs[l]: p for l, p in self.subq_level_transition_biases(current_subq_label)}
-        # print("at", self.s, "got within q pref_order", pref_order)
-        next_subq = self.sample_key_from_dict(pref_order)
-        return next_subq
-
-    def get_out_of_the_maze(self, destination_parent_level):
-        while LVL_BY_NODE[self.s] != destination_parent_level:
-            self.prev_s = self.s
-            self.s = self.take_action(self.s, 0)  # go to parent node
-            self.episode_state_traj.append(self.s)
-        return
-
-    def make_it_go_to(self, target_node):
-        p = connect_path_node(self.s, target_node)[1:]
-        # print("connect", self.s, target_node, p)
-
-        for n in p:
-            if np.random.random() <= self.STRAIGHT_BACK_PROB:        # TODO: have a probability going in random or back
-                self.episode_state_traj.append(self.prev_s)     # go back
-                self.s = self.episode_state_traj[-1]
-                self.prev_s = self.episode_state_traj[-2]
-                break
-
-            self.episode_state_traj.append(n)
-            self.s = self.episode_state_traj[-1]
-            self.prev_s = self.episode_state_traj[-2]
-        return
-
     def forward_biases(self):
 
         # print("forward", self.s, self.prev_s)
@@ -159,10 +50,10 @@ class BiasedModel(BaseModel):
         back_child = get_parent_node(self.s)
         assert self.prev_s == back_child
 
-        if (self.s in LVL_1_NODES) or (self.s in LVL_0_NODES):  # 50-50
+        if (self.s in p.LVL_1_NODES) or (self.s in p.LVL_0_NODES):  # 50-50
             pref_order = get_outward_pref_order(self.s, 0.5, self.FORWARD_GOBACK_PROB)
-        elif (self.s in LVL_2_NODES) or (self.s in LVL_3_NODES) or (self.s in LVL_4_NODES) or (self.s in LVL_5_NODES): # tendency to go outwards
-            pref_order = get_outward_pref_order(self.s, self.NODE_PREFERRED_PROB, self.FORWARD_GOBACK_PROB)
+        elif (self.s in p.LVL_2_NODES) or (self.s in p.LVL_3_NODES) or (self.s in p.LVL_4_NODES) or (self.s in p.LVL_5_NODES): # tendency to go outwards
+            pref_order = get_outward_pref_order(self.s, self.OUTWARD_PREFERENCE_PROB, self.FORWARD_GOBACK_PROB)
         else:
             raise Exception(f"Error in forward biases. At level 6 probably. self.s = {self.s}")
 
@@ -184,45 +75,33 @@ class BiasedModel(BaseModel):
 
     def choose_action(self):
 
-        if self.s == HOME_NODE:
+        if self.s == p.HOME_NODE:
             return 0
 
-        if self.version == 'V2':
-            while self.s in LVL_6_NODES:    # as long as it is at a level 6 node
-                # TODO: change how to decide when to go out and how much
-                prob = np.random.random()
-                if prob <= self.staySQp:
-                    # print("going somewhere else in this subQ", prob)
-                    target_node = self.within_subq_biases()
-                    # print("got target in same subQ", target_node, "self.s prev_s", self.s, self.prev_s)
-                    self.make_it_go_to(target_node)
-                elif prob <= self.stayQp:
-                    # print("going out of this subQ but staying in the same Q", prob)
-                    target_node = self.within_q_biases()  # returns a subq node  # TODO: think on picking a random subq anywhere in maze as well
-                    self.make_it_go_to(target_node)
-                else:
-                    # print("going out of this Q", prob)
-                    self.get_out_of_the_maze(1)
-        elif self.version == 'V1':
-            if self.s in LVL_6_NODES:
-                return get_parent_node(self.s)
+        if self.s in p.LVL_6_NODES:
+            return get_parent_node(self.s)
 
-        # print("levels", LVL_BY_NODE[self.s], LVL_BY_NODE[self.prev_s], LVL_BY_NODE[self.s] != LVL_BY_NODE[self.prev_s] + 1)
-        if LVL_BY_NODE[self.s] == LVL_BY_NODE[self.prev_s] + 1:     # if moving down the tree, forward biases apply with less prob to moving up
+        # print("lvls", LVL_BY_NODE[self.s], LVL_BY_NODE[self.prev_s], LVL_BY_NODE[self.s]!= LVL_BY_NODE[self.prev_s]+1)
+
+        # if moving down the tree, forward biases apply with less prob to moving up
+        if p.LVL_BY_NODE[self.s] == p.LVL_BY_NODE[self.prev_s] + 1:
             next_node = self.forward_biases()
         else:
-            next_node = self.backward_biases()                      # if moving up the tree, backward biases apply with less prob to moving down where it just came from
+            # if moving up the tree, backward biases apply with less prob of moving down where it just came from, and
+            # rest 2 nodes equal pref
+            next_node = self.backward_biases()
+
         # assert next_node in self.nodemap[self.s, :]
         return next_node
 
     def generate_exploration_episode(self, MAX_LENGTH):
 
-        self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
+        self.nodemap[p.WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
         # self.nodemap[0][0] = -1  # No action to go to HOME_NODE
 
         print("Starting at", self.s, "with prev at", self.prev_s)
         while len(self.episode_state_traj) <= MAX_LENGTH:
-            assert self.s != RWD_STATE   # since it's pure exploration
+            assert self.s != p.RWD_STATE   # since it's pure exploration
 
             # Record current state
             self.episode_state_traj.append(self.s)
@@ -247,21 +126,14 @@ class BiasedModel(BaseModel):
         print("params", params)
 
         self.BACKWARD_GOBACK_PROB = self.FORWARD_GOBACK_PROB = self.STRAIGHT_BACK_PROB = params['back_prob']
-        self.NODE_PREFERRED_PROB = params['node_preferred_prob']
-        self.version = params['model']
-
-        self.staySQp = params['staySQ']
-        self.stayQp = params['stayQ']
-
+        self.OUTWARD_PREFERENCE_PROB = params['outward_pref']
 
         all_episodes_state_trajs = []
         all_episodes_pos_trajs = []
         Q = np.zeros((self.S, self.A))  # Initialize state values
-        while len(all_episodes_state_trajs) < N_BOUTS_TO_GENERATE:
-            _, episode_state_trajs, episode_maze_trajs, _ = self.generate_exploration_episode(MAX_LENGTH)
-            all_episodes_state_trajs.extend(episode_state_trajs)
-            all_episodes_pos_trajs.extend(episode_maze_trajs)
-        print(all_episodes_state_trajs)
+        _, episode_state_trajs, episode_maze_trajs, _ = self.generate_exploration_episode(MAX_LENGTH)
+        all_episodes_state_trajs.extend(episode_state_trajs)
+        all_episodes_pos_trajs.extend(episode_maze_trajs)
         stats = {
             "agentId": agentId,
             "episodes_states": all_episodes_state_trajs,
@@ -284,11 +156,9 @@ class BiasedModel(BaseModel):
 if __name__ == '__main__':
     from sample_agent import run
     param_sets = [
-        {'back_prob': 0.1, 'node_preferred_prob': 0.75, "model": "V1", "staySQ": 0.6, "stayQ": 0.8},
-        {'back_prob': 0.1, 'node_preferred_prob': 0.75, "model": "V2", "staySQ": 0.6, "stayQ": 0.8},
-        {'back_prob': 0.2, 'node_preferred_prob': 0.75, "model": "V1", "staySQ": 0.6, "stayQ": 0.8},
-        {'back_prob': 0.2, 'node_preferred_prob': 0.75, "model": "V2", "staySQ": 0.6, "stayQ": 0.8},
+        {'back_prob': 0.1, 'outward_pref': 0.75},
+        {'back_prob': 0.2, 'outward_pref': 0.75},
     ]
-    run(BiasedModel(), param_sets, '/Users/usingla/mouse-maze/figs', '30001')
-
+    runids = run(V1(), param_sets, '/Users/usingla/mouse-maze/figs', '30001')
+    print(runids)
 
