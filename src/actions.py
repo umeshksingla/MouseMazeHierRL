@@ -66,7 +66,7 @@ def construct_actions_node_mapping(ma=NewMaze(6)):
             for n in [n1, n2, n4, n3]:
                 parent = utils.get_parent_node(n)
 
-                actions_dict[n][parent][0] = utils.get_opp_children(parent, n)
+                actions_dict[n][parent][0] = utils.get_the_other_children(parent, n)
                 actions_dict[n][parent][a] = lvl_up_node
                 actions_dict[n][parent][3] = n
 

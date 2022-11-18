@@ -1,6 +1,6 @@
 # Paths
 OUTDATA_PATH = '../outdata/'
-COLORS = 'rcmywg'
+COLORS = 'rcmygk'
 ANIMAL_COLOR = 'b'
 
 # Constants
