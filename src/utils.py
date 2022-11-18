@@ -2,6 +2,7 @@ from MM_Traj_Utils import add_node_times_to_tf, add_reward_times_to_tf, NewMaze,
 from parameters import FRAME_RATE, WATERPORT_NODE, HOME_NODE, RWD_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
     TIME_EACH_MOVE, INVALID_STATE, NODE_LVL, LVL_BY_NODE, HALF_UP, HALF_DOWN, QUAD1, QUAD2, QUAD3, QUAD4, \
     HALF_LEFT, HALF_RIGHT, ROW_3, ROW_1, COL_3, COL_1
+from node_path_lengths import D
 import parameters as p
 import numpy as np
 from numpy import array, arange
@@ -156,9 +157,11 @@ def nodes2cell(state_hist_all):
         cells = []
         if not len(epi):
             continue
-        for i in range(len(epi)-1):
+        for i in range(len(epi)):
             node = epi[i]
-            assert node != HOME_NODE
+            if node == HOME_NODE:
+                assert i == len(epi)-1
+                break
             if node == RWD_STATE: continue
             if (i == 0 and node == 0) or node > epi[i-1]:
                 # if going to a deeper node
@@ -309,6 +312,9 @@ def calculate_normalized_visit_frequency_by_level(episodes):
     :param episodes: episodes: [[], [], ...]
     :return: 7-length list of number of times each level was visited in all the
     input episodes
+
+    Idea: something along the line of how much time animals spend in certain regions of maze.
+
     """
     node_level_visit_freq = np.zeros(len(NODE_LVL))
     for episode in episodes:
@@ -316,23 +322,44 @@ def calculate_normalized_visit_frequency_by_level(episodes):
             if node not in ALL_MAZE_NODES: continue
             node_level_visit_freq[LVL_BY_NODE[node]] += 1
     node_level_visit_freq = node_level_visit_freq / np.sum([len(e) for e in episodes])
+    # for i in range(len(node_level_visit_freq)):
+    #     node_level_visit_freq[i] = node_level_visit_freq[i] / (2**i)
     return node_level_visit_freq
 
 
 def get_parent_node(n):
+    if n == p.HOME_NODE:
+        return None
+    if n in p.LVL_0_NODES:
+        return p.HOME_NODE
     return (n + (n % 2) - 1) // 2
 
 
+def get_parent_node_x_level_up(n, x):
+    while x:
+        n = get_parent_node(n)
+        x -= 1
+    return n
+
+
 def get_children(n):
+    if n == p.HOME_NODE:
+        return (0, )
+    if n in p.LVL_6_NODES:
+        return tuple()
     return 2*n+1, 2*n+2
 
 
 def get_the_other_children(parent, current_child):
+    assert current_child != 0
+    assert current_child != p.HOME_NODE
     c1, c2 = get_children(parent)
     return c1 if current_child == c2 else c2
 
 
-def get_opp_children(current_child):
+def get_opp_child(current_child):
+    assert current_child != 0
+    assert current_child != p.HOME_NODE
     c1, c2 = get_children(get_parent_node(current_child))
     return c1 if current_child == c2 else c2
 
@@ -345,6 +372,8 @@ def home_path_node(n):
     ret = []
     while n >= 0:
         ret.append(n)
+        if n == 0:
+            return ret
         n = get_parent_node(n)
     return ret
 
@@ -355,7 +384,7 @@ def connect_path_node(n1, n2):
     Includes both start and end nodes
     """
     r1 = home_path_node(n1)
-    r2 = home_path_node(n2)[::-1] # reversed
+    r2 = home_path_node(n2)[::-1]   # reversed
     for i in r1:
         if i in r2:
             return r1[:r1.index(i)]+r2[r2.index(i):]

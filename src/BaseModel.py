@@ -16,7 +16,7 @@ from multiprocessing import Pool
 from MM_Traj_Utils import LoadTrajFromPath, NewMaze, StepType2
 from parameters import INVALID_STATE, RWD_STATE, WATERPORT_NODE, LVL_BY_NODE, HOME_NODE, NODE_LVL, ALL_MAZE_NODES
 from collections import defaultdict
-from utils import break_simulated_traj_into_episodes
+from utils import break_simulated_traj_into_episodes, get_children, get_parent_node
 
 
 class BaseModel:
@@ -252,6 +252,7 @@ class BaseModel:
             raise Exception(f'Invalid action probabilities, failed summing to 1: {action_prob}')
 
     def take_action(self, s: int, a: int) -> int:
+        assert 0 <= a <= 2
         return int(self.nodemap[s, a])
 
     def choose_action(self):
@@ -282,17 +283,13 @@ class BaseModel:
         """
         This function calls `simulate` in multiple processes
         :param sub_fits:
-            Subject fits, dictionary with agentIds as keys and value is a dict
-            of parameters that are going to be used in the model
-            for example 0: {"alpha": 0.1, "gamma": 0.9, "epsilon": 0.5}.
-           i.e. {AgentId: {"alpha": 0.1, "gamma": 0.9, "epsilon": 0.5}}
-        Example usage:
-            success, stats = agentObj.simulate_multiple({0: {"alpha": 0.1, "gamma": 0.9, "epsilson": 0.5}})
+            Subject fits, list of dicts of parameters that are going to be used in the model
+            for example [{"alpha": 0.1, "gamma": 0.9, "epsilon": 0.5}, {}, ..]
         """
         tasks = []
-        for agentId in sub_fits:
-            print("agentId=", agentId, "params=", sub_fits[agentId])
-            tasks.append((agentId, sub_fits[agentId], MAX_LENGTH, N_BOUTS_TO_GENERATE))
+        for agentId, params in enumerate(sub_fits):
+            print("agentId=", agentId, "params=", params)
+            tasks.append((agentId, params, MAX_LENGTH, N_BOUTS_TO_GENERATE))
         with Pool(4) as p:  # running in parallel in 4 processes
             simulation_results = p.starmap(self.simulate, tasks)
         return dict([(a[0], simulation_results[i]) for i, a in enumerate(tasks)])
@@ -322,14 +319,15 @@ class BaseModel:
     def test_traj(traj):
         for i, j in zip(traj, traj[1:]):
             assert i != j
+            assert (i in get_children(j)) or (i == get_parent_node(j)) or (i == HOME_NODE) or (j == HOME_NODE)
         return
 
     def test_episodes(self, episode_state_traj):
-        try:
-            for i, t in enumerate(episode_state_traj):
+        for i, t in enumerate(episode_state_traj):
+            try:
                 self.test_traj(t)
-        except:
-            raise Exception(f"Corrupt traj {i} with adjacent similar nodes found: {t}")
+            except:
+                raise Exception(f"Corrupt traj {i} with adjacent similar nodes found: {t}")
 
     def wrap(self, episode_state_traj):
         episode_state_trajs = break_simulated_traj_into_episodes(episode_state_traj)

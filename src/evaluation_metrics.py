@@ -470,7 +470,7 @@ def get_decision_biases(tfs, re):
     return bi, bis
 
 
-def markov_fit_non_pooling(episodes, re):
+def markov_fit_non_pooling(tf, re):
     # Markov Fits - No Pooling
     # all animals, T-junctions, Explore, variable and fixed, test and train
 
@@ -481,7 +481,6 @@ def markov_fit_non_pooling(episodes, re):
     seg = 5
     ma = NewMaze(6)
 
-    tf = convert_episodes_to_traj_class(episodes)
     rew = re
 
     var = True
@@ -495,7 +494,7 @@ def markov_fit_non_pooling(episodes, re):
     return [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr]
 
 
-def markov_fit_pooling(episodes, re):
+def markov_fit_pooling(tf, re):
     # Markov Fits - Pooling
     # all animals, T-junctions, Explore, variable and fixed, test and train
 
@@ -505,7 +504,6 @@ def markov_fit_pooling(episodes, re):
     seg = 3
     ma = NewMaze(6)
 
-    tf = convert_episodes_to_traj_class(episodes)
     rew = re
 
     tra = TranslLevelsLR(ma)
@@ -669,14 +667,12 @@ def second_endnode_label(tf):
         v1, v2 = first_k_endnode_visits
         ind1, node1, quad1, subquad1, label1 = v1
         ind2, node2, quad2, subquad2, label2 = v2
-        if node1 == node2: continue     # then, SKIP
-        if subquad1 != subquad2: continue
-        # print(v1, v2)
-        label_transition_counts[label1][label2] += 1
+        # if node1 == node2: continue     # then, SKIP
+        if subquad1 != subquad2:
+            label_transition_counts[label1]['OUT'] += 1
+        else:
+            label_transition_counts[label1][label2] += 1
     print(label_transition_counts)
-    for i, c in label_transition_counts.items():
-        factor = 100.0 / sum(c.values())
-        label_transition_counts[i] = {k: round(v * factor, 2) for k, v in c.items()}  # normalize
     return label_transition_counts
 
 

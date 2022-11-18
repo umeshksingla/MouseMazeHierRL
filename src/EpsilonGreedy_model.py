@@ -69,7 +69,6 @@ class EpsilonGreedy(BaseModel):
             # acting
             a, _ = self.choose_action(Q)
             s_next = self.take_action(self.s, a)     # Take action
-            print(self.s, a, s_next)
             if np.random.random() <= 0.8:   # make it go home forcibly just to have more data
                 if s_next != HOME_NODE and self.s == 0:
                     s_next = HOME_NODE
@@ -111,14 +110,8 @@ class EpsilonGreedy(BaseModel):
             "episodes_positions": all_episodes_pos_trajs,
             "LL": 0.0,
             "MAX_LENGTH": MAX_LENGTH,
-            "count_total": len(all_episodes_state_trajs),
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
-            # "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
-            "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency": calculate_normalized_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(
-                all_episodes_state_trajs)
         }
         return success, stats
 
@@ -131,11 +124,11 @@ class EpsilonGreedy(BaseModel):
 
 if __name__ == '__main__':
     from sample_agent import run
-    param_sets = {
-        1: {"epsilon": 1},
+    param_sets = [
+        {"epsilon": 1},
         # 2: {"epsilon": 1},
         # 3: {"epsilon": 1},
         # 4: {"epsilon": 1},
-    }
-    run(EpsilonGreedy(), param_sets, '/Users/usingla/mouse-maze/figs', '100000_')
+    ]
+    run(EpsilonGreedy(), param_sets, '/Users/usingla/mouse-maze/figs', '100000')
 
