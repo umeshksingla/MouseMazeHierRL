@@ -43,14 +43,15 @@ def exploration_efficiency_sequential(episodes):
     return steps_taken
 
 
-def exploration_efficiency(tf, re, le=6):
+def exploration_efficiency(tf, re, le=6, half=0):
     """
     Averages new and distinct nodes over various window sizes.
     Based on method from Rosenberg et al. (2021).
 
-    :param episodes: (format [[], [], ...]) list of episode trajectories (which are list of nodes)
+    :param tf: Traj
     :param re = True for rewarded animals, False for unrewarded
     :param le = level of nodes for which efficiency is to be calculated (it will discard all other level nodes)
+    :param half = first half of experiment (half=1), second (half=2), or all night (half = 0, default case)
 
     :return: steps_taken (dict of total_nodes_visited -> distinct_nodes_visited
     for various window sizes). Example, {10: 2, 50: 15} means on average it
@@ -60,7 +61,18 @@ def exploration_efficiency(tf, re, le=6):
     print(f"calculating exp efficiency wrt level {le}...")
     leave, drink, explore = 0, 1, 2
     ma = NewMaze(6)
-    cl = SplitModeClips(tf, ma, re=re)  # find the clips; no drink mode for unrewarded animals
+    cl0 = SplitModeClips(tf, ma, re=re)  # find the clips; no drink mode for unrewarded animals
+    cn = np.cumsum(cl0[:, 2])  # cumulative number of nodes
+    ha = np.where(cn > cn[-1] / 2)[0][0]  # index for half the number of nodes
+    cl1 = cl0[:ha]
+    cl2 = cl0[ha:]  # two clip arrays for first and second half of nodes
+    if half == 1:
+        cl = cl1
+    elif half == 2:
+        cl = cl2
+    else:
+        cl = cl0
+
     ti = np.array([tf.no[c[0]][c[1] + c[2], 1] - tf.no[c[0]][c[1], 1] for c in cl])  # duration in frames of each clip
     nn = np.array([np.sum(cl[np.where(cl[:, 3] == leave)][:, 2]),
                    np.sum(cl[np.where(cl[:, 3] == drink)][:, 2]),
@@ -78,7 +90,7 @@ def exploration_efficiency(tf, re, le=6):
     _, c, n = NewNodes4(ns, nf[2] / len(ns))  # compute new nodes vs all nodes for exploration mode only
     steps_taken = dict(zip(c, n))
     print(steps_taken)
-    return c, n
+    return c, n, nf
 
 
 def rotational_velocity(traj, d=3):
@@ -210,25 +222,22 @@ def get_random_ee(le=6):
     return zip(*d.items())
 
 
-def get_unrewarded_ee(le=6):
+def get_unrewarded_ee(half=0, le=6):
     """
     Returns unrewarded animals' pre-computed exploration efficiency
     """
-    with open(OUTDATA_PATH + f'ee_unrewarded_le={le}.pkl', 'rb') as f:
+    with open(OUTDATA_PATH + f'ee_unrewarded_le={le}_half={half}pkl', 'rb') as f:
         d = pickle.load(f)
     return d
 
 
-def get_rewarded_ee(le=6):
+def get_rewarded_ee(half=0, le=6):
     """
     Returns any rewarded animal's exploration efficiency before the first reward
     """
-    raise NotImplementedError
-    tf = LoadTrajFromPath(OUTDATA_PATH + 'B1-tf')
-    rew_epi = convert_traj_to_episodes(tf)
-    rew_epi_exp = rew_epi[:17]
-    rew_epi_exp.append(rew_epi[17][:354])
-    return exploration_efficiency(rew_epi_exp, re=False, le=le)     # need to change episodes to tf
+    with open(OUTDATA_PATH + f'ee_rewarded_le={le}_half={half}.pkl', 'rb') as f:
+        d = pickle.load(f)
+    return d
 
 
 def fit_LevyWalk(nicknamelist, plottitle, start_bout=None, end_bout=None, log_scale=False):
@@ -676,37 +685,60 @@ def second_endnode_label(tf):
     return label_transition_counts
 
 
-# results = []
-# k = len(RewNames)
+### Code to Pre-compute exploration efficiency
+# re = False
+# animals = RewNames if re else UnrewNamesSub
+# animal_label = 'rewarded' if re else 'unrewarded'
+# ee_dict = {}
+# for le in [3, 4, 5, 6]:
+#     for half in [0, 1, 2]:
+#         for sub in animals:
+#             tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+#             c, n, nf = exploration_efficiency(tf, re, le, half)
+#             ee_dict[sub] = c, n, nf
+#         with open(OUTDATA_PATH + f'ee_{animal_label}_le={le}_half={half}.pkl', 'wb') as f:
+#             pickle.dump(ee_dict, f)
 
-# plt.rcParams.update({
-#     'axes.labelsize': 9,
-#     'axes.titlesize': 9,
-#     'xtick.labelsize': 9,
-#     'ytick.labelsize': 9,
-#     'legend.fontsize': 5
-# })
 
-# for sub in RewNames+UnrewNamesSub:
-#     ratio = outside_inside_ratio(convert_traj_to_episodes(LoadTrajFromPath(outdata_path + sub + "-tf")))
-#     print(f'{sub}\t{ratio}')
-#     results.append(ratio)
+### Code to Pre-compute oi ratio
+# re = False
+# animals = RewNames if re else UnrewNamesSub
+# animal_label = 'rewarded' if re else 'unrewarded'
+# oi_dict = {}
+# for sub in animals:
+#     tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+#     r = outside_inside_ratio(tf, re)
+#     print(sub, r)
+#     oi_dict[sub] = r
+# with open(OUTDATA_PATH + f'oiratio_{animal_label}.pkl', 'wb') as f:
+#     pickle.dump(oi_dict, f)
 
-# print('rewarded', np.mean(results[:k]), np.std(results[:k]))
-# print('unrewarded', np.mean(results[k:]), np.std(results[k:]))
 
-# plt.clf()
-# plt.boxplot([results[:k], results[k:]])
-# plt.title('Original periphery-inner definition')
-# plt.ylabel('outside/inside ratio')
-# plt.ylim([0.5, 3.5])
-# plt.errorbar(results[k:], 'b')
-# plt.show()
+### Code to Pre-computed decision biases
+# re = True
+# animals = RewNames if re else UnrewNamesSub
+# animal_label = 'rewarded' if re else 'unrewarded'
+# tfs = []
+# for sub in animals:
+#     tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+#     tfs.append(tf)
+# bi, _ = get_decision_biases(tfs, re)
+# with open(OUTDATA_PATH + f'decision_biases_{animal_label}.pkl', 'wb') as f:
+#     pickle.dump(bi, f)
 
-# exploration_efficiency([
-#     [25, 12, 5, 11, 24, 49, 99, 49, 100, 49, 24, 50, 24, 11, 5, 12, 25, 52, 25, 52, 105, 52, 25, 51, 25, 51, 25, 51,
-#      104, 51, 103, 51, 104, 51, 25, 12, 5, 11, 23, 47, 96, 47, 23, 48, 97, 48, 23, 11, 5, 12, 25, 52, 105, 52, 105, 52,
-#      25, 52, 25, 51, 25, 52, 25, 52, 25, 52, 25, 52, 105, 52, 25, 51, 104, 51, 25, 51, 104, 51, 25, 12, 26, 54, 26, 54,
-#      110, 54, 26, 53, 108, 53, 26, 53, 107, 53, 26, 12, 25, 51, 104, 51, 25, 52, 105, 52, 106, 52, 25, 51, 104, 51, 103,
-#      51, 104, 51, 103, 51, 25, 12, 26, 53, 107, 53, 26, 12, 5, 2, 6, 14]
-# ], False, 4)
+
+### Code to Pre-compute first node labels
+# re = True
+# animals = RewNames if re else UnrewNamesSub
+# animal_label = 'rewarded' if re else 'unrewarded'
+# label_pref_dict = defaultdict(list)
+# for sub in animals:
+#     tf = LoadTrajFromPath(OUTDATA_PATH + sub + '-tf')
+#     first_visit_label_fracs = first_endnode_label(tf)
+#     print(sub, first_visit_label_fracs)
+#     for l in first_visit_label_fracs:
+#         label_pref_dict[l].append(first_visit_label_fracs[l])
+# print(label_pref_dict)
+# with open(OUTDATA_PATH + f'first_endnode_label_{animal_label}.pkl', 'wb') as f:
+#     pickle.dump(label_pref_dict, f)
+

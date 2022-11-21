@@ -3,6 +3,9 @@ OUTDATA_PATH = '../outdata/'
 COLORS = 'rcmygk'
 ANIMAL_COLOR = 'b'
 
+REW_ANIMALS_PLOT_LABEL = 'rew_mice'
+UNREW_ANIMALS_PLOT_LABEL = 'unrew_mice'
+
 # Constants
 UNRWD_NAMES = ['B5','B6','B7','D3','D4','D5','D6','D7','D8','D9']
 RWD_NAMES = ['B1','B2','B3','B4','C1','C3','C6','C7','C8','C9']
@@ -21,6 +24,12 @@ TIME_EACH_MOVE=0.3  # in seconds. Mice take an average of 0.3 per each move
 LEAVE = 0
 DRINK = 1
 EXPLORE = 2
+
+mode_labels = {
+    LEAVE: 'LEAVE',
+    DRINK: 'DRINK',
+    EXPLORE: 'EXPLORE',
+}
 
 # Define node numbers of end/leaf nodes
 ALL_MAZE_NODES = list(range(0, 127))
