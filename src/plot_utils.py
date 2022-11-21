@@ -14,13 +14,15 @@ import numpy as np
 from matplotlib.pyplot import figure, subplot, title, suptitle
 from numpy import ones
 from sklearn.manifold import TSNE
+from scipy.optimize import curve_fit
 
 from MM_Maze_Utils import NewMaze, PlotMazeWall, PlotMazeFunction
-from MM_Plot_Utils import plot
-from MM_Traj_Utils import LoadTrajFromPath, PlotNodeBiasLocation, PlotNodeBias, TallyNodeStepTypes
+from MM_Plot_Utils import plot, hist
+from MM_Traj_Utils import LoadTrajFromPath, PlotNodeBiasLocation, PlotNodeBias, TallyNodeStepTypes, SplitModeClips, NewNodes4
 from parameters import OUTDATA_PATH, HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES, UnrewNamesSub, \
     full_labels
 import parameters as p
+from parameters import LEAVE, DRINK, EXPLORE
 from utils import get_node_visit_times, get_all_night_nodes_and_times, \
     get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times, \
     convert_traj_to_episodes, get_outward_pref_order, get_revisits, get_end_nodes_revisits, get_unique_node_revisits, \
@@ -386,13 +388,13 @@ def plot_trajs(episodes_mouse, save_file_path, title):
     return
 
 
-def plot_episode_lengths(tfs_labels, title='', save_file_path=None, display=False):
+def plot_episode_lengths(tfs_labels, re=False, title='', save_file_path=None, display=False):
     """
     A bar plot of all episode lengths
     """
     plt.figure(figsize=(10,5))
 
-    mouse = 'B5'
+    mouse = 'B1' if re else 'B5'
     animal_tf_label = [(LoadTrajFromPath(OUTDATA_PATH + f'{mouse}-tf'), f'mouse {mouse}')]
 
     all_lengths = []
@@ -421,23 +423,122 @@ def plot_episode_lengths(tfs_labels, title='', save_file_path=None, display=Fals
     return
 
 
-def plot_exploration_efficiency(tfs_labels, re, le=6, title='', save_file_path=None, display=False):
+def plot_mode_fraction():
+    ma = NewMaze(6)
+
+    # Mode analysis for all animals
+    Names = p.RewNames + p.UnrewNamesSub
+    k = len(p.RewNames)
+
+    for i, nickname in enumerate(Names):
+        tf = LoadTrajFromPath(OUTDATA_PATH + nickname + '-tf')
+        cl0 = SplitModeClips(tf, ma, re=i < k)  # find the clips; no drink mode for unrewarded animals
+
+        #### ONLY FIRST HALF
+        cn = np.cumsum(cl0[:, 2])  # cumulative number of nodes
+        ha = np.where(cn > cn[-1] / 2)[0][0]  # index for half the number of nodes
+        cl1 = cl0[:ha];
+        cl2 = cl0[ha:]  # two clip arrays for first and second half of nodes
+        cl = cl1
+        ####
+
+        ti = np.array(
+            [tf.no[c[0]][c[1] + c[2], 1] - tf.no[c[0]][c[1], 1] for c in cl])  # duration in frames of each clip
+        nn = np.array([np.sum(cl[np.where(cl[:, 3] == p.LEAVE)][:, 2]),
+                       np.sum(cl[np.where(cl[:, 3] == p.DRINK)][:, 2]),
+                       np.sum(cl[np.where(cl[:, 3] == p.EXPLORE)][:, 2])])  # number of node steps in each mode
+        nf = np.array([np.sum(ti[np.where(cl[:, 3] == p.LEAVE)]),
+                       np.sum(ti[np.where(cl[:, 3] == p.DRINK)]),
+                       np.sum(ti[np.where(cl[:, 3] == p.EXPLORE)])])  # number of frames in each mode
+        tr = np.zeros((3, 3))  # number of transitions between the 3 modes
+        for i in range(1, len(cl)):
+            tr[cl[i - 1, 3], cl[i, 3]] += 1
+        ce = cl[np.where(cl[:, 3] == p.EXPLORE)]  # clips of exploration
+        ne = np.concatenate(
+            [tf.no[c[0]][c[1]:c[1] + c[2], 0] for c in ce])  # nodes excluding the last state in each clip
+        le = 6  # end nodes only
+        ln = list(range(2 ** le - 1, 2 ** (le + 1) - 1))  # list of node numbers in level le
+        ns = ne[np.isin(ne, ln)]  # restricted to desired nodes
+        wcn = NewNodes4(ns, nf[2] / len(ns))  # compute new nodes vs all nodes for exploration mode only
+        with open(OUTDATA_PATH + nickname + '-Modes1', 'wb') as f:  # save in one file per animal
+            pickle.dump((nn, nf, tr, wcn), f)
+
+    a = len(Names)
+    # nn = np.zeros((a, 3))  # number of nodes in each mode
+    nf = np.zeros((a, 3))  # number of frames in each mode
+    # tr = np.zeros((a, 3, 3))  # number of transitions between modes
+    ff = np.zeros((a, 3))  # fraction of frames in each mode
+    # wcn = []  # these arrays have different shape
+    for i, nickname in enumerate(Names):
+        with open(OUTDATA_PATH + nickname + '-Modes1', 'rb') as f:
+            _, nf1, _, _ = pickle.load(f)
+        # nn[i] = nn1
+        nf[i] = nf1
+        # tr[i] = tr1
+        # wcn += [wcn1]
+        s = sum(nf[i])
+        ff[i] = nf[i] / s
+
+    c, n, nf = em.exploration_efficiency(tf, re=True, le=6)
+
+    labels = 'Leave', 'Drink', 'Explore'
+    av = np.mean(ff[:k], axis=0)
+    sizes = [av[0], av[1], av[2]]
+    explode = (0, 0, 0.1)  # only "explode" the 2nd slice
+    fig1, ax1 = plt.subplots()
+    ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.0f%%',
+            shadow=False, startangle=90, colors=['red', 'cyan', 'green'])
+    # ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.0f%%',
+    #         shadow=True, startangle=90)
+    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+    # plt.savefig('figs/RewPie.pdf')
+    plt.show()
+
+
+def plot_exploration_efficiency(tfs_labels, re, half=0, le=6, title='', save_file_path=None, display=False):
     """
     :param episodes: [[], [], ...] (list of list of nodes for each trajectory)
     :param re: True for rewarded animals, False for unrewarded (i.e. if you want
     to treat a visit to 116 as rewarded then True. If there is no reward and it's
     only exploration, keep it False).
+    :param half: 'separate' if two halves, 0 if all night, 1 if only first half, 2 if only second half
     """
+
+    if re:
+        animal_set = p.RewNames
+    else:
+        animal_set = p.UnrewNamesSub
+
+    def get_animal_dict(h):
+        if re:
+            ee_dict = em.get_rewarded_ee(h, le)
+            animal_lbl = p.REW_ANIMALS_PLOT_LABEL
+        else:
+            ee_dict = em.get_unrewarded_ee(h, le)
+            animal_lbl = p.UNREW_ANIMALS_PLOT_LABEL
+        return ee_dict, animal_lbl + f'-h{h}'
+
+    def plot_animal_ee(ee_dict, lbl, linestyle, alpha):
+        c, n, _ = ee_dict[animal_set[0]]  # plot one animal (to get the legend right)
+        plt.plot(c, n, color=p.ANIMAL_COLOR, linestyle=linestyle, alpha=alpha, linewidth=1, label=lbl)
+        for nickname in animal_set[1:]:  # plot rest of the animals
+            c, n, _ = animals_ee_dict[nickname]
+            plt.plot(c, n, color=p.ANIMAL_COLOR, linestyle=linestyle, alpha=alpha, linewidth=1)
+        return
 
     plt.figure()
 
     # animal data
-    unrewarded_animals_ee_dict = em.get_unrewarded_ee(le)
-    c, n = unrewarded_animals_ee_dict[UnrewNamesSub[0]]     # plot one animal (to get the legend right)
-    plt.plot(c, n, color=p.ANIMAL_COLOR, linestyle='-.', alpha=0.4, linewidth=1, label='animals')
-    for nickname in UnrewNamesSub[1:]:  # plot rest of the animals
-        c, n = unrewarded_animals_ee_dict[nickname]
-        plt.plot(c, n, color=p.ANIMAL_COLOR, linestyle='-.', alpha=0.4, linewidth=1)
+    if half == 'separate':
+        animals_ee_dict, animal_label = get_animal_dict(1)
+        plot_animal_ee(animals_ee_dict, animal_label, linestyle='-.', alpha=0.8)
+
+        animals_ee_dict, animal_label = get_animal_dict(2)
+        plot_animal_ee(animals_ee_dict, animal_label, linestyle='--', alpha=0.2)
+    else:
+        assert half in [0, 1, 2]
+        animals_ee_dict, animal_label = get_animal_dict(half)
+        plot_animal_ee(animals_ee_dict, animal_label, linestyle='-.', alpha=0.4)
 
     # random
     c, n = em.get_random_ee(le)
@@ -449,8 +550,14 @@ def plot_exploration_efficiency(tfs_labels, re, le=6, title='', save_file_path=N
 
     # Get this agent's ee
     for i, (tf, label) in enumerate(tfs_labels):
-        c, n = em.exploration_efficiency(tf, re=re, le=le)
-        plt.plot(c, n, f'{p.COLORS[i]}o-', label=label if label else f'agent {i}')
+        if half == 'separate':
+            c, n, _ = em.exploration_efficiency(tf, re=re, le=le, half=1)
+            plt.plot(c, n, f'{p.COLORS[i]}o-', label=(label if label else f'agent {i}') + '-h1')
+            c, n, _ = em.exploration_efficiency(tf, re=re, le=le, half=2)
+            plt.plot(c, n, f'{p.COLORS[i]}o-', alpha=0.5, label=(label if label else f'agent {i}') + '-h2')
+        else:
+            c, n, _ = em.exploration_efficiency(tf, re=re, le=le, half=half)
+            plt.plot(c, n, f'{p.COLORS[i]}o-', label=(label if label else f'agent {i}') + f'-h{half}')
 
     plt.xscale('log', base=10)
     plt.title(f'Exploration Efficiency Level {le} \n{title}')
@@ -459,7 +566,7 @@ def plot_exploration_efficiency(tfs_labels, re, le=6, title='', save_file_path=N
     plt.legend()
     if save_file_path:
         os.makedirs(save_file_path, exist_ok=True)
-        plt.savefig(os.path.join(save_file_path, f'exp_efficiency_le{le}.png'))
+        plt.savefig(os.path.join(save_file_path, f'exp_efficiency_le{le}_half={half}.png'))
     if display:
         plt.show()
     plt.clf()
@@ -483,9 +590,9 @@ def nodebias(tr, ma):
     return bl, sl
 
 
-def plot_percent_turns(tfs_labels, title='', save_file_path=None, display=False):
+def plot_percent_turns(tfs_labels, re=False, title='', save_file_path=None, display=False):
 
-    mouse = 'B5'
+    mouse = 'B1' if re else 'B5'
     animal_tf_label = [(LoadTrajFromPath(OUTDATA_PATH + f'{mouse}-tf'), f'mouse {mouse}')]
     ma = NewMaze(6)
 
@@ -597,21 +704,29 @@ def plot_percent_turns_DEPRECATED(tf, title=None, save_file_path=None, display=F
     return
 
 
-def plot_first_endnode_labels(tfs_labels, title='', save_file_path=None, display=False):
+def plot_first_endnode_labels(tfs_labels, re=False, title='', save_file_path=None, display=False):
 
-    # data
-    with open(p.OUTDATA_PATH + 'first_endnode_label_unrewarded.pkl', 'rb') as f:
-        first_endnode_label_unrewarded = pickle.load(f)
+    animal_lbl = p.REW_ANIMALS_PLOT_LABEL if re else p.UNREW_ANIMALS_PLOT_LABEL
+    precomputed_file = 'first_endnode_label_rewarded.pkl' if re else 'first_endnode_label_unrewarded.pkl'
 
     plt.figure()
-    for i, k in enumerate(first_endnode_label_unrewarded):
-        plt.plot([k]*len(first_endnode_label_unrewarded[k]), first_endnode_label_unrewarded[k], f'{p.ANIMAL_COLOR}.', label='unrewarded' if i == 0 else '')
 
-    plt.plot(list(first_endnode_label_unrewarded.keys()), [25.0] * len(first_endnode_label_unrewarded), 'ko', label='random')
+    # animal data
+    with open(p.OUTDATA_PATH + precomputed_file, 'rb') as f:
+        first_endnode_label_animal = pickle.load(f)
+
+    for i, k in enumerate(first_endnode_label_animal):
+        plt.plot([k]*len(first_endnode_label_animal[k]), first_endnode_label_animal[k], f'{p.ANIMAL_COLOR}.', label=animal_lbl if i == 0 else '')
+
+    # random
+    plt.plot(list(first_endnode_label_animal.keys()), [25.0] * len(first_endnode_label_animal), 'ko', label='random')
+
+    # this agent
     for i, (tf, label) in enumerate(tfs_labels):
         first_visit_label_fracs = em.first_endnode_label(tf)
         print(f"first_visit_label_fracs {i}", first_visit_label_fracs)
         plt.plot(list(first_visit_label_fracs.keys()), list(first_visit_label_fracs.values()), f'{p.COLORS[i]}o', label=label if label else f'agent {i}')
+
     plt.xticks(rotation=5)
     plt.ylim([0, 100])
     plt.ylabel('Preference node type in the corner')
@@ -644,11 +759,11 @@ def plot_first_endnode_labels(tfs_labels, title='', save_file_path=None, display
     # plt.close()
 
 
-def plot_opposite_node_preference(tfs_labels, title='', save_file_path=None, display=False):
+def plot_opposite_node_preference(tfs_labels, re=False, title='', save_file_path=None, display=False):
 
     plt.figure()
 
-    mouse = 'B5'
+    mouse = 'B1' if re else 'B5'
     animal_tf_label = [(LoadTrajFromPath(OUTDATA_PATH+f'{mouse}-tf'), f'mouse {mouse}')]
 
     for i, (tf, label) in enumerate(animal_tf_label + tfs_labels):
@@ -731,10 +846,10 @@ def plot_end_node_revisits(tf, title='', save_file_path=None, display=False):
     return
 
 
-def plot_node_revisits_level_halves(tfs_labels, level_to_plot, title='', save_file_path=None, display=False):
+def plot_node_revisits_level_halves(tfs_labels, level_to_plot,  re=False, title='', save_file_path=None, display=False):
 
     plt.figure(figsize=(9, 4))
-    mouse = 'B5'
+    mouse = 'B1' if re else 'B5'
     animal_tf_label = [(LoadTrajFromPath(OUTDATA_PATH+f'{mouse}-tf'), f'mouse {mouse}')]
     for i, (tf, label) in enumerate(animal_tf_label + tfs_labels):
         print(label)
@@ -750,7 +865,7 @@ def plot_node_revisits_level_halves(tfs_labels, level_to_plot, title='', save_fi
             d = {x: to_plot.count(x) / total for x in to_plot if x <= 20}
             d = sorted(d.items(), key=lambda x: x[0])
             color = (p.ANIMAL_COLOR if i == 0 else p.COLORS[i-1]) + ('.:' if half else '.-')
-            plt.plot([k[0] for k in d], [k[1] for k in d], color , label=(label if label else f'agent {i}') + f': Half {half+1}')
+            plt.plot([k[0] for k in d], [k[1] for k in d], color, label=(label if label else f'agent {i}') + f': Half {half+1}')
     plt.legend()
     plt.title(f"Revisits{title}\nLevel {level_to_plot} (excludes Reward subquadrant)")
     plt.xlabel("number of nodes before revisiting the same node")
@@ -861,7 +976,18 @@ def plot_decision_biases(tfs_labels, re, title='', save_file_path=None, display=
     Plots the decision biases and prints their standard deviation for each agent
     """
 
+    if re:
+        precomputed_biases_file = 'decision_biases_rewarded.pkl'
+        animal_label = p.REW_ANIMALS_PLOT_LABEL
+    else:
+        precomputed_biases_file = 'decision_biases_unrewarded.pkl'
+        animal_label = p.UNREW_ANIMALS_PLOT_LABEL
+
     figure()
+
+    # load precomputed animal biases
+    with open(OUTDATA_PATH + precomputed_biases_file, 'rb') as f:
+        bi_data = pickle.load(f)
 
     # get this agent's biases
     labels = []
@@ -872,10 +998,6 @@ def plot_decision_biases(tfs_labels, re, title='', save_file_path=None, display=
 
     bi_agents, _ = em.get_decision_biases(tfs, re)
 
-    # get precomputed biases from data
-    with open(OUTDATA_PATH + 'decision_biases_unrewarded.pkl', 'rb') as f:
-        bi_data = pickle.load(f)
-
     fmts = [f'{p.ANIMAL_COLOR}.', 'k+'] + [(p.COLORS[i] + '.') for i, _ in enumerate(labels)]
 
     # plot biases BF vs SF
@@ -883,7 +1005,7 @@ def plot_decision_biases(tfs_labels, re, title='', save_file_path=None, display=
     x = [bi_data[:, 0], [2 / 3]] + [[bi_agents[i, 0]] for i in range(len(bi_agents))]
     y = [bi_data[:, 2], [2 / 3]] + [[bi_agents[i, 2]] for i in range(len(bi_agents))]
     plot(x, y, fmts=fmts, markersize=7,
-         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=['unrewarded', 'random']+labels,
+         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=[animal_label, 'random']+labels,
          xlabel='$P_{\mathrm{SF}}$', ylabel='$P_{\mathrm{BF}}$', loc='lower left')
 
     # plot biases BS vs SA
@@ -891,7 +1013,7 @@ def plot_decision_biases(tfs_labels, re, title='', save_file_path=None, display=
     x = [bi_data[:, 1], [1 / 2]] + [[bi_agents[i, 1]] for i in range(len(bi_agents))]
     y = [bi_data[:, 3], [1 / 2]] + [[bi_agents[i, 3]] for i in range(len(bi_agents))]
     plot(x, y, fmts=fmts, markersize=7,
-         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=['unrewarded', 'random']+labels,
+         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=[animal_label, 'random']+labels,
          xlabel='$P_{\mathrm{SA}}$', ylabel='$P_{\mathrm{BS}}$', loc='lower left')
 
     suptitle(f"Decision biases\n{title}")
@@ -1049,22 +1171,101 @@ def plot_trajectory_features(episodes, title=None, save_file_path=None, display=
     return
 
 
-def plot_reward_path_lengths(episodes, title, save_file_path=None, dots=True, display=False):
+def reward_lengths():
+    u=np.concatenate(w, axis=-1)
+    ar = u[2]  # number of rewards prior to this path
+    al = u[3]  # length of this path
+    ar1 = ar[al < 1000];
+    al1 = al[al < 1000]  # eliminate single outlier
+
+    rl = sorted(list(set(ar)))  # sorted list of all reward numbers
+    re = [];
+    me = [];
+    sd = [];
+    se = []
+    for r in rl:
+        x = al1[ar1 == r]
+        re += [r]
+        me += [np.median(x)]  # median of all the durations at that reward number
+
+    popt, pcov = curve_fit(func, re[:101], me[:101], p0=[50, .1, 10])  # fit the exponential
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 6), gridspec_kw={'width_ratios': [5, 1], 'height_ratios': [1, 3.5]})
+
+    plot(ar, al, fmts=['co'], markersize=2,
+         xlabel='Number of rewards experienced', ylabel='Length of water run (steps)', axes=axes[1, 0]);
+    plot(re, me, fmts=['bo'], markersize=4, axes=axes[1, 0]);
+    x = np.arange(re[-1] + 1)  # reward number
+    plot(x, func(x, *popt), fmts=['b-'], linewidth=2, ylim=[0, 160], xlim=[-0.5, 100.5],
+         legend=['All water runs', 'Median', 'Exp fit, decay = {:.1f}'.format(1 / popt[1])],  # ,'Mean ± SEM'
+         loc='upper right', axes=axes[1, 0]);
+
+    hist([al[al == 6], al[al > 6]], bins=np.arange(-1, 161, 2), xlabel='Number of runs',
+         orientation='horizontal', xhide=False, yhide=False, ylim=[0, 160], xscale='log', xticks=[1e0, 1e1, 1e2, 1e3],
+         axes=axes[1, 1]);  # ,yticks=[0,0.5,1],
+    axes[1, 1].tick_params(labelleft=False)
+
+    bin = 5  # reward binning
+    g0 = np.where(al == 6)[0]  # perfect runs
+    g1 = np.where(al > 6)[0]  # longer runs
+    r0 = sorted(ar[g0])  # sorted reward numbers for perfect paths
+    r1 = sorted(ar[g1])  # sorted reward numbers for longer paths
+    # _,n,bins,_=hist([r0,r1],bins=np.arange(140//bin)*bin);
+    n0, bins = np.histogram(r0, bins=np.arange(140 // bin) * bin);  # histo of reward numbers for perfect paths
+    n1, _ = np.histogram(r1, bins=np.arange(140 // bin) * bin);  # histo of reward numbers for longer paths
+    y0 = n0 / (n0 + n1)  # fraction of perfect paths in each reward number bin
+    y1 = n1 / (n0 + n1)  # fraction of longer paths in each reward number bin
+    x = bins[:-1]  # reward number bins
+    du = [np.median(u[0, np.logical_and(u[3] == 6, np.logical_and(u[2] >= i, u[2] < i + bin))])
+          # median duration of perfect paths
+          for i in x]  # in each bin of reward numbers
+
+    ax1 = axes[0, 0]  # top left graph
+    color = 'tab:orange'
+    ax1.set_ylabel('Fraction perfect', color=color, fontsize=12)
+    ax1.plot(x, y0, color=color, linewidth=2)
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.tick_params(labelbottom=False)
+    ax1.set_xlim([-0.5, 100.5])
+    ax1.set_ylim([0, 1])
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+    color = 'tab:purple'
+    ax2.set_ylabel('Duration (s)', color=color, fontsize=12)  # we already handled the x-label with ax1
+    ax2.plot(x, du, color=color, linewidth=2)
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylim([0, 10])
+
+    # plot(x,y0,fmts=['r-','g-'],ylim=[0,1],ylabel='Fraction perfect',grid=True,
+    #     loc='center right',xlim=[-0.5,100.5],axes=axes[0,0]); # ,title='Runs from entrance to water port: length distribution vs rewards'
+
+    axes[0, 1].axis('off')
+
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+    fig.subplots_adjust(wspace=0.04, hspace=0.1)
+    plt.savefig('figs/WaterRunLengthMedianHistStack.pdf')
+    return
+
+
+def plot_reward_path_lengths(tfs_labels, title, save_file_path=None, dots=True, display=False):
     """todo
     time_reward_node:
 
     """
+    tf, label = tfs_labels[0]
+    episodes = convert_traj_to_episodes(tf)
     visit_reward_node, time_reward_node = get_reward_times(episodes)
-    if dots:
-        plt.plot(time_reward_node, 'b.', label='Steps to reward')
-    else:
-        plt.plot(time_reward_node, 'b-', label='Steps to reward')
+    # if dots:
+    #     plt.plot(time_reward_node, 'b.', label='Steps to reward')
+    # else:
+    #     plt.plot(time_reward_node, 'b-', label='Steps to reward')
+    plt.hist(time_reward_node)
     plt.legend()
     plt.title(title)
     plt.xlabel("reward")
     plt.ylabel("number of steps")
     if save_file_path:
-        plt.savefig(os.path.join(save_file_path, f'reward_path_lengths_dots.png'))
+        plt.savefig(os.path.join(save_file_path, f'reward_path_lengths_dots={dots}.png'))
     if display:
         plt.show()
     plt.clf()
@@ -1072,18 +1273,137 @@ def plot_reward_path_lengths(episodes, title, save_file_path=None, dots=True, di
     return
 
 
-def plot_visit_freq_by_level(tfs_labels, title='', save_file_path=None, display=False):
+def plot_reward_runs(tfs_labels, title, save_file_path=None, display=False):
+    # Exponential fit to the median run for each reward value; plot all data in background
+    def func(x, a, b, c):  # exponential fit
+        return a * np.exp(-b * x) + c
+
+    w = []
+    for i, nickname in enumerate(p.RewNames):
+        tf = LoadTrajFromPath(p.OUTDATA_PATH + nickname + '-tf')
+        re = np.array([y[0] + tf.fr[i, 0] for i, r in enumerate(tf.re) for y in r])  # reward times in frames
+        wd = []
+        wt = []
+        wr = []
+        wl = []
+        for j, b in enumerate(tf.no):
+            wk = np.where(b[:, 0] == 116)[0]  # node index of visits to water port
+            if len(wk) > 0:  # if there was a visit to water port
+                d = b[wk[0], 1]  # frames from start of bout to water port
+                t = tf.fr[j, 0] + d  # absolute time of that visit in frames
+                rk = np.where(re > t)[0]  # rewards after time t
+                if len(rk) == 0:  # if no reward after t
+                    r = len(re)  # total number of rewards
+                else:
+                    r = rk[0]  # number of rewards received before t
+                wd += [d / 30]  # seconds from start of bout to water port
+                wt += [t / 30]  # absolute time of that visit in seconds
+                wr += [r]  # number of rewards prior to that visit
+                wl += [wk[0]]  # number of steps to water port
+        w += [np.array([wd, wt, wr, wl])]
+
+    # with open('outdata/FirstWaterRuns', 'rb') as f:
+    #     RewNames, w = pickle.load(f)
+
+    u = np.concatenate(w, axis=-1)
+    ar = u[2]  # number of rewards prior to this path
+    al = u[3]  # length of this path
+    ar1 = ar[al < 1000];
+    al1 = al[al < 1000]  # eliminate single outlier
+
+    rl = sorted(list(set(ar)))  # sorted list of all reward numbers
+    re = [];
+    me = [];
+    sd = [];
+    se = []
+    for r in rl:
+        x = al1[ar1 == r]
+        re += [r]
+        me += [np.median(x)]  # median of all the durations at that reward number
+
+    popt, pcov = curve_fit(func, re[:101], me[:101], p0=[50, .1, 10])  # fit the exponential
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 6), gridspec_kw={'width_ratios': [5, 1], 'height_ratios': [1, 3.5]})
+
+    plot(ar, al, fmts=['co'], markersize=2,
+         xlabel='Number of rewards experienced', ylabel='Length of water run (steps)', axes=axes[1, 0]);
+    plot(re, me, fmts=['bo'], markersize=4, axes=axes[1, 0]);
+    x = np.arange(re[-1] + 1)  # reward number
+    plot(x, func(x, *popt), fmts=['b-'], linewidth=2, ylim=[0, 160], xlim=[-0.5, 100.5],
+         legend=['All water runs', 'Median', 'Exp fit, decay = {:.1f}'.format(1 / popt[1])],  # ,'Mean ± SEM'
+         loc='upper right', axes=axes[1, 0]);
+
+    hist([al[al == 6], al[al > 6]], bins=np.arange(-1, 161, 2), xlabel='Number of runs',
+         orientation='horizontal', xhide=False, yhide=False, ylim=[0, 160], xscale='log', xticks=[1e0, 1e1, 1e2, 1e3],
+         axes=axes[1, 1]);  # ,yticks=[0,0.5,1],
+    axes[1, 1].tick_params(labelleft=False)
+
+    bin = 5  # reward binning
+    g0 = np.where(al == 6)[0]  # perfect runs
+    g1 = np.where(al > 6)[0]  # longer runs
+    r0 = sorted(ar[g0])  # sorted reward numbers for perfect paths
+    r1 = sorted(ar[g1])  # sorted reward numbers for longer paths
+    # _,n,bins,_=hist([r0,r1],bins=np.arange(140//bin)*bin);
+    n0, bins = np.histogram(r0, bins=np.arange(140 // bin) * bin);  # histo of reward numbers for perfect paths
+    n1, _ = np.histogram(r1, bins=np.arange(140 // bin) * bin);  # histo of reward numbers for longer paths
+    y0 = n0 / (n0 + n1)  # fraction of perfect paths in each reward number bin
+    y1 = n1 / (n0 + n1)  # fraction of longer paths in each reward number bin
+    x = bins[:-1]  # reward number bins
+    du = [np.median(u[0, np.logical_and(u[3] == 6, np.logical_and(u[2] >= i, u[2] < i + bin))])
+          # median duration of perfect paths
+          for i in x]  # in each bin of reward numbers
+
+    ax1 = axes[0, 0]  # top left graph
+    color = 'tab:orange'
+    ax1.set_ylabel('Fraction perfect', color=color, fontsize=12)
+    ax1.plot(x, y0, color=color, linewidth=2)
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.tick_params(labelbottom=False)
+    ax1.set_xlim([-0.5, 100.5])
+    ax1.set_ylim([0, 1])
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+    color = 'tab:purple'
+    ax2.set_ylabel('Duration (s)', color=color, fontsize=12)  # we already handled the x-label with ax1
+    ax2.plot(x, du, color=color, linewidth=2)
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylim([0, 10])
+
+    # plot(x,y0,fmts=['r-','g-'],ylim=[0,1],ylabel='Fraction perfect',grid=True,
+    #     loc='center right',xlim=[-0.5,100.5],axes=axes[0,0]); # ,title='Runs from entrance to water port: length distribution vs rewards'
+
+    axes[0, 1].axis('off')
+
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+    fig.subplots_adjust(wspace=0.04, hspace=0.1)
+    plt.title(f'Runs from entrance to water port\n{title}')
+    if save_file_path:
+        os.makedirs(save_file_path, exist_ok=True)
+        plt.savefig(os.path.join(save_file_path, f'WaterRunLengthMedianHistStack.png'))
+    if display:
+        plt.show()
+    plt.clf()
+    plt.close()
+
+
+    return
+
+
+def plot_visit_freq_by_level(tfs_labels, re=False, title='', save_file_path=None, display=False):
+
+    animal_set = p.RewNames if re else p.UnrewNamesSub
+    animal_lbl = p.REW_ANIMALS_PLOT_LABEL if re else p.UNREW_ANIMALS_PLOT_LABEL
 
     plt.figure()
     plot_level = "level"
 
     # animal data
-    tf = LoadTrajFromPath(OUTDATA_PATH + f'{UnrewNamesSub[0]}-tf')  # plot one animal (to get the legend right)
+    tf = LoadTrajFromPath(OUTDATA_PATH + f'{animal_set[0]}-tf')  # plot one animal (to get the legend right)
     epis = convert_traj_to_episodes(tf)
     visit_frequency = calculate_normalized_visit_frequency_by_level(epis)
     fmt = f'{p.ANIMAL_COLOR}-.'
-    plt.plot(visit_frequency, fmt, alpha=0.4, linewidth=1, label='animals')
-    for nickname in UnrewNamesSub[1:]:  # plot rest of the animals
+    plt.plot(visit_frequency, fmt, alpha=0.4, linewidth=1, label=animal_lbl)
+    for nickname in animal_set[1:]:  # plot rest of the animals
         tf = LoadTrajFromPath(OUTDATA_PATH + f'{nickname}-tf')
         epis = convert_traj_to_episodes(tf)
         visit_frequency = calculate_normalized_visit_frequency_by_level(epis)
@@ -1149,9 +1469,16 @@ def plot_visit_freq_by_node(tfs_labels, title='', save_file_path=None, display=F
 def plot_outside_inside_ratio(tfs, re, title='', save_file_path=None, display=False):
     print(f"calculating outside inside ratio...")
 
+    if re:
+        precomputed_oi_file = 'oiratio_rewarded.pkl'
+        animal_label = p.REW_ANIMALS_PLOT_LABEL
+    else:
+        precomputed_oi_file = 'oiratio_unrewarded.pkl'
+        animal_label = p.UNREW_ANIMALS_PLOT_LABEL
+
     # animal data
-    with open(OUTDATA_PATH + 'oiratio_unrewarded.pkl', 'rb') as f:
-        unrewarded_ratios = pickle.load(f)
+    with open(OUTDATA_PATH + precomputed_oi_file, 'rb') as f:
+        animal_ratios = pickle.load(f)
 
     # get this agent's oi ratio
     ratios = []
@@ -1162,7 +1489,7 @@ def plot_outside_inside_ratio(tfs, re, title='', save_file_path=None, display=Fa
     plt.figure()
 
     plt.plot([1], [1.0], 'ko', label='random')
-    plt.plot([1]*len(unrewarded_ratios), list(unrewarded_ratios.values()), 'b.', label='unrewarded (mean 2.2)')
+    plt.plot([1]*len(animal_ratios), list(animal_ratios.values()), 'b.', label=f'{animal_label} (mean 2.2)')
     for i, (ratio, label) in enumerate(ratios):
         plt.plot([1], [ratio], f'{p.COLORS[i]}o', label=f'{label if label else f"agent {i}"} - {round(ratio, 2)}')
 
@@ -1199,9 +1526,9 @@ if __name__ == '__main__':
         # episodes = convert_traj_to_episodes(tf)
         # plot_trajs(episodes, title=sub, save_file_path=f'../../figs/samples_from_data/{sub}_trajs')
 
-    ee_dict = {}
-    for sub in p.UnrewNamesSub[:1]:
-        a = plot_markov_fit_pooling(LoadTrajFromPath(OUTDATA_PATH + f'{sub}-tf'), sub, re=False, display=True)
-        ee_dict[sub] = a
-
-    print(ee_dict)
+    # ee_dict = {}
+    # for sub in p.UnrewNamesSub[:1]:
+    #     a = plot_markov_fit_pooling(LoadTrajFromPath(OUTDATA_PATH + f'{sub}-tf'), sub, re=False, display=True)
+    #     ee_dict[sub] = a
+    #
+    # print(ee_dict)
