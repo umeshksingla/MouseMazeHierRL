@@ -1,16 +1,17 @@
 """
-EZgreedy and Custom fused: Written in options framework
+EZgreedy with brute force long actions
+
+Only for unrewarded case.
 """
 import numpy as np
 import random
-import matplotlib.pyplot as plt
 
 import parameters as p
 from BaseModel import BaseModel
 from utils import get_parent_node, connect_path_node, get_children, get_opp_child
 
 
-class Final(BaseModel):
+class EZBruteForceLongActions(BaseModel):
 
     def __init__(self, file_suffix='_FinalTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
@@ -85,7 +86,6 @@ class Final(BaseModel):
     def generate_exploration_episode(self, MAX_LENGTH, Q):
 
         self.nodemap[p.WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
-        # print(self.nodemap)
 
         a = None  # Take action 1 at HOME NODE
         print("Starting at", self.s)
@@ -143,11 +143,7 @@ if __name__ == '__main__':
     from sample_agent import run, load
 
     param_sets = [
-                     {"epsilon": 0.4, "mu": 2, 'model': 'Final'}
-                 ] * 3
-    runids = run(Final(), param_sets, '/Users/usingla/mouse-maze/figs', '40000')
+                     {"epsilon": 0.3, "mu": 2, 'model': 'EZBruteForceLongActions', 'rew': False}
+                 ]
+    runids = run(EZBruteForceLongActions(), param_sets, '/Users/usingla/mouse-maze/figs', '40000')
     print(runids)
-    base_path = '/Users/usingla/mouse-maze/figs/'
-    load([
-        ('Final', runids)
-    ], base_path)
