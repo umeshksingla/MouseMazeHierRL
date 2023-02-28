@@ -1,19 +1,17 @@
 """
-EpsilonZGreedy model from Dabney et al 2020.
+Direct implementation of EpsilonZGreedy model from Dabney et al 2020 where we treat sampling greedy and random action as
+ distinct even though greedy essentially samples an action at random anyway in case of no reward. For e=0.3, gives good results
+ but lower efficiency for e=1.0
+
+- Uses alternate definition for a straight action
+- Only for unrewarded animals
+- If not duration or invalid, sample epsilon for greedy vs random. Else follow prev action.
 """
-import os
+
 import numpy as np
-import random
-from collections import deque
-import matplotlib.pyplot as plt
 
 import parameters as p
-import utils
 from BaseModel import BaseModel
-from EpsilonGreedy_model import EpsilonGreedy
-from utils import calculate_visit_frequency, calculate_normalized_visit_frequency, \
-    calculate_normalized_visit_frequency_by_level
-import evaluation_metrics as em
 
 
 class EpsilonZGreedy(BaseModel):
@@ -41,7 +39,6 @@ class EpsilonZGreedy(BaseModel):
         # print("s", self.s, "valid act", self.get_valid_actions(self.s))
 
         if self.s == p.HOME_NODE:
-            # See https://www.notion.so/umeshksingla/original-ez-greedy-8eeb7d4a49104f52a6ba0a05c60ea6cd
             self.duration = 0
             return 1, 1.0
 
@@ -55,15 +52,13 @@ class EpsilonZGreedy(BaseModel):
             if np.random.random() <= self.epsilon:
                 self.duration = self.sample_duration()
                 action = self.__random_action__(self.s)
-                # self.duration -= 1
-                # print(f"epsilon curr={self.s} sampled_dur={self.duration} action chosen = {action}")
+                self.duration -= 1
             else:
                 action = self.__random_action__(self.s)
                 self.duration = 0
-                # print(f"random curr={self.s} left_dur={self.duration} action chosen = {action}")
-            if self.s in p.LVL_6_NODES:
-                self.sampled_durations.append(self.duration)
         else:
+
+            # # Experiments with limited memory at corners etc
             # if (self.prev_s in p.LVL_6_NODES) and (self.s in p.LVL_5_NODES):
             #     assert utils.get_parent_node(self.prev_s) == self.s
             #     opp_c = utils.get_the_other_children(self.s, self.prev_s)
@@ -126,12 +121,12 @@ class EpsilonZGreedy(BaseModel):
         # print(episode_maze_trajs)
 
         # plot durations sampled
-        d_values = np.array(self.sampled_durations)
-        unique, counts = np.unique(d_values, return_counts=True)
-        print("unique, counts raw", unique, counts)
-        n, bins, patches = plt.hist(d_values[d_values<30], bins=150, density=True, facecolor='blue', alpha=0.5)
-        plt.title(f'mu={self.mu}')
-        plt.savefig(f'../../figs/duration-mu={self.mu}_l6.png')
+        # d_values = np.array(self.sampled_durations)
+        # unique, counts = np.unique(d_values, return_counts=True)
+        # print("unique, counts raw", unique, counts)
+        # n, bins, patches = plt.hist(d_values[d_values<30], bins=150, density=True, facecolor='blue', alpha=0.5)
+        # plt.title(f'mu={self.mu}')
+        # plt.savefig(f'../../figs/duration-mu={self.mu}_l6.png')
         # plt.show()
         return True, episode_state_trajs, episode_maze_trajs, 0.0
 
@@ -208,7 +203,11 @@ if __name__ == '__main__':
         # {"epsilon": 1, "mu": 1.4, "memory_l5": 'absent'},
         # {"epsilon": 1, "mu": 1.6, "memory_l5": 'absent'},
         # {"epsilon": 1, "mu": 1.8, "memory_l5": 'absent'},
-        {"epsilon": 0.3, "mu": 2,  'model': 'Levy'},
+        # {"epsilon": 1, "mu": 1.6, 'rew': False, 'model': 'Levy'},
+        # {"epsilon": 1, "mu": 1.8, 'rew': False, 'model': 'Levy'},
+        {"epsilon": 0.3, "mu": 2, 'rew': False, 'model': 'Levy'},
+        # {"epsilon": 1, "mu": 2.2, 'rew': False, 'model': 'Levy'},
+        # {"epsilon": 1, "mu": 2.4, 'rew': False, 'model': 'Levy'},
         # {"epsilon": 0.6, "mu": 2, "memory_l5": 'absent'},
         # {"epsilon": 0.6, "mu": 2, "memory_l5": 'absent'},
         # {"epsilon": 1, "mu": 2.2, "memory_l5": 'absent'},
@@ -227,9 +226,9 @@ if __name__ == '__main__':
         # {"epsilon": 0.3, "mu": 2},
 
     ]
-    runids = run(EpsilonZGreedy(), param_sets, '/Users/usingla/mouse-maze/figs', '39999')
+    runids = run(EpsilonZGreedy(), param_sets, '/Users/usingla/mouse-maze/figs', '35001')
     print(runids)
-    base_path = '/Users/usingla/mouse-maze/figs/'
-    load([
-        ('EpsilonZGreedy', runids)
-    ], base_path)
+    # base_path = 'base_path/Userssers/usingla/mouse-maze/figs/'
+    # load([
+    #     ('Levy', runids)
+    # ], base_path)
