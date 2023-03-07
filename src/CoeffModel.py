@@ -8,7 +8,6 @@ import random
 
 from parameters import *
 from BaseModel import BaseModel
-from regression import NodeMaze
 from scipy.special import logsumexp
 from actions import actions_node_matrix
 from maze_spatial_mapping import CELL_XY, NODE_CELL_MAPPING
@@ -21,6 +20,7 @@ from scipy.special import log_softmax, softmax
 
 LOW_VAL = -9999999
 
+
 class CoeffModel(BaseModel):
 
     def __init__(self, file_suffix='_coeffTrajectories'):
@@ -30,7 +30,6 @@ class CoeffModel(BaseModel):
         self.episode_state_traj = [0, random.choice([1, 2]), 0, random.choice([1, 2]), 0]
         self.s = self.episode_state_traj[-1]
         self.prev_s = self.episode_state_traj[-2]
-        self.nodemaze = NodeMaze()
         self.actions_node_matrix = actions_node_matrix
 
     name = 'coeff'
@@ -145,11 +144,12 @@ class CoeffModel(BaseModel):
 if __name__ == '__main__':
     from sample_agent import run
     param_sets = {
-        1: {'coef': [0.05, 0.23, 0.19, -0.15, 0.13], 'model': 'B5coeffs'},
-        2: {'coef': [-0.1, 0.08, 0.4, -0.27, 0.22], 'model': 'B6coeffs'},
+        # 1: {'coef': [0.05, 0.23, 0.19, -0.15, 0.13], 'model': 'B5coeffs'},
+        # 2: {'coef': [-0.1, 0.08, 0.4, -0.27, 0.22], 'model': 'B6coeffs'},
+        1: {'coef': [0.5, 0.0, 0.5, 0.0], 'model': 'randomcoeffs'},
         # 2: {'back_prob': 0.2},
         # 2: {'back_prob': 0.3},
         # 3: {'back_prob': 0.2},
     }
-    run(CoeffModel(), param_sets, '/Users/usingla/mouse-maze/figs', '20001_l5')
+    run(CoeffModel(), param_sets, '/Users/usingla/mouse-maze/figs', '20000_random')
 
