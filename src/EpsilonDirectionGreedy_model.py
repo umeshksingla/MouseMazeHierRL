@@ -1,6 +1,10 @@
 """
 EpsilonDirectionGreedy model from Dabney et al 2020.
+
+- Sampling direction and/or duration, and following the direction with varying priorities
+
 """
+
 import os
 import numpy as np
 import random
@@ -410,25 +414,17 @@ class EpsilonDirectionGreedy(EpsilonGreedy):
         all_episodes_state_trajs = []
         all_episodes_pos_trajs = []
         LL = 0.0
-        while len(all_episodes_state_trajs) < N_BOUTS_TO_GENERATE:
-            _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(MAX_LENGTH, Q)
-            all_episodes_state_trajs.extend(episode_state_trajs)
-            all_episodes_pos_trajs.extend(episode_maze_trajs)
-            LL += episode_ll
+        _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(MAX_LENGTH, Q)
+        all_episodes_state_trajs.extend(episode_state_trajs)
+        all_episodes_pos_trajs.extend(episode_maze_trajs)
         stats = {
             "agentId": agentId,
             "episodes_states": all_episodes_state_trajs,
             "episodes_positions": all_episodes_pos_trajs,
             "LL": LL,
             "MAX_LENGTH": MAX_LENGTH,
-            "count_total": len(all_episodes_state_trajs),
             "Q": Q,
             "V": self.get_maze_state_values_from_action_values(Q),
-            "exploration_efficiency": em.exploration_efficiency(all_episodes_state_trajs, re=False),
-            "visit_frequency": calculate_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency": calculate_normalized_visit_frequency(all_episodes_state_trajs),
-            "normalized_visit_frequency_by_level": calculate_normalized_visit_frequency_by_level(
-                all_episodes_state_trajs)
         }
         return success, stats
 

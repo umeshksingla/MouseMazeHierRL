@@ -226,7 +226,7 @@ def get_unrewarded_ee(half=0, le=6):
     """
     Returns unrewarded animals' pre-computed exploration efficiency
     """
-    with open(OUTDATA_PATH + f'ee_unrewarded_le={le}_half={half}pkl', 'rb') as f:
+    with open(OUTDATA_PATH + f'ee_unrewarded_le={le}_half={half}.pkl', 'rb') as f:
         d = pickle.load(f)
     return d
 

@@ -69,8 +69,8 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
     # print("state_hist_xy", state_hist_xy)
     if episode_idx == 'all':
         for id, epi in enumerate(state_hist_xy):
-            x = state_hist_xy[epi][:,0]
-            y = state_hist_xy[epi][:,1]
+            x = epi[:,0]
+            y = epi[:,1]
             t = np.linspace(0,1,x.shape[0]) # your "time" variable
 
             # set up a list of (x,y) points
@@ -501,7 +501,8 @@ def plot_exploration_efficiency(tfs_labels, re, half=0, le=6, title='', save_fil
     :param re: True for rewarded animals, False for unrewarded (i.e. if you want
     to treat a visit to 116 as rewarded then True. If there is no reward and it's
     only exploration, keep it False).
-    :param half: 'separate' if two halves, 0 if all night, 1 if only first half, 2 if only second half
+    :param half: 'separate' if plot two halves separately on one plot, 0 if all night,
+    1 if only first half, 2 if only second half
     """
 
     if re:
@@ -516,7 +517,9 @@ def plot_exploration_efficiency(tfs_labels, re, half=0, le=6, title='', save_fil
         else:
             ee_dict = em.get_unrewarded_ee(h, le)
             animal_lbl = p.UNREW_ANIMALS_PLOT_LABEL
-        return ee_dict, animal_lbl + f'-h{h}'
+        if h != 0:
+            animal_lbl = animal_lbl + f'-h{h}'
+        return ee_dict, animal_lbl
 
     def plot_animal_ee(ee_dict, lbl, linestyle, alpha):
         c, n, _ = ee_dict[animal_set[0]]  # plot one animal (to get the legend right)
@@ -557,7 +560,10 @@ def plot_exploration_efficiency(tfs_labels, re, half=0, le=6, title='', save_fil
             plt.plot(c, n, f'{p.COLORS[i]}o-', alpha=0.5, label=(label if label else f'agent {i}') + '-h2')
         else:
             c, n, _ = em.exploration_efficiency(tf, re=re, le=le, half=half)
-            plt.plot(c, n, f'{p.COLORS[i]}o-', label=(label if label else f'agent {i}') + f'-h{half}')
+            agent_label = label if label else f'agent {i}'
+            if half != 0:
+                agent_label = agent_label + f'-h{half}'
+            plt.plot(c, n, f'{p.COLORS[i]}o-', label=agent_label)
 
     plt.xscale('log', base=10)
     plt.title(f'Exploration Efficiency Level {le} \n{title}')
@@ -1255,11 +1261,11 @@ def plot_reward_path_lengths(tfs_labels, title, save_file_path=None, dots=True, 
     tf, label = tfs_labels[0]
     episodes = convert_traj_to_episodes(tf)
     visit_reward_node, time_reward_node = get_reward_times(episodes)
-    # if dots:
-    #     plt.plot(time_reward_node, 'b.', label='Steps to reward')
-    # else:
-    #     plt.plot(time_reward_node, 'b-', label='Steps to reward')
-    plt.hist(time_reward_node)
+    if dots:
+        plt.plot(time_reward_node, 'b.', label='Steps to reward')
+    else:
+        plt.plot(time_reward_node, 'b-', label='Steps to reward')
+    # plt.hist(time_reward_node)
     plt.legend()
     plt.title(title)
     plt.xlabel("reward")
@@ -1395,7 +1401,7 @@ def plot_visit_freq_by_level(tfs_labels, re=False, title='', save_file_path=None
     animal_lbl = p.REW_ANIMALS_PLOT_LABEL if re else p.UNREW_ANIMALS_PLOT_LABEL
 
     plt.figure()
-    plot_level = "level"
+    plot_level = "Level"
 
     # animal data
     tf = LoadTrajFromPath(OUTDATA_PATH + f'{animal_set[0]}-tf')  # plot one animal (to get the legend right)
@@ -1422,12 +1428,12 @@ def plot_visit_freq_by_level(tfs_labels, re=False, title='', save_file_path=None
 
     plt.title(f'Normalized visit frequency by level\n{title}')
     plt.xlabel(plot_level)
-    plt.ylabel(f"fraction of visits to each level")
+    plt.ylabel(f"Fraction of visits to each level")
     plt.legend(loc='upper left')
     plt.ylim([0.0, 0.4])
     if save_file_path:
         os.makedirs(save_file_path, exist_ok=True)
-        plt.savefig(os.path.join(save_file_path, f'visit_frequency_by_level_plot.png'))
+        plt.savefig(os.path.join(save_file_path, f'norm_visit_frequency_by_level_plot.png'))
     if display:
         plt.show()
     plt.clf()

@@ -4,7 +4,7 @@ COLORS = 'rcmygk'
 ANIMAL_COLOR = 'b'
 
 REW_ANIMALS_PLOT_LABEL = 'rew_mice'
-UNREW_ANIMALS_PLOT_LABEL = 'unrew_mice'
+UNREW_ANIMALS_PLOT_LABEL = 'animals'
 
 # Constants
 UNRWD_NAMES = ['B5','B6','B7','D3','D4','D5','D6','D7','D8','D9']

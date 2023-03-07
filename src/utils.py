@@ -146,24 +146,27 @@ def get_SAnodemap():
     return SAnodemap
 
 
-def nodes2cell(state_hist_all):
+def nodes2cell(state_hist_all, zigzag=True):
     '''
-    param state_hist_all:
+    param state_hist_all:  [[nodes], [], ...]
+    param zigzag: if the resulting cell traj needs to be a bit noisy or straight
     '''
     state_hist_cell = []
-    state_hist_xy = {}
+    state_hist_xy = []
     ma=NewMaze(6)
     for epID, epi in enumerate(state_hist_all):
         cells = []
         if not len(epi):
             continue
-        for i in range(len(epi)):
+        cells.extend([ma.ru[epi[0]][-1]])
+        for i in range(1, len(epi)):
             node = epi[i]
             if node == HOME_NODE:
                 assert i == len(epi)-1
                 break
             if node == RWD_STATE: continue
-            if (i == 0 and node == 0) or node > epi[i-1]:
+            # if (i == 0 and node == 0) or node > epi[i-1]:
+            if node > epi[i-1]:
                 # if going to a deeper node
                 cells.extend(ma.ru[node])
             elif node < epi[i-1]:
@@ -175,9 +178,16 @@ def nodes2cell(state_hist_all):
             home_path = list(reversed(ma.ru[0]))
             cells.extend(home_path[1:])  # cells from node 0 to maze exit
         state_hist_cell.append(cells)
-        state_hist_xy[epID] = np.zeros((len(cells),2))
-        state_hist_xy[epID][:,0] = ma.xc[cells] + np.random.choice([-1,1],len(ma.xc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.xc[cells]))/2
-        state_hist_xy[epID][:,1] = ma.yc[cells] + np.random.choice([-1,1],len(ma.yc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.yc[cells]))/2
+
+        a = np.zeros((len(cells),2))
+        if zigzag:
+            a[:,0] = ma.xc[cells] + np.random.choice([-1,1],len(ma.xc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.xc[cells]))/2
+            a[:,1] = ma.yc[cells] + np.random.choice([-1,1],len(ma.yc[cells]),p=[0.5,0.5])*np.random.rand(len(ma.yc[cells]))/2
+        else:
+            a[:,0] = ma.xc[cells]
+            a[:,1] = ma.yc[cells]
+        state_hist_xy.append(a)
+
     return state_hist_cell, state_hist_xy
 
 
@@ -264,6 +274,7 @@ def break_simulated_traj_into_episodes(maze_episode_traj):
 
 
 def get_reward_times(episodes):
+    raise NotImplementedError
     """
     Steps taken to reach the reward which is assumed to be the last node of an
     episode

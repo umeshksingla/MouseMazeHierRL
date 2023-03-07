@@ -56,8 +56,8 @@ class BiasedWalk4(BaseModel):
 # Driver Code
 if __name__ == '__main__':
     from sample_agent import run, load
-    param_sets = [{}, {}]
-    runids = run(BiasedWalk4(), param_sets, '/Users/usingla/mouse-maze/figs', '29999')
+    param_sets = [{'rew': True}]
+    runids = run(BiasedWalk4(), param_sets, '/Users/usingla/mouse-maze/figs', '35000')
     print(runids)
     base_path = '/Users/usingla/mouse-maze/figs/'
     load([
