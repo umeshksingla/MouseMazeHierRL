@@ -1,18 +1,19 @@
 """
-EZgreedy and Custom fused: Written using options framework for level 6 choices
+Levy+IS: Written in terms of options at level 6 but specified alternate at other levels
 """
+
 import numpy as np
 import random
-import matplotlib.pyplot as plt
 
 import parameters as p
 from BaseModel import BaseModel
 from utils import get_parent_node, connect_path_node, get_children, get_opp_child, get_parent_node_x_level_up
+from options_pre import options_dict, straight_options_dict
 
 
-class Final2(BaseModel):
+class LWIS_optl6_alternate(BaseModel):
 
-    def __init__(self, file_suffix='_Final2Trajectories'):
+    def __init__(self, file_suffix='_LWISOptL6AlternateTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
         self.sampled_durations = []
         self.duration = 0  # self.sample_duration()
@@ -30,73 +31,40 @@ class Final2(BaseModel):
         return np.random.choice(actions)
 
     def make_it_go_to(self, target_node):
-        path = connect_path_node(self.s, target_node)[1:]
-        for n in path:
+
+        temp_start_node = self.s
+        temp_target_node = target_node
+        if self.s == p.HOME_NODE:
+            temp_start_node = 0
+        if target_node == p.HOME_NODE:
+            temp_target_node = 0
+
+        path = connect_path_node(temp_start_node, temp_target_node)
+
+        if self.s == p.HOME_NODE:
+            path = [p.HOME_NODE] + path
+
+        for n in path[1:]:
             self.episode_state_traj.append(n)
-            self.s = self.episode_state_traj[-1]
-            self.prev_s = self.episode_state_traj[-2]
+
+        if target_node == p.HOME_NODE:
+            self.episode_state_traj.append(target_node)
+        self.s = self.episode_state_traj[-1]
         return
 
-    def options_at_level_6(self, d):
-        """
-        Defines path options the agent has in all directions for a certain path length d. If the path length is longer
-        than a possible path in the maze in a certain direction, it is still considered as one option because we can
-        operate under the assymption that animals do not have an estimate of how far along a certain direction is
-        reachable.
-        """
-        assert d >= 1
-        choices = {
-            '1': [
-                get_parent_node_x_level_up(self.s, x=1)
-            ],
-            '2': [
-                get_parent_node_x_level_up(self.s, x=2),
-                get_opp_child(self.s)
-            ],
-            '3': [
-                get_opp_child(self.s),  # len 2
+    def sample_option(self):
+        assert self.s in p.LVL_6_NODES
+        assert self.duration >= 1
+        if self.duration >= 9: self.duration = 9
+        options_available = self.l6_options_dict[str(self.s)][str(self.duration)]
+        print("options_available", options_available)
+        return random.choice(options_available)
 
-                get_parent_node_x_level_up(self.s, x=3),
-                get_opp_child(get_parent_node(self.s))
-            ],
-            '4': [
-                get_opp_child(self.s),  # len 2
-
-                get_parent_node_x_level_up(self.s, x=4),
-                *get_children(get_opp_child(get_parent_node(self.s))),
-                get_opp_child(get_parent_node_x_level_up(self.s, x=2))
-            ],
-            '5': [
-                get_opp_child(self.s),  # len 2
-                *get_children(get_opp_child(get_parent_node(self.s))),  # len 4
-
-                get_parent_node_x_level_up(self.s, x=5),
-                get_opp_child(get_parent_node_x_level_up(self.s, x=3)),
-                *get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=2)))
-            ],
-            '6': [
-
-                get_opp_child(self.s),  # 2
-                *get_children(get_opp_child(get_parent_node(self.s))),  # 4
-
-                get_parent_node_x_level_up(self.s, x=6),
-                get_opp_child(get_parent_node_x_level_up(self.s, x=4)),
-                *get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=3))),
-                *get_children(get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=2)))[0]),
-                *get_children(get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=2)))[1])
-            ],
-            '>=7': [
-                p.HOME_NODE,
-                *get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=4))),
-                get_opp_child(get_parent_node_x_level_up(self.s, x=5)),
-                *get_children(get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=3)))[0]),
-                *get_children(get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=3)))[1]),
-                *get_children(get_opp_child(get_parent_node_x_level_up(self.s, x=5)))
-            ]
-        }
-
-        options = choices[str(d) if d <= 6 else '>=7']
-        return random.choice(options)
+    def execute_option(self, seq):
+        print("seq", seq)
+        self.episode_state_traj.extend(seq[1:])
+        self.s = seq[-1]
+        return
 
     def choose_action(self, Q, *args, **kwargs):
 
@@ -114,7 +82,7 @@ class Final2(BaseModel):
                 self.duration = 1
 
             if self.s in p.LVL_6_NODES:
-                self.make_it_go_to(self.options_at_level_6(self.duration))   # composite actions
+                self.execute_option(self.sample_option())   # composite actions
                 self.duration = 1
                 action = None
             else:
@@ -131,7 +99,6 @@ class Final2(BaseModel):
     def generate_exploration_episode(self, MAX_LENGTH, Q):
 
         self.nodemap[p.WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
-        # print(self.nodemap)
 
         a = None  # Take action 1 at HOME NODE
         print("Starting at", self.s)
@@ -163,6 +130,14 @@ class Final2(BaseModel):
 
         self.mu = params["mu"]
         self.epsilon = params["epsilon"]
+        self.l6_options_type = params['l6options']
+
+        if self.l6_options_type == 'all':
+            self.l6_options_dict = options_dict
+        elif self.l6_options_type == 'straight':
+            self.l6_options_dict = straight_options_dict
+        else:
+            raise Exception('Invalid set of options for L6 specified.')
 
         Q = np.zeros((self.S, self.A))  # Initialize state values
         Q[p.HOME_NODE, :] = 0
@@ -196,22 +171,23 @@ if __name__ == '__main__':
     #     {"epsilon": 0.7, "mu": 2, 'model': 'ezg-custom'}
     # ]
 
-    # param_sets = [
-    #     {"epsilon": 1.0, "mu": 1.9, 'model': 'ezg-custom'},
-    #     {"epsilon": 1.0, "mu": 1.95, 'model': 'ezg-custom'},
-    #     {"epsilon": 1.0, "mu": 2, 'model': 'ezg-custom'},
-    #     {"epsilon": 1.0, "mu": 2.05, 'model': 'ezg-custom'},
-    #     {"epsilon": 1.0, "mu": 2.1, 'model': 'ezg-custom'}
-    # ]
+    param_sets = [
+        # {"epsilon": 1.0, "mu": 1.9, 'model': 'ezg-custom'},
+        # {"epsilon": 1.0, "mu": 1.95, 'model': 'ezg-custom'},
+        {"epsilon": 1.0, "mu": 2, 'l6options': 'straight', 'rew': False},
+        {"epsilon": 1.0, "mu": 2, 'l6options': 'all', 'rew': False},
+        # {"epsilon": 1.0, "mu": 2.05, 'model': 'ezg-custom'},
+        # {"epsilon": 1.0, "mu": 2.1, 'model': 'ezg-custom'}
+    ]
 
-    # runids = run(Final2(), param_sets, '/Users/usingla/mouse-maze/figs', '40000', analyze=True)
-    # print(runids)
-    base_path = '/Users/usingla/mouse-maze/figs/'
+    runids = run(LWIS_optl6_alternate(), param_sets, '/Users/usingla/mouse-maze/figs', '35000', analyze=True)
+    print(runids)
+    # base_path = '/Users/usingla/mouse-maze/figs/'
 
-    load([
-        ('BiasedWalk4', [50173]),
-        ('ezg-custom', [52979, 232725, 587308])   # varying epsilon
-    ], base_path)
+    # load([
+    #     ('BiasedWalk4', [50173]),
+    #     ('ezg-custom', [52979, 232725, 587308])   # varying epsilon
+    # ], base_path)
     #
     # load([
     #     ('BiasedWalk4', [50173]),
