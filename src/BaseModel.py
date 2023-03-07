@@ -319,7 +319,7 @@ class BaseModel:
     def test_traj(traj):
         for i, j in zip(traj, traj[1:]):
             assert i != j
-            assert (i in get_children(j)) or (i == get_parent_node(j)) or (i == HOME_NODE) or (j == HOME_NODE)
+            assert (i in get_children(j)) or (i == get_parent_node(j)) or (i in [HOME_NODE, RWD_STATE]) or (j in [HOME_NODE, RWD_STATE])
         return
 
     def test_episodes(self, episode_state_traj):
