@@ -11,7 +11,7 @@ from utils import get_parent_node, connect_path_node, get_children, get_opp_chil
 from options_pre import options_dict, straight_options_dict
 
 
-class LWIS_optl6_alternate(BaseModel):
+class LWISOptL6Alternate(BaseModel):
 
     def __init__(self, file_suffix='_LWISOptL6AlternateTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
@@ -166,21 +166,12 @@ class LWIS_optl6_alternate(BaseModel):
 if __name__ == '__main__':
     from sample_agent import run, load
 
-    # param_sets = [
-    #     {"epsilon": 0.8, "mu": 2, 'model': 'ezg-custom'},
-    #     {"epsilon": 0.7, "mu": 2, 'model': 'ezg-custom'}
-    # ]
-
     param_sets = [
-        # {"epsilon": 1.0, "mu": 1.9, 'model': 'ezg-custom'},
-        # {"epsilon": 1.0, "mu": 1.95, 'model': 'ezg-custom'},
-        {"epsilon": 1.0, "mu": 2, 'l6options': 'straight', 'rew': False},
-        {"epsilon": 1.0, "mu": 2, 'l6options': 'all', 'rew': False},
-        # {"epsilon": 1.0, "mu": 2.05, 'model': 'ezg-custom'},
-        # {"epsilon": 1.0, "mu": 2.1, 'model': 'ezg-custom'}
+        # {"epsilon": 1.0, "mu": 2, 'l6options': 'straight', 'rew': False},
+        {"epsilon": 1.0, "mu": 2, 'l6options': 'all', 'rew': True},
     ]
 
-    runids = run(LWIS_optl6_alternate(), param_sets, '/Users/usingla/mouse-maze/figs', '35000', analyze=True)
+    runids = run(LWISOptL6Alternate(), param_sets, '/Users/usingla/mouse-maze/figs', '35000', analyze=True)
     print(runids)
     # base_path = '/Users/usingla/mouse-maze/figs/'
 
