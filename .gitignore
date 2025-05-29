@@ -11,3 +11,4 @@ TDlambdaXsteps_stan/traj_data/
 TDlambdaXsteps_stan/stan_results/
 outdata/*Split3*
 src/outputs
+outdata

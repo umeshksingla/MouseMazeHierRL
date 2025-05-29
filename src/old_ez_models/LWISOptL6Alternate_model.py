@@ -8,7 +8,7 @@ import random
 import parameters as p
 from BaseModel import BaseModel
 from utils import get_parent_node, connect_path_node, get_children, get_opp_child, get_parent_node_x_level_up
-from options_pre import options_dict, straight_options_dict
+from options_pre import all_options_dict, straight_options_dict
 
 
 class LWISOptL6Alternate(BaseModel):
@@ -56,7 +56,8 @@ class LWISOptL6Alternate(BaseModel):
         assert self.s in p.LVL_6_NODES
         assert self.duration >= 1
         if self.duration >= 9: self.duration = 9
-        options_available = self.l6_options_dict[str(self.s)][str(self.duration)]
+        # options_available = self.l6_options_dict[str(self.s)][str(self.duration)]
+        options_available = self.l6_options_dict[self.s][self.duration]
         print("options_available", options_available)
         return random.choice(options_available)
 
@@ -82,18 +83,21 @@ class LWISOptL6Alternate(BaseModel):
                 self.duration = 1
 
             if self.s in p.LVL_6_NODES:
+                self.duration = min(self.duration, 3)
                 self.execute_option(self.sample_option())   # composite actions
                 self.duration = 1
                 action = None
             else:
                 action = self.__random_action__(self.s)
         else:
-            action = (3 - prev_action) % 3
+            # action = (3 - prev_action) % 3
+            action = prev_action
         self.duration -= 1
         return action
 
     def sample_duration(self):
         d = np.random.zipf(a=self.mu)
+        # d = np.random.randint(1, 4)
         return d
 
     def generate_exploration_episode(self, MAX_LENGTH, Q):
@@ -133,16 +137,13 @@ class LWISOptL6Alternate(BaseModel):
         self.l6_options_type = params['l6options']
 
         if self.l6_options_type == 'all':
-            self.l6_options_dict = options_dict
+            self.l6_options_dict = all_options_dict
         elif self.l6_options_type == 'straight':
             self.l6_options_dict = straight_options_dict
         else:
             raise Exception('Invalid set of options for L6 specified.')
 
         Q = np.zeros((self.S, self.A))  # Initialize state values
-        Q[p.HOME_NODE, :] = 0
-        if self.S == 129:
-            Q[p.RWD_STATE, :] = 0
 
         _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(MAX_LENGTH, Q)
         stats = {
@@ -152,32 +153,26 @@ class LWISOptL6Alternate(BaseModel):
             "LL": 0.0,
             "MAX_LENGTH": MAX_LENGTH,
             "Q": Q,
-            "V": self.get_maze_state_values_from_action_values(Q),
+            "V": np.zeros(self.S),
         }
         return success, stats
-
-    def get_maze_state_values_from_action_values(self, Q):
-        """
-        Get state values to plot against the nodes on the maze
-        """
-        return np.array([np.max([Q[n, a_i] for a_i in self.get_valid_actions(n)]) for n in np.arange(self.S)])
 
 
 if __name__ == '__main__':
     from sample_agent import run, load
 
     param_sets = [
-        # {"epsilon": 1.0, "mu": 2, 'l6options': 'straight', 'rew': False},
-        {"epsilon": 1.0, "mu": 2, 'l6options': 'all', 'rew': True},
+        {"epsilon": 1.0, "mu": 2, 'l6options': 'straight', 'rew': False},
     ]
 
-    runids = run(LWISOptL6Alternate(), param_sets, '/Users/usingla/mouse-maze/figs', '35000', analyze=True)
+    base_path = '/Users/us3519/mouse-maze/figs/'
+
+    runids = run(LWISOptL6Alternate(), param_sets, base_path, '50000', analyze=True)
     print(runids)
-    # base_path = '/Users/usingla/mouse-maze/figs/'
 
     # load([
-    #     ('BiasedWalk4', [50173]),
-    #     ('ezg-custom', [52979, 232725, 587308])   # varying epsilon
+    #     ('BiasedWalk4', [927154]),
+    #     ('LWISOptL6Alternate', [923050])   # varying epsilon
     # ], base_path)
     #
     # load([

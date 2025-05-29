@@ -6,8 +6,8 @@ import random
 
 import parameters as p
 from BaseModel import BaseModel
-from utils import get_parent_node, connect_path_node, get_children, get_opp_child, get_parent_node_x_level_up
-from options_pre import options_dict, straight_options_dict
+from utils import connect_path_node
+from options_pre import all_options_dict, straight_options_dict
 
 
 class LWIS_options(BaseModel):
@@ -29,13 +29,13 @@ class LWIS_options(BaseModel):
     #     actions = self.get_valid_actions(state)
     #     return np.random.choice(actions)
 
-    def make_it_go_to(self, target_node):
-        print(self.s, target_node)
-        path = connect_path_node(self.s, target_node)[1:]
-        for n in path:
-            self.episode_state_traj.append(n)
-            self.s = self.episode_state_traj[-1]
-        return
+    # def make_it_go_to(self, target_node):
+    #     print(self.s, target_node)
+    #     path = connect_path_node(self.s, target_node)[1:]
+    #     for n in path:
+    #         self.episode_state_traj.append(n)
+    #         self.s = self.episode_state_traj[-1]
+    #     return
 
     def options_any_level(self, s, d):
 
@@ -45,14 +45,11 @@ class LWIS_options(BaseModel):
         assert d >= 1
         if d >= 9: d = 9
 
-        # if p.LVL_BY_NODE[s] == 6:
-        #     d = random.choice([1, 2])
-
-        return self.options_dict[str(s)][str(d)]
-
-    # @staticmethod
-    # def options_all(s):
-    #     return options_dict[str(s)]
+        if p.LVL_BY_NODE[s] == 6:
+            # d = random.choice([1, 2])
+            return self.l6_options_dict[s][d]
+        else:
+            return self.options_dict[s][d]
 
     def choose_option(self, Q):
 
@@ -74,7 +71,7 @@ class LWIS_options(BaseModel):
             # option_i = np.argmax(Q[self.s][self.duration])  # greedy for now
             # seq = options[option_i]
             # print("greedy seq", seq)
-        return seq
+        return list(seq)
 
     def sample_duration(self):
         d = np.random.zipf(a=self.mu)
@@ -101,13 +98,6 @@ class LWIS_options(BaseModel):
             #     # Record current state
             #     self.episode_state_traj.append(self.s)
 
-            # R = 1 if self.s == p.WATERPORT_NODE else 0
-            # td_error = R + 0.99 * V[s_next] - V[s]
-            # et[s] += 1
-            # for node in np.arange(self.S - 1):  # RWD_STATE is never eligible (i.e. et=0), hence no need to include it
-            #     V[node] += alpha * td_error * et[node]
-            #     et[node] = gamma * lamda * et[node]
-
             if len(self.episode_state_traj) % 2000 == 0:
                 print("current state", self.s, "step", len(self.episode_state_traj))
 
@@ -128,13 +118,21 @@ class LWIS_options(BaseModel):
         self.mu = params["mu"]
         self.epsilon = params["epsilon"]
         self.options_type = params['options']
+        self.l6_options_type = params['l6options']
 
         if self.options_type == 'all':
-            self.options_dict = options_dict
+            self.options_dict = all_options_dict
         elif self.options_type == 'straight':
             self.options_dict = straight_options_dict
         else:
             raise Exception('Invalid set of options specified.')
+
+        if self.l6_options_type == 'all':
+            self.l6_options_dict = all_options_dict
+        elif self.l6_options_type == 'straight':
+            self.l6_options_dict = straight_options_dict
+        else:
+            raise Exception('Invalid set of options for L6 specified.')
 
         Q = dict.fromkeys(range(self.S))
         # for n in range(self.S):
@@ -179,13 +177,13 @@ if __name__ == '__main__':
         # {"epsilon": 1.0, "mu": 1.9, 'model': 'ezg-custom'},
         # {"epsilon": 1.0, "mu": 1.95, 'model': 'ezg-custom'},
         # {"epsilon": 1.0, "mu": 2, 'model': 'final2', 'options': 'straight',  'rew': False},
-        {"epsilon": 1.0, "mu": 2, 'options': 'all', 'rew': False},
-        {"epsilon": 1.0, "mu": 2, 'options': 'straight', 'rew': False},
+        {"epsilon": 1.0, "mu": 2, 'options': 'straight', 'l6options': 'all', 'rew': False},
+        # {"epsilon": 1.0, "mu": 2, 'options': 'straight', 'rew': False},
         # {"epsilon": 1.0, "mu": 2.05, 'model': 'ezg-custom'},
         # {"epsilon": 1.0, "mu": 2.1, 'model': 'ezg-custom'}
     ]
 
-    runids = run(LWIS_options(), param_sets, '/Users/usingla/mouse-maze/figs', '35000', analyze=True)
+    runids = run(LWIS_options(), param_sets, '/Users/us3519/mouse-maze/figs', '50000', analyze=True)
     print(runids)
     # base_path = '/Users/usingla/mouse-maze/figs/'
     # load([

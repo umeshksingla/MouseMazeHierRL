@@ -20,7 +20,7 @@ def info(title):
 
 class TD_UCBpolicy(BaseModel):
 
-    def __init__(self, file_suffix='_Epsilon3GreedyTrajectories'):
+    def __init__(self, file_suffix='_TD_UCBpolicyTrajectories'):
         BaseModel.__init__(self, file_suffix=file_suffix)
 
     def get_action_probabilities(self, state, beta, V):

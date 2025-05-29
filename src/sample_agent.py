@@ -8,22 +8,20 @@ import glob
 import re
 
 from plot_utils import plot_trajs, plot_episode_lengths, \
-    plot_exploration_efficiency, plot_maze_stats, plot_visit_freq_by_node, plot_visit_freq_by_level, \
+    plot_exploration_efficiency, plot_maze_stats, plot_visit_freq_by_level, \
     plot_decision_biases, plot_markov_fit_pooling, plot_markov_fit_non_pooling,\
-    plot_trajectory_features, plot_reward_path_lengths, plot_outside_inside_ratio, \
+    plot_trajectory_features, plot_reward_runs, plot_outside_inside_ratio, \
     plot_percent_turns, plot_opposite_node_preference, plot_first_endnode_labels, \
     plot_end_node_revisits_level_halves, plot_end_node_revisits_level_all_time, \
     plot_unique_node_revisits_level_halves, plot_node_revisits_level_halves
 import evaluation_metrics as em
-from utils import convert_episodes_to_traj_class
+from utils import convert_episodes_to_traj_class, split_trajectories_at_first_reward, split_trajectories_k_parts
+from MM_Traj_Utils import LoadTrajFromPath
+from parameters import RewNames, UnrewNamesSub, OUTDATA_PATH
 
 
-def analyse_state_values(model, V, save_file_path, params):
-    """todo
-    model:
-    V:
-    """
-    state_values = model.get_maze_state_values(V)
+def analyse_state_values(stats, save_file_path, params):
+    state_values = stats["V"]
     # print("state_values", state_values)
     plot_maze_stats(state_values, interpolate_cell_values=True,
                     save_file_name=os.path.join(save_file_path, f'state_values.png'),
@@ -69,7 +67,7 @@ def load(runs, save_file_path):
             tf = convert_episodes_to_traj_class(episodes, stats["episodes_states"])
             # tfs_labels.append((tf, params.get('model', model_name) + (var[0] if var else '')))
             tfs_labels.append((tf,
-                               f'{params["model"]}' + f' ε={params["epsilon"]} µ={params["mu"]}' if 'ezg' in params["model"] else 'BiasedWalk4'
+                               f'{params["model"]}' # + f' ε={params["epsilon"]} µ={params["mu"]}' if 'ezg' in params["model"] else 'BiasedWalk4'
                                # f'ez-mu={params["mu"]}'
                                # 'v2-' + str(params.get('staySQ', '')) # + params.get('memory_l5', '')  # + '-' + (var[0] if var else '')
                                ))
@@ -83,30 +81,31 @@ def load(runs, save_file_path):
         for p in loaded_model_params: f.write(str(p) + '\n\n')
 
     title = ''
+    rew = params['rew']
     plot_opposite_node_preference(tfs_labels, title=title, save_file_path=save_path, display=False)
-    plot_exploration_efficiency(tfs_labels, re=False, le=6, title=title, save_file_path=save_path)
-    plot_exploration_efficiency(tfs_labels, re=False, le=5, title=title, save_file_path=save_path)
-    plot_exploration_efficiency(tfs_labels, re=False, le=4, title=title, save_file_path=save_path)
-    plot_exploration_efficiency(tfs_labels, re=False, le=3, title=title, save_file_path=save_path)
-    plot_decision_biases(tfs_labels, re=False, title=title, save_file_path=save_path)
-    plot_node_revisits_level_halves(tfs_labels, title=title, level_to_plot=6, save_file_path=save_path)
-    plot_visit_freq_by_level(tfs_labels, title=title, save_file_path=save_path)
-    plot_first_endnode_labels(tfs_labels, title=title, save_file_path=save_path)
-    plot_outside_inside_ratio(tfs_labels, re=False, title=title, save_file_path=save_path)
-    # plot_visit_freq_by_node(tfs_labels, save_file_path=save_path)
+    plot_exploration_efficiency(tfs_labels, re=rew, le=6, title=title, save_file_path=save_path)
+    plot_exploration_efficiency(tfs_labels, re=rew, le=5, title=title, save_file_path=save_path)
+    plot_exploration_efficiency(tfs_labels, re=rew, le=4, title=title, save_file_path=save_path)
+    plot_exploration_efficiency(tfs_labels, re=rew, le=3, title=title, save_file_path=save_path)
+    plot_decision_biases(tfs_labels, re=rew, title=title, save_file_path=save_path)
+    plot_node_revisits_level_halves(tfs_labels, re=rew, title=title, level_to_plot=6, save_file_path=save_path)
+    plot_visit_freq_by_level(tfs_labels, re=rew, title=title, save_file_path=save_path)
+    plot_first_endnode_labels(tfs_labels, re=rew, title=title, save_file_path=save_path)
+    plot_outside_inside_ratio(tfs_labels, re=rew, title=title, save_file_path=save_path)
     plot_percent_turns(tfs_labels, title=title, save_file_path=save_path)
     plot_episode_lengths(tfs_labels, title=title, save_file_path=save_path)
 
     for i, (tf, label) in enumerate(tfs_labels):
         if 'BiasedWalk4' in label:
             continue
-        plot_markov_fit_pooling(tf, i, re=False, title=title, save_file_path=save_path)
+        plot_markov_fit_pooling(tf, i, re=rew, title=title, save_file_path=save_path)
 
     return
 
 
 def analyse_episodes(stats, save_file_path, params):
     episodes = stats["episodes_positions"]
+    rew = params['rew']
     parameters = {
         'axes.labelsize': 12,
         'axes.titlesize': 10,
@@ -117,30 +116,32 @@ def analyse_episodes(stats, save_file_path, params):
     plt.rcParams.update(parameters)
     traj = convert_episodes_to_traj_class(episodes, stats["episodes_states"])
     tf = [(traj, params['model'])]
-    plot_exploration_efficiency(tf, re=False, le=6, title=params, save_file_path=save_file_path)
-    plot_exploration_efficiency(tf, re=False, le=5, title=params, save_file_path=save_file_path)
-    plot_exploration_efficiency(tf, re=False, le=4, title=params, save_file_path=save_file_path)
-    plot_exploration_efficiency(tf, re=False, le=3, title=params, save_file_path=save_file_path)
-    plot_visit_freq_by_level(tf, title=params, save_file_path=save_file_path)
-    plot_decision_biases(tf, re=False, title=params, save_file_path=save_file_path, display=False)
-    plot_node_revisits_level_halves(tf, 6, title=params, save_file_path=save_file_path, display=False)
-    plot_first_endnode_labels(tf, title=params, save_file_path=save_file_path, display=False)
-    plot_opposite_node_preference(tf, title=params, save_file_path=save_file_path, display=False)
-    plot_percent_turns(tf, title=params, save_file_path=save_file_path, display=False)
-    # plot_episode_lengths(tf, title=params, save_file_path=save_file_path)
-    # plot_visit_freq_by_node(tf, title=params, save_file_path=save_file_path)
+    # plot_reward_runs(tf, title=params, save_file_path=save_file_path)
+    # plot_reward_path_lengths(tf, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=rew, le=6, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=rew, le=5, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=rew, le=4, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=rew, le=3, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=rew, le=6, half='separate', title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=rew, le=6, half=1, title=params, save_file_path=save_file_path)
+    plot_exploration_efficiency(tf, re=rew, le=6, half=2, title=params, save_file_path=save_file_path)
+    plot_visit_freq_by_level(tf, re=rew, title=params, save_file_path=save_file_path)
+    plot_decision_biases(tf, re=rew, title=params, save_file_path=save_file_path, display=False)
+    plot_node_revisits_level_halves(tf, 6,  re=rew, title=params, save_file_path=save_file_path, display=False)
+    plot_first_endnode_labels(tf, re=rew, title=params, save_file_path=save_file_path, display=False)
+    plot_opposite_node_preference(tf, re=rew, title=params, save_file_path=save_file_path, display=False)
+    plot_percent_turns(tf, re=rew, title=params, save_file_path=save_file_path, display=False)
+    plot_episode_lengths(tf, re=rew, title=params, save_file_path=save_file_path)
 
-    plot_outside_inside_ratio(tf, re=False, title=params, save_file_path=save_file_path)
-    plot_markov_fit_pooling(traj, params['model'], re=False, title=params, save_file_path=save_file_path, display=False)
-    plot_trajs(episodes, title=params, save_file_path=save_file_path)
+    plot_outside_inside_ratio(tf, re=rew, title=params, save_file_path=save_file_path)
+    plot_markov_fit_pooling(traj, params['model'], re=rew, title=params, save_file_path=save_file_path, display=False)
+    # plot_trajs(episodes, title=params, save_file_path=save_file_path)
 
     # plot_end_node_revisits_level_halves(tf, [6], title=params, save_file_path=save_file_path + 'en_revisits', display=False)
     # plot_unique_node_revisits_level_halves(tf, [6], title=params, save_file_path=save_file_path + 'un_revisits', display=False)
-    # plot_exploration_efficiency(tf, re=False, le=3, title=params, save_file_path=save_file_path)
     # plot_exploration_efficiency(tf, re=False, le=2, title=params, save_file_path=save_file_path)
     # plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=False)
     # plot_opposite_node_preference(tf, title=params, save_file_path=save_file_path, display=False)
-    # plot_reward_path_lengths(episodes, params, save_file_path)
     # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
     # plot_maze_stats(stats["visit_frequency"], interpolate_cell_values=True, colormap_name='Blues',
     #                 colorbar_label="visit freq",
@@ -428,6 +429,9 @@ if __name__ == '__main__':
         # ('BiasedWalk4', [50173])
 
         # ('EZCustom', [684225, 692398, 812279, 866072, 690742]),
-        ('EZCustom', [778597, 772763, 68980]),
+        # ('EZCustom', [778597, 772763, 68980]),
+
+        ('LW', [322469]),
+        ('BiasedWalk4', [927154]),
 
     ], base_path)
