@@ -4,7 +4,7 @@ AA model (some e and AA action all the way - with some variations)
 
 import numpy as np
 import parameters as p
-from EpsilonZGreedy_model import EpsilonZGreedy
+from old_ez_models.EpsilonZGreedy_model import EpsilonZGreedy
 
 
 class AA(EpsilonZGreedy):

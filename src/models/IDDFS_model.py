@@ -1,19 +1,11 @@
 """
 IDDFS
 """
-import os
 import numpy as np
-import random
-from collections import defaultdict
-from copy import deepcopy
 
 from parameters import *
 from BaseModel import BaseModel
-from EpsilonDirectionGreedy_model import EpsilonDirectionGreedy
-from EpsilonGreedy_model import EpsilonGreedy
-from utils import break_simulated_traj_into_episodes, calculate_visit_frequency, calculate_normalized_visit_frequency, \
-    calculate_normalized_visit_frequency_by_level
-import evaluation_metrics as em
+from old_ez_models.EpsilonGreedy_model import EpsilonGreedy
 
 
 class IDDFS(EpsilonGreedy):
