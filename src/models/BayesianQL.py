@@ -16,7 +16,7 @@ from parameters import *
 from Dyna_Qplus import DynaQPlus
 from utils import break_simulated_traj_into_episodes, calculate_visit_frequency
 import evaluation_metrics as em
-from bayesian_utils import argmaxrand, argmaxrand_dict
+from models.bayesian_utils import argmaxrand_dict
 
 
 class BayesianQL(DynaQPlus):

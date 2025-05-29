@@ -2,16 +2,14 @@
 Coeff distance model
 """
 
-import os
 import numpy as np
 import random
 
 from parameters import *
 from BaseModel import BaseModel
-from scipy.special import logsumexp
-from actions import actions_node_matrix
+from regression_utils.actions import actions_node_matrix
 from maze_spatial_mapping import CELL_XY, NODE_CELL_MAPPING
-from scipy.special import log_softmax, softmax
+from scipy.special import softmax
 
 # def softmax_dict(d):
 #     x = np.array(list(d.values()))

@@ -1,14 +1,10 @@
-import matplotlib.pyplot as plt
-
 from MM_Traj_Utils import LoadTrajFromPath
-from MM_Maze_Utils import NewMaze, StepType2
 import parameters as p
 import numpy as np
 import utils
-from BaseModel import BaseModel
-from actions import State, actions_node_matrix
-from maze_spatial_mapping import NODE_CELL_MAPPING, CELL_XY
-from scipy.special import softmax, logsumexp, log_softmax
+from regression_utils.actions import State, actions_node_matrix
+from regression_utils.maze_spatial_mapping import NODE_CELL_MAPPING, CELL_XY
+from scipy.special import logsumexp, log_softmax
 
 
 def levelup_path(n, go_up):
