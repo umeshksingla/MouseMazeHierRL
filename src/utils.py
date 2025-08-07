@@ -1,8 +1,6 @@
-from MM_Traj_Utils import add_node_times_to_tf, add_reward_times_to_tf, NewMaze, Traj
+from MM_Traj_Utils import add_node_times_to_tf, add_reward_times_to_tf, NewMaze, Traj, LoadTrajFromPath
 from parameters import FRAME_RATE, WATERPORT_NODE, HOME_NODE, RWD_STATE, ALL_MAZE_NODES, ALL_VISITABLE_NODES, \
-    TIME_EACH_MOVE, INVALID_STATE, NODE_LVL, LVL_BY_NODE, HALF_UP, HALF_DOWN, QUAD1, QUAD2, QUAD3, QUAD4, \
-    HALF_LEFT, HALF_RIGHT, ROW_3, ROW_1, COL_3, COL_1
-from node_path_lengths import D
+    TIME_EACH_MOVE, INVALID_STATE, NODE_LVL, LVL_BY_NODE, HALF_UP, HALF_LEFT, ROW_3, ROW_1, COL_3, COL_1
 import parameters as p
 import numpy as np
 from numpy import array, arange
@@ -177,6 +175,8 @@ def nodes2cell(state_hist_all, zigzag=True):
         if epi[-1] == HOME_NODE:
             home_path = list(reversed(ma.ru[0]))
             cells.extend(home_path[1:])  # cells from node 0 to maze exit
+
+        cells = [0, 1, 2, 3, 4, 5, 6] + cells
         state_hist_cell.append(cells)
 
         a = np.zeros((len(cells),2))
@@ -269,8 +269,42 @@ def break_simulated_traj_into_episodes(maze_episode_traj):
     if epi:     # last episode
         episodes.append(epi)
 
-    print("Home visit counts in simulated episodes:", len(episodes))
+    # print("Home visit counts in simulated episodes:", len(episodes))
     return episodes
+
+
+def test_traj(traj):
+    for i, j in zip(traj, traj[1:]):
+        assert i != j
+        if i == 52 and j == 41:
+            return
+        assert ((i in get_children(j)) or (i == get_parent_node(j)) or (i in [HOME_NODE, RWD_STATE]) or (j in [HOME_NODE, RWD_STATE])), f"i={i} j={j}"
+    return
+
+
+# def test_traj(traj):
+#     for i, j in zip(traj, traj[1:]):
+#         assert i != j, f"i={i} j={j}"
+#         assert ((i in get_children(j)) or (i == get_parent_node(j))), f"i={i} j={j}"
+#         assert (i in [HOME_NODE, RWD_STATE]), f"i={i} j={j}"
+#         assert (j in [HOME_NODE, RWD_STATE]), f"i={i} j={j}"
+#     return
+
+
+def test_episodes(episode_state_traj):
+    for i, t in enumerate(episode_state_traj):
+        try:
+            test_traj(t)
+        except:
+            raise Exception(f"Corrupt trajectory {i} found: {t}")
+
+
+def wrap(episode_state_traj):
+    episode_state_trajs = break_simulated_traj_into_episodes(episode_state_traj)
+    test_episodes(episode_state_trajs)
+    episode_state_trajs = list(filter(lambda e: len(e) >= 3, episode_state_trajs))  # remove empty or short episodes
+    episode_maze_trajs = episode_state_trajs  # in pure exploration, both are same
+    return episode_state_trajs, episode_maze_trajs
 
 
 def get_reward_times(episodes):
@@ -544,4 +578,93 @@ def locate_first_k_endnodes(bout, k, predicate_to_skip=lambda x: False):
             k -= 1
         if not k: break
     return visits
+
+
+def split_trajectories_at_first_reward(tf, k):
+    """
+    k: "until how many bouts are immediately after" the first reward
+    """
+    for b, bout in enumerate(tf.no):
+        a = np.where(bout[:, 0] == WATERPORT_NODE)[0]
+        if a.size:
+            first_reward_bout_before_reward = tf.no[b][:a[0], :]
+            first_reward_bout_after_reward = tf.no[b][a[0] + 1:, :]
+            before_first_reward_tf = convert_episodes_to_traj_class([_[:, 0] for _ in tf.no[:b]] + [first_reward_bout_before_reward[:, 0]])
+            imm_after_first_rew_tf = convert_episodes_to_traj_class([first_reward_bout_after_reward[:, 0]] + [_[:, 0] for _ in tf.no[b:b+k]])
+            long_after_first_rew_tf = convert_episodes_to_traj_class([_[:, 0] for _ in tf.no[b+k:]])
+            all_after_first_reward_tf = convert_episodes_to_traj_class([first_reward_bout_after_reward[:, 0]] + [_[:, 0] for _ in tf.no[b:]])
+            break
+    return {'before': before_first_reward_tf, 'imm_after': imm_after_first_rew_tf, 'long_after': long_after_first_rew_tf, 'all_after': all_after_first_reward_tf, 'all': tf}
+
+
+def split_trajectories_k_parts(tf, k):
+
+    cl0 = np.concatenate([list(b[:, 0]) for b in tf.no]).flat
+    idx = len(cl0) // k  # index for first k nodes
+    return convert_episodes_to_traj_class(wrap(cl0[:idx])[0]), convert_episodes_to_traj_class(wrap(cl0[idx:])[0])
+
+
+class RewardedAnimalData:
+    def __init__(self):
+        self.split_tfs = self.split_into_parts()
+
+    @staticmethod
+    def split_into_parts():
+        split_tfs = {}
+        for sub in p.RewNames:
+            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
+            split_tfs[sub] = split_trajectories_at_first_reward(tf, k=5)
+        return split_tfs
+
+    def get_tf_before_first_reward(self):
+        tfs = [self.split_tfs[sub]['before'] for sub in p.RewNames]
+        return tfs
+
+    def get_tf_all_after_first_reward(self):
+        tfs = [self.split_tfs[sub]['all_after'] for sub in p.RewNames]
+        return tfs
+
+    def get_tf_imm_after_first_reward(self):
+        tfs = [self.split_tfs[sub]['imm_after'] for sub in p.RewNames]
+        return tfs
+
+    def get_tf_long_after_first_reward(self):
+        tfs = [self.split_tfs[sub]['long_after'] for sub in p.RewNames]
+        return tfs
+
+    def get_data_all(self):
+        tfs = []
+        animals = p.RewNames
+        for sub in animals:
+            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
+            tfs.append(tf)
+        return tfs
+
+
+class UnrewardedAnimalData:
+
+    def get_data_all(self):
+        tfs = []
+        animals = p.UnrewNamesSub
+        for sub in animals:
+            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
+            tfs.append(tf)
+        return tfs
+
+    def get_data_split_k(self, k):
+        split_tfs = []
+        animals = p.UnrewNamesSub
+        for sub in animals:
+            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
+
+            cl0 = np.concatenate([list(b[:, 0]) for b in tf.no]).flat
+            idx = len(cl0) // k  # length of each part
+            sub_tfs = [convert_episodes_to_traj_class(wrap(cl0[x:x+idx])[0]) for x in range(0, len(cl0), idx)]
+            split_tfs.append(sub_tfs)
+        return split_tfs
+
+
+def histo(X, bins=50, range=None, density=None, weights=None):
+    hist, bin_edges = np.histogram(X, bins=bins, weights=weights, range=range, density=density)
+    return hist, bin_edges
 

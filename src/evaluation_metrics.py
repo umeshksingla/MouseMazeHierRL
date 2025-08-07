@@ -8,11 +8,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 
-from parameters import NODE_LVL, OUTDATA_PATH
+from parameters import NODE_LVL, OUTDATA_PATH, WATERPORT_NODE, LEAVE, DRINK, EXPLORE
 from MM_Traj_Utils import NewMaze, NewNodes4, SplitModeClips, LoadTrajFromPath, Entropy
-from MM_Plot_Utils import hist
-from MM_Models import MarkovFit2, MarkovFit3, TranslLevelsLR
-from utils import nodes2cell, convert_episodes_to_traj_class, convert_traj_to_episodes, locate_first_k_endnodes
+from MM_Models import MarkovFit2, MarkovFit3, TranslLevelsLR, GetPR, MarkovFitAndTest3
+from utils import nodes2cell, convert_episodes_to_traj_class, convert_traj_to_episodes, locate_first_k_endnodes, \
+    split_trajectories_at_first_reward, histo
 from decision_bias_analysis_tools import ComputeFourBiasClips2
 from parameters import EXPLORE, RewNames, UnrewNamesSub
 import parameters as p
@@ -58,8 +58,8 @@ def exploration_efficiency(tf, re, le=6, half=0):
     visited 2 distinct nodes when it visited a total of 10 nodes. And to cover
     15 distinct nodes it has to visit 50 nodes on average
     """
-    print(f"calculating exp efficiency wrt level {le}...")
-    leave, drink, explore = 0, 1, 2
+    # print(f"calculating exp efficiency wrt level {le}...")
+    leave, drink, explore = LEAVE, DRINK, EXPLORE
     ma = NewMaze(6)
     cl0 = SplitModeClips(tf, ma, re=re)  # find the clips; no drink mode for unrewarded animals
     cn = np.cumsum(cl0[:, 2])  # cumulative number of nodes
@@ -88,8 +88,6 @@ def exploration_efficiency(tf, re, le=6, half=0):
     ln = list(range(2 ** le - 1, 2 ** (le + 1) - 1))  # list of node numbers in level le
     ns = ne[np.isin(ne, ln)]  # restricted to desired nodes
     _, c, n = NewNodes4(ns, nf[2] / len(ns))  # compute new nodes vs all nodes for exploration mode only
-    steps_taken = dict(zip(c, n))
-    print(steps_taken)
     return c, n, nf
 
 
@@ -225,17 +223,24 @@ def get_random_ee(le=6):
 def get_unrewarded_ee(half=0, le=6):
     """
     Returns unrewarded animals' pre-computed exploration efficiency
+    half = 0: all time
+    half = 1: first half of experiment
+    half = 2: second half of experiment
     """
     with open(OUTDATA_PATH + f'ee_unrewarded_le={le}_half={half}.pkl', 'rb') as f:
         d = pickle.load(f)
     return d
 
 
-def get_rewarded_ee(half=0, le=6):
+def get_rewarded_ee(h=0, le=6):
     """
-    Returns any rewarded animal's exploration efficiency before the first reward
+    Returns any rewarded animal's exploration efficiency
+    h = -1: until first reward
+    h = 0: all night
+    h = 1: first reward bout from reward onwards + 5 bouts after that
+    h = 2: >5 bouts after first reward
     """
-    with open(OUTDATA_PATH + f'ee_rewarded_le={le}_half={half}.pkl', 'rb') as f:
+    with open(OUTDATA_PATH + f'ee_rewarded_le={le}_h={h}_b=2.pkl', 'rb') as f:
         d = pickle.load(f)
     return d
 
@@ -479,6 +484,16 @@ def get_decision_biases(tfs, re):
     return bi, bis
 
 
+def get_decision_biases_animal(re):
+    if re:
+        precomputed_biases_file = 'decision_biases_rewarded.pkl'
+    elif not re:
+        precomputed_biases_file = 'decision_biases_unrewarded.pkl'
+    with open(OUTDATA_PATH + precomputed_biases_file, 'rb') as f:
+        bi_data = pickle.load(f)
+    return bi_data
+
+
 def markov_fit_non_pooling(tf, re):
     # Markov Fits - No Pooling
     # all animals, T-junctions, Explore, variable and fixed, test and train
@@ -512,9 +527,7 @@ def markov_fit_pooling(tf, re):
     exp = True
     seg = 3
     ma = NewMaze(6)
-
     rew = re
-
     tra = TranslLevelsLR(ma)
 
     var = True
@@ -528,6 +541,60 @@ def markov_fit_pooling(tf, re):
     return [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr]
 
 
+def markov_fit_pooling_var_train_only(tf, re):
+    # Markov Fits - Pooling
+    # all animals, T-junctions, Explore, variable and fixed, test and train
+
+    # takes some time to run
+    tju = True
+    exp = True
+    seg = 2
+    ma = NewMaze(6)
+    rew = re
+    tra = TranslLevelsLR(ma)
+
+    var = False
+    print('MarkovFit3...')
+    hv5, cv5 = MarkovFit3(tf, ma, var, tju, exp, rew, seg, True, tra)  # var train
+    print('MarkovFit3 done...')
+    return hv5, cv5
+
+
+def markov_fit_test_pooling(tf, animal_tf, re):
+    '''
+    Learn pr from tf, test on animal_tf
+    '''
+    tju = True
+    exp = True
+    ma = NewMaze(6)
+    rew = re
+    tra = TranslLevelsLR(ma)
+
+    var = True
+    hv5, cv5 = MarkovFitAndTest3(tf, animal_tf, ma, var, tju, exp, rew, tra)  # var test
+    # print("hv5, cv5", hv5, cv5)
+
+    var = False
+    hf5, cf5 = MarkovFitAndTest3(tf, animal_tf, ma, var, tju, exp, rew, tra)  # var test
+    # print("hf5, cf5", hf5, cf5)
+
+    return [hf5, hv5], [cf5, cv5]
+
+
+def markov_fit_pooling_pr(tf, re, tju, var, par):
+    # Markov Fits - Pooling
+    # all animals, T-junctions, Explore, variable and fixed, test and train
+
+    # takes some time to run
+    exp = True
+    ma = NewMaze(6)
+    rew = re
+    tra = TranslLevelsLR(ma)
+    print("tra = TranslLevelsLR &", "re, tju, var, par =", re, tju, var, par)
+    hv5tr, pr, pt, pt_dict = GetPR(tf, ma, var=var, tju=tju, exp=exp, rew=rew, transl=tra, par=par)  # var train
+    return hv5tr, pr, pt, pt_dict
+
+
 def min_cross_entropy(episodes, re, pooling):
     if not pooling:
         [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = markov_fit_non_pooling(episodes, re)
@@ -539,75 +606,106 @@ def min_cross_entropy(episodes, re, pooling):
     return ef, ev
 
 
+# def outside_inside_ratio(tf, re):
+#     """
+#     Systematic node preferences: Visitations to nodes on the periphery vs visitations to inner most nodes.
+#     """
+#
+#     def get_ratio_for_each(tf, ma):
+#         le = 6
+#         explore = 2
+#         ln = list(NODE_LVL[le].keys())
+#         cl0 = SplitModeClips(tf, ma, re=re)  # find the clips
+#         cn = np.cumsum(cl0[:, 2])  # cumulative number of nodes visited
+#         ha = np.where(cn > cn[-1] / 2)[0][0]  # index for half the number of nodes
+#         cl1 = cl0[:ha]
+#         cl2 = cl0[ha:]  # two clip arrays for first and second half of nodes
+#         ns = []
+#         for j, cl in enumerate([cl1, cl2]):
+#             ce = cl[np.where(cl[:, 3] == explore)]  # clips of exploration
+#             ne = np.concatenate(
+#                 [tf.no[c[0]][c[1]:c[1] + c[2], 0] for c in ce])  # nodes excluding the last state in each clip
+#             ns += [ne[np.isin(ne, ln)]]
+#         Vis, _ = histo([ns[0], ns[1]], bins=np.arange(2 ** le - 1, 2 ** (le + 1)) - 0.5)
+#         print(Vis)
+#         Num = [np.sum(Vis[0]), np.sum(Vis[1])]
+#         Ent = [Entropy(Vis[0]), Entropy(Vis[1])]
+#         # print('Nodes:   1st = {:5.0f}, 2nd = {:5.0f}'.format(Num[0], Num[1]))
+#         # print('Entropy: 1st = {:4.3f}, 2nd = {:4.3f}'.format(Ent[0], Ent[1]))
+#         return [np.array(Vis)], [Ent], [Num]
+#
+#     # Compute distribution of end nodes visited in first and second half of experiment
+#     # k = len(RewNames)
+#     ma = NewMaze(6)
+#     vi, en, nu = get_ratio_for_each(tf, ma)
+#
+#     Vi = np.array(vi)  # Vi[i,j,k]=visits animal i, half j, node k
+#     En = np.array(en)  # En[i,j]=entropy of node visits animal i, half j
+#     Nu = np.array(nu)  # Nu[i,j]=total node visits animal i, half j
+#
+#     # Visits to various end nodes, average across animals, by group, by half
+#     # Vu = np.sum(Vi, axis=(0)) / np.sum(Nu, axis=(0)).reshape(-1, 1)   # avg across animals only
+#
+#     # Visits to various end nodes, average across animals
+#     # Vu = np.sum(Vi, axis=(0, 1)) / np.sum(Nu)
+#
+#     # distribution of fraction of visits to end nodes, mean and SD across animals
+#     Vu = np.sum(Vi, axis=(1)) / np.sum(Nu, axis=1).reshape(-1, 1)
+#     Vua = np.mean(Vu, axis=0)
+#     Vus = np.std(Vu, axis=0)
+#
+#     # Original paper
+#     inner = np.array([75, 76, 77, 78, 87, 88, 89, 90, 99, 100, 101, 102, 111, 112, 113, 114]) - 63
+#     outer = np.array([63, 65, 71, 73, 95, 97, 103, 105, 106, 109, 110, 121, 122, 125, 126, 124, 94, 92, 86, 84, 83, 80, 79, 68, 67, 64]) - 63
+#
+#     # # LoS nodes
+#     # outer = {63, 65, 71, 73, 95, 97, 103, 105, 68, 70, 76, 78, 100, 102, 108, 110, 79, 81, 87, 89, 111, 113, 119, 121, 84, 86, 92, 94, 116, 118, 124, 126}
+#     # inner = set(parameters.LVL_6_NODES.keys()).difference(outer)
+#     # assert ((len(outer)+len(inner)) == 64)
+#     # assert (len(outer.intersection(inner)) == 0)
+#     # outer = np.array(list(outer)) - 63
+#     # inner = np.array(list(inner)) - 63
+#
+#     # # LoS nodes without reward node and its neighbor
+#     # outer = {63, 65, 71, 73, 95, 97, 103, 105, 68, 70, 76, 78, 100, 102, 108, 110, 79, 81, 87, 89, 111, 113, 119, 121, 84, 86, 92, 94, 124, 126}
+#     # inner = set(parameters.LVL_6_NODES.keys()).difference(outer).difference({116, 118})
+#     # assert ((len(outer)+len(inner)) == 62)
+#     # assert (len(outer.intersection(inner)) == 0)
+#     # outer = np.array(list(outer)) - 63
+#     # inner = np.array(list(inner)) - 63
+#
+#     ratio = np.mean(Vua[outer]) / np.mean(Vua[inner])
+#     print('Agent: Ratio of visits to outer vs inner leaf nodes = {:.3f}'.format(ratio))
+#     return ratio
+
+
 def outside_inside_ratio(tf, re):
     """
     Systematic node preferences: Visitations to nodes on the periphery vs visitations to inner most nodes.
     """
-
-    def get_ratio_for_each(tf, ma):
-        le = 6
-        explore = 2
-        ln = list(NODE_LVL[le].keys())
-        cl0 = SplitModeClips(tf, ma, re=re)  # find the clips
-        cn = np.cumsum(cl0[:, 2])  # cumulative number of nodes visited
-        ha = np.where(cn > cn[-1] / 2)[0][0]  # index for half the number of nodes
-        cl1 = cl0[:ha]
-        cl2 = cl0[ha:]  # two clip arrays for first and second half of nodes
-        ns = []
-        for j, cl in enumerate([cl1, cl2]):
-            ce = cl[np.where(cl[:, 3] == explore)]  # clips of exploration
-            ne = np.concatenate(
-                [tf.no[c[0]][c[1]:c[1] + c[2], 0] for c in ce])  # nodes excluding the last state in each clip
-            ns += [ne[np.isin(ne, ln)]]
-        _, Vis, _, _ = hist([ns[0], ns[1]], bins=np.arange(2 ** le - 1, 2 ** (le + 1)) - 0.5)
-        Num = [np.sum(Vis[0]), np.sum(Vis[1])]
-        Ent = [Entropy(Vis[0]), Entropy(Vis[1])]
-        # print('Nodes:   1st = {:5.0f}, 2nd = {:5.0f}'.format(Num[0], Num[1]))
-        # print('Entropy: 1st = {:4.3f}, 2nd = {:4.3f}'.format(Ent[0], Ent[1]))
-        return [np.array(Vis)], [Ent], [Num]
-
-    # Compute distribution of end nodes visited in first and second half of experiment
-    # k = len(RewNames)
     ma = NewMaze(6)
-    vi, en, nu = get_ratio_for_each(tf, ma)
 
-    Vi = np.array(vi)  # Vi[i,j,k]=visits animal i, half j, node k
-    En = np.array(en)  # En[i,j]=entropy of node visits animal i, half j
-    Nu = np.array(nu)  # Nu[i,j]=total node visits animal i, half j
+    def get_ratio_for_each(tf):
+        le = 6
+        ln = list(p.NODE_LVL[le].keys())
+        cl = SplitModeClips(tf, ma, re=re)  # find the clips
+        ce = cl[np.where(cl[:, 3] == p.EXPLORE)]  # clips of exploration
+        ne = np.concatenate([tf.no[c[0]][c[1]:c[1] + c[2], 0] for c in ce])  # nodes excluding the last state in each clip
+        ns = [ne[np.isin(ne, ln)]]
+        Vis, _ = histo(ns, bins=np.arange(2 ** le - 1, 2 ** (le + 1)) - 0.5)
+        # _, Vis, _, _ = hist(ns, bins=np.arange(2 ** le - 1, 2 ** (le + 1)) - 0.5)
+        Num = np.sum(Vis)
+        Ent = Entropy(Vis)
+        return Vis, Ent, Num
 
-    # Visits to various end nodes, average across animals, by group, by half
-    # Vu = np.sum(Vi, axis=(0)) / np.sum(Nu, axis=(0)).reshape(-1, 1)   # avg across animals only
+    vi, en, nu = get_ratio_for_each(tf)
+    Vua = vi/nu
 
-    # Visits to various end nodes, average across animals
-    # Vu = np.sum(Vi, axis=(0, 1)) / np.sum(Nu)
-
-    # distribution of fraction of visits to end nodes, mean and SD across animals
-    Vu = np.sum(Vi, axis=(1)) / np.sum(Nu, axis=1).reshape(-1, 1)
-    Vua = np.mean(Vu, axis=0)
-    Vus = np.std(Vu, axis=0)
-
-    # Original paper
     inner = np.array([75, 76, 77, 78, 87, 88, 89, 90, 99, 100, 101, 102, 111, 112, 113, 114]) - 63
     outer = np.array([63, 65, 71, 73, 95, 97, 103, 105, 106, 109, 110, 121, 122, 125, 126, 124, 94, 92, 86, 84, 83, 80, 79, 68, 67, 64]) - 63
 
-    # # LoS nodes
-    # outer = {63, 65, 71, 73, 95, 97, 103, 105, 68, 70, 76, 78, 100, 102, 108, 110, 79, 81, 87, 89, 111, 113, 119, 121, 84, 86, 92, 94, 116, 118, 124, 126}
-    # inner = set(parameters.LVL_6_NODES.keys()).difference(outer)
-    # assert ((len(outer)+len(inner)) == 64)
-    # assert (len(outer.intersection(inner)) == 0)
-    # outer = np.array(list(outer)) - 63
-    # inner = np.array(list(inner)) - 63
-
-    # # LoS nodes without reward node and its neighbor
-    # outer = {63, 65, 71, 73, 95, 97, 103, 105, 68, 70, 76, 78, 100, 102, 108, 110, 79, 81, 87, 89, 111, 113, 119, 121, 84, 86, 92, 94, 124, 126}
-    # inner = set(parameters.LVL_6_NODES.keys()).difference(outer).difference({116, 118})
-    # assert ((len(outer)+len(inner)) == 62)
-    # assert (len(outer.intersection(inner)) == 0)
-    # outer = np.array(list(outer)) - 63
-    # inner = np.array(list(inner)) - 63
-
     ratio = np.mean(Vua[outer]) / np.mean(Vua[inner])
-    print('Agent: Ratio of visits to outer vs inner leaf nodes = {:.3f}'.format(ratio))
+    # print('Agent: Ratio of visits to outer vs inner leaf nodes = {:.3f}, with entropy = {:.3f}'.format(ratio, en))
     return ratio
 
 
@@ -685,60 +783,114 @@ def second_endnode_label(tf):
     return label_transition_counts
 
 
-### Code to Pre-compute exploration efficiency
-# re = False
-# animals = RewNames if re else UnrewNamesSub
-# animal_label = 'rewarded' if re else 'unrewarded'
-# ee_dict = {}
-# for le in [3, 4, 5, 6]:
-#     for half in [0, 1, 2]:
-#         for sub in animals:
-#             tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
-#             c, n, nf = exploration_efficiency(tf, re, le, half)
-#             ee_dict[sub] = c, n, nf
-#         with open(OUTDATA_PATH + f'ee_{animal_label}_le={le}_half={half}.pkl', 'wb') as f:
-#             pickle.dump(ee_dict, f)
+if __name__ == '__main__':
+
+    ### Code to Pre-compute exploration efficiency
+    # animals = RewNames
+    # re = True
+    # ee_dict = {}
+    # for le in [3, 4, 5, 6]:
+    #     for h in [-1, 0, 1, 2]:
+    #         for sub in animals:
+    #             print(sub, le, h)
+    #             tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+    #             before_first_reward_tf, after_first_rew_tf, long_after_first_rew_tf = split_trajectories_at_first_reward(tf)
+    #             if h == -1:
+    #                 c, n, nf = exploration_efficiency(before_first_reward_tf, re, le, h)
+    #             elif h == 0:
+    #                 c, n, nf = exploration_efficiency(tf, re, le, h)
+    #             elif h == 1:
+    #                 c, n, nf = exploration_efficiency(after_first_rew_tf, re, le, h)
+    #             else:
+    #                 c, n, nf = exploration_efficiency(long_after_first_rew_tf, re, le, h)
+    #             ee_dict[sub] = c, n, nf
+    #         with open(OUTDATA_PATH + f'ee_rewarded_le={le}_h={h}_b=2.pkl', 'wb') as f:
+    #             pickle.dump(ee_dict, f)
 
 
-### Code to Pre-compute oi ratio
-# re = False
-# animals = RewNames if re else UnrewNamesSub
-# animal_label = 'rewarded' if re else 'unrewarded'
-# oi_dict = {}
-# for sub in animals:
-#     tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
-#     r = outside_inside_ratio(tf, re)
-#     print(sub, r)
-#     oi_dict[sub] = r
-# with open(OUTDATA_PATH + f'oiratio_{animal_label}.pkl', 'wb') as f:
-#     pickle.dump(oi_dict, f)
+    ### Code to Pre-compute exploration efficiency
+    # animals = UnrewNamesSub
+    # re = False
+    # ee_dict = {}
+    # for le in [3, 4, 5, 6]:
+    #     for half in [0, 1, 2]:
+    #         for sub in animals:
+    #             print(sub, le, h)
+    #             tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+    #             c, n, nf = exploration_efficiency(tf, re, le, h)
+    #             ee_dict[sub] = c, n, nf
+    #         with open(OUTDATA_PATH + f'ee_unrewarded_le={le}_half={half}.pkl', 'wb') as f:
+    #             pickle.dump(ee_dict, f)
 
 
-### Code to Pre-computed decision biases
-# re = True
-# animals = RewNames if re else UnrewNamesSub
-# animal_label = 'rewarded' if re else 'unrewarded'
-# tfs = []
-# for sub in animals:
-#     tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
-#     tfs.append(tf)
-# bi, _ = get_decision_biases(tfs, re)
-# with open(OUTDATA_PATH + f'decision_biases_{animal_label}.pkl', 'wb') as f:
-#     pickle.dump(bi, f)
+    ### Code to Pre-compute oi ratio
+    # re = False
+    # animals = RewNames if re else UnrewNamesSub
+    # animal_label = 'rewarded' if re else 'unrewarded'
+    # oi_dict = {}
+    # for sub in animals:
+    #     tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+    #     r = outside_inside_ratio(tf, re)
+    #     print(sub, r)
+    #     oi_dict[sub] = r
+    # with open(OUTDATA_PATH + f'oiratio_{animal_label}.pkl', 'wb') as f:
+    #     pickle.dump(oi_dict, f)
 
 
-### Code to Pre-compute first node labels
-# re = True
-# animals = RewNames if re else UnrewNamesSub
-# animal_label = 'rewarded' if re else 'unrewarded'
-# label_pref_dict = defaultdict(list)
-# for sub in animals:
-#     tf = LoadTrajFromPath(OUTDATA_PATH + sub + '-tf')
-#     first_visit_label_fracs = first_endnode_label(tf)
-#     print(sub, first_visit_label_fracs)
-#     for l in first_visit_label_fracs:
-#         label_pref_dict[l].append(first_visit_label_fracs[l])
-# print(label_pref_dict)
-# with open(OUTDATA_PATH + f'first_endnode_label_{animal_label}.pkl', 'wb') as f:
-#     pickle.dump(label_pref_dict, f)
+    ## Code to Pre-computed decision biases
+    # re = True
+    # animals = RewNames if re else UnrewNamesSub
+    # animal_label = 'rewarded' if re else 'unrewarded'
+    # tfs = []
+    # for sub in animals:
+    #     tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+    #     tfs.append(tf)
+    # bi, _ = get_decision_biases(tfs, re)
+    # with open(OUTDATA_PATH + f'decision_biases_{animal_label}.pkl', 'wb') as f:
+    #     pickle.dump(bi, f)
+
+
+    ### Code to Pre-compute first node labels
+    # re = True
+    # animals = RewNames if re else UnrewNamesSub
+    # animal_label = 'rewarded' if re else 'unrewarded'
+    # label_pref_dict = defaultdict(list)
+    # for sub in animals:
+    #     tf = LoadTrajFromPath(OUTDATA_PATH + sub + '-tf')
+    #     first_visit_label_fracs = first_endnode_label(tf)
+    #     print(sub, first_visit_label_fracs)
+    #     for l in first_visit_label_fracs:
+    #         label_pref_dict[l].append(first_visit_label_fracs[l])
+    # print(label_pref_dict)
+    # with open(OUTDATA_PATH + f'first_endnode_label_{animal_label}.pkl', 'wb') as f:
+    #     pickle.dump(label_pref_dict, f)
+
+    re = True
+    tfs = []
+    split_tfs = {}
+    for sub in RewNames:
+        tf = LoadTrajFromPath(OUTDATA_PATH+sub+'-tf')
+        split_tfs[sub] = split_trajectories_at_first_reward(tf, k=5)
+
+    tfs = [split_tfs[sub]['all'] for sub in RewNames]
+    before_first_reward_tfs = [split_tfs[sub]['before'] for sub in RewNames]
+    imm_after_first_rew_tfs = [split_tfs[sub]['imm_after'] for sub in RewNames]
+    long_after_first_rew_tfs = [split_tfs[sub]['long_after'] for sub in RewNames]
+
+    # print("tfs =======")
+    # bi, _ = get_decision_biases(tfs, re)
+    # print(np.mean(bi, axis=0))
+    # print("before_first_reward_tfs =======")
+    # bi, _ = get_decision_biases(before_first_reward_tfs, re)
+    # print(np.mean(bi, axis=0))
+    # print("imm_after_first_rew_tfs =======")
+    # bi, _ = get_decision_biases(imm_after_first_rew_tfs, re)
+    # print(np.mean(bi, axis=0))
+    # print("long_after_first_rew_tfs =======")
+    # bi, _ = get_decision_biases(long_after_first_rew_tfs, re)
+    # print(np.mean(bi, axis=0))
+    # print("=======")
+
+    from plot_utils import plot_decision_biases
+    plot_decision_biases([(b, '') for b in before_first_reward_tfs] + [(b, '') for b in imm_after_first_rew_tfs] + [(b, '') for b in long_after_first_rew_tfs], re=True, display=True)
 

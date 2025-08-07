@@ -8,17 +8,11 @@ With the new action definition
     3: going back
 
 """
-import os
 import numpy as np
-import random
 
 from parameters import *
 from BaseModel import BaseModel
-from EpsilonGreedy_model import EpsilonGreedy
-from utils import calculate_visit_frequency, calculate_normalized_visit_frequency, \
-    calculate_normalized_visit_frequency_by_level
-from actions import actions_node_matrix
-from maze_spatial_mapping import CELL_XY, NODE_CELL_MAPPING
+from regression_utils.actions import actions_node_matrix
 
 
 class eZGreedy(BaseModel):

@@ -477,6 +477,37 @@ def FixMarkovTest3(da,mk,pr,ma,tr=None):
     return ce
 
 
+def GetPR2(da,mk,pr,ma,tr=None):
+    '''
+    Fixed depth Markov chain, testing
+    da = data
+    mk = mask applied to action, Boolean
+    pr = probability array
+    ma = maze
+    tr = translation array for node numbers to states
+    '''
+    if tr is not None:
+        st=tr[da] # translated state numbers
+    else:
+        st=da # no translation
+    sh=pr.shape # shape of probability array
+    de=len(sh)-1 # depth of history
+    ac=np.array([-1]+[StepType2(da[j-1],da[j],ma) for j in range(1,len(da))]) # forward actions
+    hi=np.array([-1]+[StepType3(da[j-1],da[j],ma) for j in range(1,len(da))]) # history actions
+    pt=[] # predicted probabilities for the observed action
+    pt_dict = {}
+    for i in range(de,len(da)): # i points to the action to be predicted
+        if mk[i]:
+            x=tuple(hi[i-de+1:i]) # start array pointer with history of preceding de-1 reverse actions
+            x+=(st[i-1],) # add the most recent state
+            prob = pr[x][ac[i]]
+            pt+=[prob] # add probability for the observed action to the list
+            pt_dict[x + (0,)] = pr[x][0]
+            pt_dict[x + (1,)] = pr[x][1]
+            pt_dict[x + (2,)] = pr[x][2]
+    return pt, pt_dict
+
+
 def MarkovFit3(tf,ma,var=True,tju=True,exp=True,rew=True,seg=5,train=False,transl=None):
     '''
     Performs a Markov chain fit to predict actions in the trajectory tf on maze ma.
@@ -527,6 +558,97 @@ def MarkovFit3(tf,ma,var=True,tju=True,exp=True,rew=True,seg=5,train=False,trans
     ce/=seg
     si=np.argsort(hi) # sort by history length
     return hi[si],ce[si]
+
+
+def MarkovFitAndTest3(tf_tr,tf_te,ma,var=True,tju=True,exp=True,rew=True,transl=None):
+    '''
+    Performs a Markov chain fit to predict actions in the trajectory tf_tr on maze ma.
+    Returns cross entropy on the test trajectory tf_te
+    Fit is restricted to T-junctions not including 0
+    var = variable history depth?
+    tju = actions at T-junctions only?
+    exp = actions in "explore" mode only?
+    rew = animal rewarded (relevant only if exp==True)
+    train = evaluate on training set?
+    transl = array to convert node numbers into a reduced set of state numbers
+    '''
+    if exp:
+        ex_tr=ModeMask(tf_tr,ma,rew) # one array for each bout marking states with mode = 0,1,2
+        ex_te=ModeMask(tf_te,ma,rew)  # one array for each bout marking states with mode = 0,1,2
+    if var:
+        par=np.array([2,3,5,10,20,40,80,160,320,640]) # min counts for the variable history
+    else:
+        par=np.array([1,2,3,4,5,6]) # fixed depths
+    hi=np.zeros(len(par)) # to store the avg history string length
+    ce=np.zeros(len(par)) # to store the cross entropy
+
+    dte=np.concatenate([b[:-2,0] for b in tf_te.no]) # test states
+    mte=np.array([False]+[True,]*(len(dte)-1)) # mask for testing, all actions OK except first
+    dtr=np.concatenate([b[:-2,0] for b in tf_tr.no]) # train states
+    mtr=np.array([False]+[True,]*(len(dtr)-1)) # mask for training, all actions OK except first
+    if tju: # restrict to actions taken from a T-junction, incl node 0
+        mtr[np.where(dtr[:-1]>62)[0]+1]=False # mask for training, eliminate end nodes
+        mte[np.where(dte[:-1]>62)[0]+1]=False # mask for testing, eliminate end nodes
+    if exp: # restrict to actions taken to an explore state
+        exe=np.concatenate([e[:-2] for e in ex_te]) # test mode
+        exr=np.concatenate([e[:-2] for e in ex_tr]) # train mode
+        mte[np.where(exe!=2)[0]]=False # limit the test mask to explore mode
+        mtr[np.where(exr!=2)[0]]=False # limit the train mask to explore mode
+
+    for j,k in enumerate(par):
+        if var:
+            co,le=VarMarkovTrain3(dtr,mtr,k,ma,transl)
+            hi[j]+=np.sum(le*np.arange(len(le)))/np.sum(le)+1 # mean history length
+        else:
+            co=FixMarkovTrain3(dtr,mtr,k,ma,transl)
+            hi[j]+=k # history length
+        su=np.sum(co,axis=-1).reshape(co.shape[:-1]+(1,)) # sum of counts over actions for each history
+        pr=(co+1)/(su+3) # smoothed estimator of probability (note at node 0 there are just 2 options)
+        ce[j]+=FixMarkovTest3(dte,mte,pr,ma,transl) # evaluate on testing data
+    si=np.argsort(hi) # sort by history length
+
+    return hi[si],ce[si]
+
+
+def GetPR(tf,ma,var=True,tju=True,exp=True,rew=True,transl=None,par=2):
+    '''
+    Performs a Markov chain fit to predict actions in the trajectory tf on maze ma.
+    Fit is restricted to T-junctions not including 0
+    var = variable history depth?
+    tju = actions at T-junctions only?
+    exp = actions in "explore" mode only?
+    rew = animal rewarded (relevant only if exp==True)
+    seg = number of segments for testing
+    transl = array to convert node numbers into a reduced set of state numbers
+    par = min counts for the variable history OR fixed depth
+    '''
+    # print("exp, tju, transl, par", exp, tju, transl, par)
+    if exp:
+        ex=ModeMask(tf,ma,rew) # one array for each bout marking states with mode = 0,1,2
+    if var:
+        par=np.array(par) # min counts for the variable history
+    else:
+        par=np.array(par) # fixed depths
+
+    dtr=np.concatenate([b[:-2,0] for b in tf.no]) # train states
+    mtr=np.array([False]+[True,]*(len(dtr)-1)) # mask for training, all actions OK except first
+    if tju: # restrict to actions taken from a T-junction, incl node 0
+        mtr[np.where(dtr[:-1]>62)[0]+1]=False # mask for training, eliminate end nodes
+        # print("masking endnodes")
+    if exp: # restrict to actions taken to an explore state
+        exr=np.concatenate([e[:-2] for e in ex]) # train mode
+        mtr[np.where(exr!=2)[0]]=False # limit the train mask to explore mode
+    k = par
+    if var:
+        co,le=VarMarkovTrain3(dtr,mtr,k,ma,transl)
+        hi=np.sum(le * np.arange(len(le))) / np.sum(le) + 1  # mean history length
+    else:
+        co=FixMarkovTrain3(dtr,mtr,k,ma,transl)
+        hi=k
+    su=np.sum(co,axis=-1).reshape(co.shape[:-1]+(1,)) # sum of counts over actions for each history
+    pr=(co+1)/(su+3) # smoothed estimator of probability (note at node 0 there are just 2 options)
+    pt, pt_dict = GetPR2(dtr, mtr, pr, ma, transl)
+    return hi, pr, pt, pt_dict
 
 
 # make an array to translate nodes to states in groups {0},{t-junctions},{end nodes}

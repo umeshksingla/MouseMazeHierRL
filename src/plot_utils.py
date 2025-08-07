@@ -18,6 +18,7 @@ from scipy.optimize import curve_fit
 
 from MM_Maze_Utils import NewMaze, PlotMazeWall, PlotMazeFunction
 from MM_Plot_Utils import plot, hist
+from MM_Models import ModeMask
 from MM_Traj_Utils import LoadTrajFromPath, PlotNodeBiasLocation, PlotNodeBias, TallyNodeStepTypes, SplitModeClips, NewNodes4
 from parameters import OUTDATA_PATH, HOME_NODE, WATERPORT_NODE, FRAME_RATE, NODE_LVL, ALL_MAZE_NODES, UnrewNamesSub, \
     full_labels
@@ -27,7 +28,6 @@ from utils import get_node_visit_times, get_all_night_nodes_and_times, \
     get_wp_visit_times_and_rwd_times, nodes2cell, get_reward_times, \
     convert_traj_to_episodes, get_outward_pref_order, get_revisits, get_end_nodes_revisits, get_unique_node_revisits, \
     calculate_normalized_visit_frequency_by_level, calculate_normalized_visit_frequency
-
 import evaluation_metrics as em
 
 
@@ -409,7 +409,10 @@ def plot_episode_lengths(tfs_labels, re=False, title='', save_file_path=None, di
 
     plt.hist(all_lengths, bins=100, color=colors, label=labels, density=True, stacked=True)
 
-    plt.title(f'Bout lengths\n{title}')
+    plttitle = 'Bout lengths'
+    if title:
+        plttitle = plttitle + '\n' + title
+    plt.title(plttitle)
     plt.xlabel("time")
     plt.ylabel("episode length in number of nodes")
     plt.legend()
@@ -514,34 +517,42 @@ def plot_exploration_efficiency(tfs_labels, re, half=0, le=6, title='', save_fil
         if re:
             ee_dict = em.get_rewarded_ee(h, le)
             animal_lbl = p.REW_ANIMALS_PLOT_LABEL
+            color = {-1: 'g', 0: p.ANIMAL_COLOR, 1: 'c', 2: 'y'}[h]
         else:
             ee_dict = em.get_unrewarded_ee(h, le)
             animal_lbl = p.UNREW_ANIMALS_PLOT_LABEL
+            color = p.ANIMAL_COLOR
         if h != 0:
-            animal_lbl = animal_lbl + f'-h{h}'
-        return ee_dict, animal_lbl
+            animal_lbl = animal_lbl + f'-h={h}'
+        return ee_dict, animal_lbl, color
 
-    def plot_animal_ee(ee_dict, lbl, linestyle, alpha):
+    def plot_animal_ee(ee_dict, lbl, color, linestyle, alpha):
         c, n, _ = ee_dict[animal_set[0]]  # plot one animal (to get the legend right)
-        plt.plot(c, n, color=p.ANIMAL_COLOR, linestyle=linestyle, alpha=alpha, linewidth=1, label=lbl)
+        plt.plot(c, n, color=color, linestyle=linestyle, alpha=alpha, linewidth=1, label=lbl)
         for nickname in animal_set[1:]:  # plot rest of the animals
             c, n, _ = animals_ee_dict[nickname]
-            plt.plot(c, n, color=p.ANIMAL_COLOR, linestyle=linestyle, alpha=alpha, linewidth=1)
+            plt.plot(c, n, color=color, linestyle=linestyle, alpha=alpha, linewidth=1)
         return
 
     plt.figure()
 
     # animal data
     if half == 'separate':
-        animals_ee_dict, animal_label = get_animal_dict(1)
-        plot_animal_ee(animals_ee_dict, animal_label, linestyle='-.', alpha=0.8)
 
-        animals_ee_dict, animal_label = get_animal_dict(2)
-        plot_animal_ee(animals_ee_dict, animal_label, linestyle='--', alpha=0.2)
+        if re:
+            animals_ee_dict, animal_label, color = get_animal_dict(-1)
+            plot_animal_ee(animals_ee_dict, animal_label, color, linestyle='--', alpha=0.8)
+
+        animals_ee_dict, animal_label, color = get_animal_dict(1)
+        plot_animal_ee(animals_ee_dict, animal_label, color, linestyle='--', alpha=0.4)
+
+        animals_ee_dict, animal_label, color = get_animal_dict(2)
+        plot_animal_ee(animals_ee_dict, animal_label, color, linestyle='--', alpha=0.5)
+
     else:
         assert half in [0, 1, 2]
-        animals_ee_dict, animal_label = get_animal_dict(half)
-        plot_animal_ee(animals_ee_dict, animal_label, linestyle='-.', alpha=0.4)
+        animals_ee_dict, animal_label, color = get_animal_dict(half)
+        plot_animal_ee(animals_ee_dict, animal_label, color, linestyle='-.', alpha=0.4)
 
     # random
     c, n = em.get_random_ee(le)
@@ -566,7 +577,10 @@ def plot_exploration_efficiency(tfs_labels, re, half=0, le=6, title='', save_fil
             plt.plot(c, n, f'{p.COLORS[i]}o-', label=agent_label)
 
     plt.xscale('log', base=10)
-    plt.title(f'Exploration Efficiency Level {le} \n{title}')
+    plttitle = f'Exploration Efficiency (Level {le})'
+    if title:
+        plttitle = plttitle + '\n' + title
+    plt.title(plttitle)
     plt.xlabel(f"Nodes visited (level={le})")
     plt.ylabel(f"New nodes found (level={le})")
     plt.legend()
@@ -622,7 +636,10 @@ def plot_percent_turns(tfs_labels, re=False, title='', save_file_path=None, disp
     for bl, sl in zip(bls, sls):
         plt.errorbar(range(len(bl)), bl, yerr=sl, fmt='none')
 
-    plt.title(f'Node bias\n{title}')
+    plttitle = 'Node Biases'
+    if title:
+        plttitle = plttitle + '\n' + title
+    plt.title(plttitle)
     if save_file_path:
         os.makedirs(save_file_path, exist_ok=True)
         plt.savefig(os.path.join(save_file_path, f'node_bias.png'), bbox_inches='tight', dpi='figure')
@@ -634,7 +651,10 @@ def plot_percent_turns(tfs_labels, re=False, title='', save_file_path=None, disp
     for i, (tf, label) in enumerate(animal_tf_label + tfs_labels):
         plt.figure()
         PlotNodeBiasLocation(tf, ma)
-        plt.title(f'Spatial distribution of left-right bias\n{title}')
+        plttitle = 'Spatial distribution of left-right Bias'
+        if title:
+            plttitle = plttitle + '\n' + title
+        plt.title(plttitle)
         if save_file_path:
             os.makedirs(save_file_path, exist_ok=True)
             plt.savefig(os.path.join(save_file_path, f'node_bias_maze_{labels[i]}_{i}.png'), bbox_inches='tight', dpi='figure')
@@ -982,18 +1002,12 @@ def plot_decision_biases(tfs_labels, re, title='', save_file_path=None, display=
     Plots the decision biases and prints their standard deviation for each agent
     """
 
-    if re:
-        precomputed_biases_file = 'decision_biases_rewarded.pkl'
-        animal_label = p.REW_ANIMALS_PLOT_LABEL
-    else:
-        precomputed_biases_file = 'decision_biases_unrewarded.pkl'
-        animal_label = p.UNREW_ANIMALS_PLOT_LABEL
+    animal_label = p.REW_ANIMALS_PLOT_LABEL if re else p.UNREW_ANIMALS_PLOT_LABEL
 
     figure()
 
     # load precomputed animal biases
-    with open(OUTDATA_PATH + precomputed_biases_file, 'rb') as f:
-        bi_data = pickle.load(f)
+    bi_data = em.get_decision_biases_animal(re)
 
     # get this agent's biases
     labels = []
@@ -1004,14 +1018,16 @@ def plot_decision_biases(tfs_labels, re, title='', save_file_path=None, display=
 
     bi_agents, _ = em.get_decision_biases(tfs, re)
 
-    fmts = [f'{p.ANIMAL_COLOR}.', 'k+'] + [(p.COLORS[i] + '.') for i, _ in enumerate(labels)]
+    # fmts = [f'{p.ANIMAL_COLOR}.', 'k+'] + [(p.COLORS[i] + '.') for i, _ in enumerate(labels)]
+    fmts = [f'{p.ANIMAL_COLOR}.', 'k+'] + ['c.']*10 + ['r.']*10 + ['g.']*10
 
     # plot biases BF vs SF
     ax = subplot(121)
     x = [bi_data[:, 0], [2 / 3]] + [[bi_agents[i, 0]] for i in range(len(bi_agents))]
     y = [bi_data[:, 2], [2 / 3]] + [[bi_agents[i, 2]] for i in range(len(bi_agents))]
     plot(x, y, fmts=fmts, markersize=7,
-         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=[animal_label, 'random']+labels,
+         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
+         # legend=[animal_label, 'random']+labels,
          xlabel='$P_{\mathrm{SF}}$', ylabel='$P_{\mathrm{BF}}$', loc='lower left')
 
     # plot biases BS vs SA
@@ -1019,10 +1035,14 @@ def plot_decision_biases(tfs_labels, re, title='', save_file_path=None, display=
     x = [bi_data[:, 1], [1 / 2]] + [[bi_agents[i, 1]] for i in range(len(bi_agents))]
     y = [bi_data[:, 3], [1 / 2]] + [[bi_agents[i, 3]] for i in range(len(bi_agents))]
     plot(x, y, fmts=fmts, markersize=7,
-         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax, legend=[animal_label, 'random']+labels,
+         xlim=[0, 1], ylim=[0, 1], equal=True, axes=ax,
+         # legend=[animal_label, 'random']+labels,
          xlabel='$P_{\mathrm{SA}}$', ylabel='$P_{\mathrm{BS}}$', loc='lower left')
 
-    suptitle(f"Decision biases\n{title}")
+    plttitle = 'Decision Biases'
+    if title:
+        plttitle = plttitle + '\n' + title
+    suptitle(plttitle)
     if save_file_path:
         plt.savefig(os.path.join(save_file_path, f'decision_biases.png'), bbox_inches='tight', dpi='figure')
     if display:
@@ -1075,12 +1095,15 @@ def plot_markov_fit_pooling(tf, label, re, title='', save_file_path=None, displa
     print("plotting markov_fit_pooling")
     [hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr] = em.markov_fit_pooling(tf, re)
     print("plot_markov_fit_pooling end", time.time()-start, "seconds")
+    plttitle = 'Markov Fit (pooling)'
+    if title:
+        plttitle = plttitle + '\n' + title
     plot([hf5, hv5, hf5tr, hv5tr], [cf5, cv5, cf5tr, cv5tr],
          fmts=['r.-', 'g.-', 'b.-', 'y.-'], markersize=8, linewidth=1,
          xlabel='Average depth of history', ylabel='Cross-entropy',
          # ylim=[1.15, 1.75],
          legend=['fix test', 'var test', 'fix train', 'var train'],
-         loc='lower left', figsize=(5, 4), title=f'Markov Fit (pooling)\n{title}')
+         loc='lower left', figsize=(5, 4), title=plttitle)
 
     print("avg depth for min cross entropy")
     ef, hf = sorted(zip(cf5, hf5))[0]
@@ -1397,6 +1420,14 @@ def plot_reward_runs(tfs_labels, title, save_file_path=None, display=False):
 
 def plot_visit_freq_by_level(tfs_labels, re=False, title='', save_file_path=None, display=False):
 
+    ma = NewMaze()
+
+    def get_explore_mode_nodes(tf, re):
+        cl = SplitModeClips(tf, ma, re=re)
+        ce = cl[np.where(cl[:, 3] == EXPLORE)]  # clips of exploration
+        ne = np.concatenate([tf.no[c[0]][c[1]:c[1] + c[2], 0] for c in ce])  # nodes excluding the last state in each clip
+        return ne
+
     animal_set = p.RewNames if re else p.UnrewNamesSub
     animal_lbl = p.REW_ANIMALS_PLOT_LABEL if re else p.UNREW_ANIMALS_PLOT_LABEL
 
@@ -1405,14 +1436,15 @@ def plot_visit_freq_by_level(tfs_labels, re=False, title='', save_file_path=None
 
     # animal data
     tf = LoadTrajFromPath(OUTDATA_PATH + f'{animal_set[0]}-tf')  # plot one animal (to get the legend right)
-    epis = convert_traj_to_episodes(tf)
-    visit_frequency = calculate_normalized_visit_frequency_by_level(epis)
+    ne = get_explore_mode_nodes(tf, re)
+    visit_frequency = calculate_normalized_visit_frequency_by_level([ne])
+    print(visit_frequency)
     fmt = f'{p.ANIMAL_COLOR}-.'
     plt.plot(visit_frequency, fmt, alpha=0.4, linewidth=1, label=animal_lbl)
     for nickname in animal_set[1:]:  # plot rest of the animals
         tf = LoadTrajFromPath(OUTDATA_PATH + f'{nickname}-tf')
-        epis = convert_traj_to_episodes(tf)
-        visit_frequency = calculate_normalized_visit_frequency_by_level(epis)
+        ne = get_explore_mode_nodes(tf, re)
+        visit_frequency = calculate_normalized_visit_frequency_by_level([ne])
         plt.plot(visit_frequency, fmt, alpha=0.4, linewidth=1)
 
     # random
@@ -1420,7 +1452,8 @@ def plot_visit_freq_by_level(tfs_labels, re=False, title='', save_file_path=None
 
     # agent data
     for i, (tf, label) in enumerate(tfs_labels):
-        visit_frequency = calculate_normalized_visit_frequency_by_level(convert_traj_to_episodes(tf))
+        ne = get_explore_mode_nodes(tf, re)
+        visit_frequency = calculate_normalized_visit_frequency_by_level([ne])
         print("visit_frequency", visit_frequency)
         color = p.COLORS[i]
         fmt = f'{color}o-'
@@ -1434,37 +1467,6 @@ def plot_visit_freq_by_level(tfs_labels, re=False, title='', save_file_path=None
     if save_file_path:
         os.makedirs(save_file_path, exist_ok=True)
         plt.savefig(os.path.join(save_file_path, f'norm_visit_frequency_by_level_plot.png'))
-    if display:
-        plt.show()
-    plt.clf()
-    plt.close()
-    return
-
-
-def plot_visit_freq_by_node(tfs_labels, title='', save_file_path=None, display=False):
-
-    plt.figure()
-    plot_level = "node"
-
-    # animal data
-    tf = LoadTrajFromPath(OUTDATA_PATH + f'{UnrewNamesSub[0]}-tf')  # plot one animal (to get the legend right)
-    epis = convert_traj_to_episodes(tf)
-    visit_frequency = calculate_normalized_visit_frequency(epis)
-    plt.plot(visit_frequency, p.ANIMAL_COLOR + 'o', alpha=0.4, linewidth=1, label='unrewarded')
-
-    # agent data
-    for i, (tf, label) in enumerate(tfs_labels):
-        visit_frequency = calculate_normalized_visit_frequency(convert_traj_to_episodes(tf))
-        plt.plot(visit_frequency, p.COLORS[i] + 'o', label=label if label else f'agent {i}')
-
-    plt.title(f'Normalized visit frequency by {plot_level}\n{title}')
-    plt.xlabel(plot_level)
-    plt.ylabel(f"fraction of visits to each {plot_level}")
-    plt.legend(loc='upper left')
-    plt.ylim([0.0, 0.07])
-    if save_file_path:
-        os.makedirs(save_file_path, exist_ok=True)
-        plt.savefig(os.path.join(save_file_path, f'norm_visit_frequency_by_{plot_level}_plot.png'))
     if display:
         plt.show()
     plt.clf()
@@ -1500,8 +1502,12 @@ def plot_outside_inside_ratio(tfs, re, title='', save_file_path=None, display=Fa
         plt.plot([1], [ratio], f'{p.COLORS[i]}o', label=f'{label if label else f"agent {i}"} - {round(ratio, 2)}')
 
     plt.ylim([0, 4])
-    plt.title(f"Ratio of visits to outer vs inner leaf nodes\n{title}")
+    plttitle = 'Ratio of visits to outer vs inner leaf nodes'
+    if title:
+        plttitle = plttitle + '\n' + title
+    plt.title(plttitle)
     plt.ylabel(f"ratio")
+    plt.tick_params(axis='x', bottom=False, labelbottom=False)
     plt.legend()
     if save_file_path:
         plt.savefig(os.path.join(save_file_path, f'outside_inside_ratio.png'))

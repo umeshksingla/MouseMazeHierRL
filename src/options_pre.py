@@ -42,7 +42,7 @@ def generate_options(s, d):
     options = []
     for node in G:
         if G.out_degree(node) == 0:  # it's a leaf
-            options.append(nx.shortest_path(G, s, node))
+            options.append(tuple(nx.shortest_path(G, s, node)))
     # print(options)
     return options
 
@@ -91,15 +91,12 @@ def construct_options():
         options_dict[n] = dict.fromkeys(range(1, max_option_length), None)
         for l in range(1, max_option_length):
             all_options = generate_options(n, l)
+            # options_dict[n][l] = all_options
             options_dict[n][l] = filter_straight(all_options)
-            # print("node", n, "len", l, "all_options", len(all_options), "straight_options", len(options_dict[n][l]))
-        # print("===========")
 
-        with open('straight_options_dict.json', 'w') as f:
-            json.dump(options_dict, f)
+        with open('straight_options_dict_tuple.pkl', 'wb') as f:
+            pickle.dump(options_dict, f)
 
-        # with open('straight_options_dict.pkl', 'wb') as f:
-        #     pickle.dump(options_dict, f)
     print(options_dict)
     return
 
@@ -107,16 +104,21 @@ def construct_options():
 # construct_options()
 
 
-with open('straight_options_dict.json', 'r') as f:
-    straight_options_dict = json.load(f)
+with open('all_options_dict_tuple.pkl', 'rb') as f:
+    all_options_dict = pickle.load(f)
+with open('straight_options_dict_tuple.pkl', 'rb') as f:
+    straight_options_dict = pickle.load(f)
+with open('all_options_dict.json', 'r') as f:
+    home_options_dict = {}
+    for l, o_list in json.load(f)["127"].items():
+        home_options_dict[int(l)] = [tuple(o) for o in o_list]
 
-with open('options_dict.json', 'r') as f:
-    options_dict = json.load(f)
 
-straight_options_dict["127"] = options_dict["127"]
+straight_options_dict[127] = home_options_dict
+all_options_dict[127] = home_options_dict
 
-d1 = straight_options_dict["4"]["3"]
-d2 = options_dict["4"]["3"]
-
-print(d1)
-print(d2)
+# print("all options", all_options_dict[100][4])
+# print("all options", straight_options_dict[100][4])
+# print("all options", all_options_dict[4][3])
+# print("straight options", straight_options_dict[4][3])
+# print("straight options", straight_options_dict[127][3])

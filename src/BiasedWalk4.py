@@ -24,7 +24,7 @@ class BiasedWalk4(BaseModel):
         ma = NewMaze()
         mean_animal_biases = np.mean(self.bi_data, axis=0)
         print("mean_animal_biases", mean_animal_biases)
-        tf = Make2ndMarkov(ma, n=MAX_LENGTH, bi=mean_animal_biases)
+        tf = Make2ndMarkov(ma, rs=np.random.seed(), n=MAX_LENGTH, bi=mean_animal_biases)
         self.episode_state_traj = sum(utils.convert_traj_to_episodes(tf), [])
         episode_state_trajs, episode_maze_trajs = self.wrap(self.episode_state_traj)
         return True, episode_state_trajs, episode_maze_trajs, 0.0
@@ -56,10 +56,10 @@ class BiasedWalk4(BaseModel):
 # Driver Code
 if __name__ == '__main__':
     from sample_agent import run, load
-    param_sets = [{'rew': True}]
-    runids = run(BiasedWalk4(), param_sets, '/Users/usingla/mouse-maze/figs', '35000')
+    param_sets = [{'rew': False}]*5
+    runids = run(BiasedWalk4(), param_sets, '/Users/us3519/mouse-maze/figs/may28', '20000', analyze=True)
     print(runids)
-    base_path = '/Users/usingla/mouse-maze/figs/'
-    load([
-        ('BiasedWalk4', runids)
-    ], base_path)
+    # base_path = '/Users/usingla/mouse-maze/figs/'
+    # load([
+    #     ('BiasedWalk4', runids)
+    # ], base_path)

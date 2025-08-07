@@ -13,10 +13,11 @@ import numpy as np
 import pickle
 from multiprocessing import Pool
 
+import utils
 from MM_Traj_Utils import LoadTrajFromPath, NewMaze, StepType2
 from parameters import INVALID_STATE, RWD_STATE, WATERPORT_NODE, LVL_BY_NODE, HOME_NODE, NODE_LVL, ALL_MAZE_NODES
 from collections import defaultdict
-from utils import break_simulated_traj_into_episodes, get_children, get_parent_node
+from utils import wrap
 
 
 class BaseModel:
@@ -290,7 +291,7 @@ class BaseModel:
         for agentId, params in enumerate(sub_fits):
             print("agentId=", agentId, "params=", params)
             tasks.append((agentId, params, MAX_LENGTH, N_BOUTS_TO_GENERATE))
-        with Pool(4) as p:  # running in parallel in 4 processes
+        with Pool(60) as p:  # running in parallel in 4 processes
             simulation_results = p.starmap(self.simulate, tasks)
         return dict([(a[0], simulation_results[i]) for i, a in enumerate(tasks)])
 
@@ -315,23 +316,5 @@ class BaseModel:
         """
         return self.nodemap[s][self.nodemap[s] != INVALID_STATE]
 
-    @staticmethod
-    def test_traj(traj):
-        for i, j in zip(traj, traj[1:]):
-            assert i != j
-            assert (i in get_children(j)) or (i == get_parent_node(j)) or (i in [HOME_NODE, RWD_STATE]) or (j in [HOME_NODE, RWD_STATE])
-        return
-
-    def test_episodes(self, episode_state_traj):
-        for i, t in enumerate(episode_state_traj):
-            try:
-                self.test_traj(t)
-            except:
-                raise Exception(f"Corrupt traj {i} with adjacent similar nodes found: {t}")
-
     def wrap(self, episode_state_traj):
-        episode_state_trajs = break_simulated_traj_into_episodes(episode_state_traj)
-        self.test_episodes(episode_state_trajs)
-        episode_state_trajs = list(filter(lambda e: len(e) >= 3, episode_state_trajs))  # remove empty or short episodes
-        episode_maze_trajs = episode_state_trajs  # in pure exploration, both are same
-        return episode_state_trajs, episode_maze_trajs
+        return utils.wrap(episode_state_traj)

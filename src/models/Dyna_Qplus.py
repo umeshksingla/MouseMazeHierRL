@@ -79,7 +79,7 @@ class DynaQPlus(BaseModel):
         """
 
         self.nodemap[WATERPORT_NODE][1] = -1  # No action to go to RWD_STATE
-        print(" === nodemap start ===\n", self.nodemap, "\n === nodemap end ===")
+        # print(" === nodemap start ===\n", self.nodemap, "\n === nodemap end ===")
 
         episode_state_traj = []
         LL = 0.0    # loglikelihood (broken at the moment)

@@ -20,6 +20,7 @@ class TeOptions(BaseModel):
 
         self.episode_state_traj = []
         self.s = p.HOME_NODE
+        self.params = None
 
     def __random_action__(self, state):
         """
@@ -88,6 +89,7 @@ class TeOptions(BaseModel):
 
     def simulate(self, agentId, params, MAX_LENGTH=25, N_BOUTS_TO_GENERATE=1):
         print("Simulating agent with id", agentId)
+        self.params = params
         success = 1
         _, episode_state_trajs, episode_maze_trajs, episode_ll = self.generate_exploration_episode(MAX_LENGTH)
         stats = {

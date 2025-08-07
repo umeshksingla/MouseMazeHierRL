@@ -7,7 +7,7 @@ def plot(X, Y=None, xlabel=None, ylabel=None, legend=[], loc=None, title=None,
          xlim=None, ylim=None, xscale='linear', yscale='linear',
          xticks=None, yticks=None, xhide=False, yhide=False, yrot=False, yzero=False, yflip=False, 
          fmts=['g-', 'm--', 'b-.', 'r:'], linewidth=2, markersize=5, fillstyle='full',
-         markeredgewidth=1,
+         markeredgewidth=1,alpha=1,
          grid=False, equal=False, figsize=(5,3), axes=None):
     """
     Plot data points.
@@ -53,10 +53,10 @@ def plot(X, Y=None, xlabel=None, ylabel=None, legend=[], loc=None, title=None,
     # axes.cla() # clears these axes
     for x, y, fmt in zip(X, Y, fmts):
         if len(x):
-            axes.plot(x, y, fmt, linewidth=linewidth, markersize=markersize,
+            axes.plot(x, y, fmt, alpha=alpha, linewidth=linewidth, markersize=markersize,
             	fillstyle=fillstyle,markeredgewidth=markeredgewidth)
         else:
-            axes.plot(y, fmt, linewidth=linewidth, markersize=markersize,
+            axes.plot(y, fmt, alpha=alpha, linewidth=linewidth, markersize=markersize,
             	fillstyle=fillstyle,markeredgewidth=markeredgewidth)
     set_axes(axes, xlabel, ylabel, legend, loc, xlim, ylim, xscale, yscale, 
              xticks, yticks, xhide, yhide, yrot, yzero, yflip, grid, equal)
