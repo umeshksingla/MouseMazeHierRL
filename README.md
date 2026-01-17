@@ -18,6 +18,7 @@ The codebase allows for:
 
 ```text
 ├── src/
+│   ├── sample_agent.py          # Entry point: runs a model, generates trajectories, dumps model, and plots figures
 │   ├── BaseModel/              # Base model class to implement a variety of models
 │   ├── TeAltOptions_model.py   # The main temporally-extended model (Ez-greedy)
 │   ├── Te*_model.py            # Variations of models built on TeAltOptions_model
@@ -25,10 +26,9 @@ The codebase allows for:
 │   ├── utils.py                 # General utilities
 │   ├── plot_utils.py            # General plotting utilities
 │   ├── MM_Maze_Utils.py         # Utilities to plot maze and handle data structures (from original study)
-│   ├── MM_Traj_Utils.py         # Trajectory processing utilities (from original study)
+│   ├── MM_Traj_Utils.py         # Mouse Trajectory processing utilities (from original study)
 │   ├── MM_Plot_Utils.py         # Maze plotting utilities (from original study)
-│   ├── MM_Models.py             # Markov chain models from the original study
-│   └── sample_agent.py          # Entry point: runs a model, generates trajectories, dumps model, and plots figures
+│   └── MM_Models.py             # Markov chain models from the original study
 └── model_nbs/                  # Jupyter notebooks for older/experimental models (not maintained)
 ```
 
