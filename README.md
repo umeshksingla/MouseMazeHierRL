@@ -18,7 +18,7 @@ The codebase allows for:
 
 ```text
 ├── src/
-│   ├── sample_agent.py          # Entry point: runs a model, generates trajectories, dumps model, and plots figures
+│   ├── sample_agent.py         # Entry point: runs a model, generates trajectories, dumps model, and plots figures
 │   ├── BaseModel/              # Base model class to implement a variety of models
 │   ├── TeAltOptions_model.py   # The main temporally-extended model (Ez-greedy)
 │   ├── Te*_model.py            # Variations of models built on TeAltOptions_model
