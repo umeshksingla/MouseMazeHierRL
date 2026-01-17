@@ -1,3 +1,7 @@
+"""
+Credits: Rosenberg et al., eLife (2021)
+"""
+
 # Utilities for plotting
 
 import numpy as np

@@ -1,3 +1,7 @@
+"""
+Credits: Rosenberg et al., eLife (2021)
+"""
+
 import os
 import sys
 import pickle

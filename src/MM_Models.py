@@ -1,3 +1,8 @@
+"""
+Credits: Rosenberg et al., eLife (2021)
+"""
+
+
 import numpy as np
 from MM_Traj_Utils import SplitModeClips, StepType, StepType2, StepType3
 

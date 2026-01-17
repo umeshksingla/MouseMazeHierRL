@@ -68,6 +68,8 @@ def nodes2cell(state_hist_all, zigzag=True):
     '''
     param state_hist_all:  [[nodes], [], ...]
     param zigzag: if the resulting cell traj needs to be a bit noisy or straight
+
+    Credits: Rosenberg et al., eLife (2021)
     '''
     state_hist_cell = []
     state_hist_xy = []

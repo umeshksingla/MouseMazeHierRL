@@ -42,6 +42,8 @@ def plot_trajectory(state_hist_all, episode_idx, save_file_name=None, figtitle=N
     
     Plots One maze figure with plotted trajectories and a color bar indicating nodes from entry to exit
     Returns: None
+
+    Credits: Rosenberg et al., eLife (2021)
     '''
     state_hist_cell, state_hist_xy = nodes2cell(state_hist_all)
     
@@ -234,6 +236,8 @@ def PlotMazeFunction_gradientcmap(fn, ma, interpolate_cell_values, colormap_name
     :param numcol: color for the numbers. If numcol is None the numbers are omitted
     :param figsize: in inches
     :return: the axes of the plot with maze cells color-coded with state-values
+
+    Credits: Rosenberg et al., eLife (2021)
     '''
 
     def nodes2cell_statevalues(V):
@@ -321,6 +325,8 @@ def plot_maze_stats(data, interpolate_cell_values=True, colormap_name=None, axes
         other cells colored in white # TODO: change this name since it is not only doing the interpolation, but also change the
                                         way the function is calculated
     :param colormap_name: name of matplotlib built-in colormap from matplotlib.pyplot.cm
+
+    Credits: Rosenberg et al., eLife (2021)
     """
     # ma = NewMaze()
     # if datatype == 'states':
@@ -595,6 +601,9 @@ def plot_exploration_efficiency(tfs_labels, re, half=0, le=6, title='', save_fil
 
 
 def nodebias(tr, ma):
+    """
+    Credits: Rosenberg et al., eLife (2021)
+    """
     tu = TallyNodeStepTypes(tr,ma)
     n = 2**ma.le-1 # number of nodes below end node level
     # bo = (tu[:n,2]+tu[:n,3])/np.sum(tu[:n,:],axis=1) # (outleft+outright)/(outleft+outright+inleft+inright)
@@ -665,71 +674,6 @@ def plot_percent_turns(tfs_labels, re=False, title='', save_file_path=None, disp
     return
 
 
-def plot_percent_turns_DEPRECATED(tf, title=None, save_file_path=None, display=False):
-    raise NotImplementedError
-    seqs_level2 = [[0, 1, 4],
-                   [0, 1, 3],
-                   [0, 2, 6],
-                   [0, 2, 5]]
-
-    seqs_level3 = []
-    for s in seqs_level2:
-        l, r = 2*s[-1]+1, 2*s[-1] + 2
-        seqs_level3.append(s + [l])
-        seqs_level3.append(s + [r])
-
-    seqs_level4 = []
-    for s in seqs_level3:
-        l, r = 2*s[-1]+1, 2*s[-1] + 2
-        seqs_level4.append(s + [l])
-        seqs_level4.append(s + [r])
-
-    seqs_level5 = []
-    for s in seqs_level4:
-        l, r = 2*s[-1]+1, 2*s[-1] + 2
-        seqs_level5.append(s + [l])
-        seqs_level5.append(s + [r])
-
-    # data
-    with open(p.OUTDATA_PATH + 'outward_turns_unrewarded.pkl', 'rb') as f:
-        pref_unrewarded_le = pickle.load(f)
-
-    plt.figure()
-    for le, seqs_level in zip([2, 3, 4, 5], [seqs_level2, seqs_level3, seqs_level4, seqs_level5]):
-        outward_prefs = [0]
-        total = 0
-        for node_seq in seqs_level:
-            turn_node = node_seq[-1]
-            pref_order = get_outward_pref_order(turn_node)
-            assert len(pref_order) == 2
-            counts, seq_samples = em.percent_turns(tf, node_seq, pref_order[0], pref_order[1])
-            # print(node_seq, turn_node, pref_order, counts, seq_samples)
-            if seq_samples < 2:
-                continue
-            outward_prefs.append(counts[pref_order[0]])
-            total += seq_samples
-        print(f"le={le}:", outward_prefs)
-
-        plt.plot([le]*len(pref_unrewarded_le[le]), pref_unrewarded_le[le],  'b.', label=f'unrewarded' if le == 2 else '')
-        plt.plot(le, sum(outward_prefs)*100/total, 'ro', label=f'agent' if le == 2 else '')
-        plt.plot(le, 50.0, 'ko', label=f'random' if le == 2 else '')
-
-    plt.xlabel('Level')
-    plt.ylabel('Percentage outward turns')
-    plt.ylim([0, 100])
-    plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
-    plt.legend(loc='lower right')
-    if title:
-        plt.title(title)
-    if save_file_path:
-        plt.savefig(os.path.join(save_file_path, f'percent_outward_turns.png'), bbox_inches='tight', dpi='figure')
-    if display:
-        plt.show()
-    plt.clf()
-    plt.close()
-    return
-
-
 def plot_first_endnode_labels(tfs_labels, re=False, title='', save_file_path=None, display=False):
 
     animal_lbl = p.REW_ANIMALS_PLOT_LABEL if re else p.UNREW_ANIMALS_PLOT_LABEL
@@ -766,23 +710,6 @@ def plot_first_endnode_labels(tfs_labels, re=False, title='', save_file_path=Non
     plt.clf()
     plt.close()
     return
-
-    # # Plotting on the maze
-    # plt.figure()
-    # first_visit_plot = np.array([0]*len(ALL_MAZE_NODES))
-    # first_visit_plot[63] = first_visit_label_fracs.get(p.full_labels[p.STRAIGHT], 0)  # s
-    # first_visit_plot[64] = first_visit_label_fracs.get(p.full_labels[p.OPP_STRAIGHT], 0)  # o_s
-    # first_visit_plot[65] = first_visit_label_fracs.get(p.full_labels[p.BENT_STRAIGHT], 0)  # bs
-    # first_visit_plot[66] = first_visit_label_fracs.get(p.full_labels[p.OPP_BENT_STRAIGHT], 0)  # o_bs
-    # PlotMazeFunction(first_visit_plot/100, NewMaze(6), mode='nodes', numcol='g', figsize=6)
-    # if title:
-    #     plt.title(title)
-    # if save_file_path:
-    #     plt.savefig(os.path.join(save_file_path, f'first_endnode_hits_maze.png'), bbox_inches='tight', dpi='figure')
-    # if display:
-    #     plt.show()
-    # plt.clf()
-    # plt.close()
 
 
 def plot_opposite_node_preference(tfs_labels, re=False, title='', save_file_path=None, display=False):
@@ -829,46 +756,6 @@ def plot_opposite_node_preference(tfs_labels, re=False, title='', save_file_path
         plt.show()
     plt.clf()
     plt.close()
-    return
-
-
-def plot_revisits():
-    raise NotImplementedError
-    for sub in p.UnrewNamesSub[:2]:
-        revisit = get_revisits(sub)
-        for node in [0]:
-            total = len(revisit[node])
-            plt.figure(figsize=(15, 4))
-            plt.plot(range(total), revisit[node])
-            plt.title(f"animal {sub}, node {node}")
-            plt.xlabel("as time goes by")
-            plt.ylabel("number of nodes in between revisits")
-            plt.show()
-    return
-
-
-def plot_end_node_revisits(tf, title='', save_file_path=None, display=False):
-    raise NotImplementedError
-    N = 63
-    end_nodes_revisit = get_end_nodes_revisits(tf)
-    for node in [N]:
-        revisits = end_nodes_revisit[node]
-        total = len(revisits)
-        plt.figure(figsize=(15, 4))
-        plt.plot(range(total), revisits, 'o')
-        plt.title(f"{title} node {node}")
-        plt.xlabel("as time goes by")
-        #         plt.ylim([-1, 10])
-        plt.gca().yaxis.set_major_locator(mtick.MaxNLocator(integer=True))
-        plt.gca().xaxis.set_major_locator(mtick.MaxNLocator(integer=True))
-        plt.ylabel("Count of end-nodes in between revisits")
-        if save_file_path:
-            plt.savefig(os.path.join(save_file_path, f'fraction_endnode_revisits_node{node}_alltime.png'),
-                        bbox_inches='tight', dpi='figure')
-        if display:
-            plt.show()
-        plt.clf()
-        plt.close()
     return
 
 

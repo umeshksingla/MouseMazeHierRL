@@ -1,34 +1,34 @@
-# MouseMaze
- 
-Original code and raw data from [Rosenberg-2021-Repository](https://github.com/markusmeister/Rosenberg-2021-Repository)
+## Mouse Maze
 
-Google notebook link [here](https://docs.google.com/document/d/1FG4x-Lj7eFH-U-M5xrcb6oEvnsBYPWCYeSBzgtgq2p8/edit?usp=sharing).
+This repository contains the code and models for the study on mouse exploration strategies in a complex labyrinth, as presented in:
 
+* **Singla et al., 2026 (bioRxiv)**: *Temporal Abstraction Explains Mouse Exploration in a Complex Maze*
+* **Singla et al., 2024 (CogSci)**: *Temporal Persistence Explains Mice Exploration in a Labyrinth*
 
-## Steps to implement a model 
-You can follow the below steps for `model` = `"TDlambdaXSteps_"`:
+[**Read the Paper (PDF)**](https://escholarship.org/content/qt0s4241rf/qt0s4241rf.pdf)
 
-* Create a directory inside the root of the repo, say `<model>stan`.
-* Stan File: Add your stan model file with name `<model>.stan` to this directory.
-* Python model class file: Add a model class with name `<model>model.py`.
+## Overview
 
-## To train model parameters in stan:
-* Add the python code to initialize your model class, call its various 
-functions such as extract traj data, get model configuration like number of states, 
-etc as relevant and call the stan script. Also, save your stan results. 
-Refer to `<model>stan/<model>run_model.py` for an example.
-* Add the bash script to run your job on ssrde server. Initialize
-any params you need and call the python job basically. Pass the various
-configuration options like directory paths, log output etc here.
-Refer to `submit_stan_fit` in `<model>stan` folder.
-Use this command to run the model: 
-```bash
-$ submit_stan_fit <model>run_model.py
-```
-    
-## To simulate:
-* To simulate an agent based on the fitted parameters you got in train step,
-simply import the model class and run your simulate function.
-Refer to `<model>simulate.py` for an example.
-* Otherwise, you can run a simple TDLambda agent with arbitrarily set parameters 
-  with code exemplified in the `__main__`  of `TDLambda_model.py`
+This project models the exploration behavior of mice freely navigating a complex binary-tree maze (originally described by Rosenberg et al., 2021). We demonstrate that a hierarchical Reinforcement Learning (RL) agent using **temporally-extended $\epsilon$-greedy exploration ($\epsilon z$-greedy)** captures the efficiency and turning biases of real mice better than random walks or simple Markovian models.
+
+The codebase allows for:
+1.  Simulating various agents (Random Walk, Biased Walk, Ez-greedy, Uncertainty-based).
+2.  Comparing simulated trajectories against animal behavioral data.
+3.  Reproducing the figures presented in the paper.
+
+## Directory Structure
+
+```text
+├── src/
+│   ├── BaseModel/           # Base model class to implement a variety of models
+│   ├── TeAltOptions_model.py # The main temporally-extended model (Ez-greedy)
+│   └── Te*_model.py         # Variations of models built on TeAltOptions_model
+├── model_nbs/               # Jupyter notebooks for older/experimental models (not maintained)
+├── figure_*.ipynb           # Jupyter notebooks to generate all paper figures
+├── utils.py                 # General utilities
+├── plot_utils.py            # General plotting utilities
+├── MM_Maze_Utils.py         # Utilities to plot maze and handle data structures (from orig. study)
+├── MM_Traj_Utils.py         # Trajectory processing utilities (from orig. study)
+├── MM_Plot_Utils.py         # Maze plotting utilities (from orig. study)
+├── MM_Models.py             # Markov chain models from the original study
+└── sample_agent.py          # Entry point: runs a model, generates trajectories, dumps model, and plots figures
