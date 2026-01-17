@@ -1,4 +1,6 @@
 """
+Temporally-Extended Greedy Model class with uniform distribution over action length durations (but only LONG durations >= 5)
+ built on Alternative Options.
 """
 
 import numpy as np

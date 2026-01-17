@@ -8,24 +8,6 @@ from numpy import array, arange
 from collections import defaultdict
 
 
-def get_all_night_nodes_and_times(tf):
-    """
-    Get the nodes the animal visited across all night and the corresponding times
-    :returns: ndarray (n_nodes_traversed, 2) nodes and the time instant the animal was there
-    """
-    tf_new = add_node_times_to_tf(tf)
-    return np.vstack(tf_new.node_times)
-
-
-def get_re_nodes_and_times(tf):
-    """
-    Get the reward times the animal got the corresponding times
-    :returns: ndarray (n_nodes_traversed, 2) nodes and the time instant the animal was there
-    """
-    tf_new = add_reward_times_to_tf(tf)
-    return np.vstack(tf_new.re_times)
-
-
 def get_node_visit_times(tf, node_id):
     """
     Get lists of node visit times
@@ -48,68 +30,6 @@ def get_node_visit_times(tf, node_id):
     else:
         times_to_node_visits=np.array([])
     return times_to_node_visits
-
-
-def get_wp_visit_times_and_rwd_times(tf):
-    """
-    Get lists of waterport visit times and reward delivery times
-    :param tf: trajectory object
-    :return: times_to_waterport_visits, times_to_rwd
-    """
-    times_to_waterport_visits = get_node_visit_times(tf, WATERPORT_NODE)
-
-    # calculate reward deliveries
-
-    frames_to_rwd = np.array([s_e_frs_of_each_rwd[0] + tf.fr[bout_idx, 0] for bout_idx, frs_rwd in enumerate(tf.re)
-                              for s_e_frs_of_each_rwd in frs_rwd])
-    times_to_rwd = np.array([frame_to_rwd / FRAME_RATE for frame_to_rwd in frames_to_rwd])
-
-    return times_to_waterport_visits, times_to_rwd
-
-
-def create_list_waterport_visits_in_between_rwds(times_to_waterport_visits, times_to_rwd, include_wp_visits_after_last_rwd=False):
-    """ Creates list of all waterport visits in between each of the rewards in `times_to_rwd`. Includes visits before
-    first reward, but does not include visits after the last reward.
-    :param times_to_waterport_visits: list of times of visits to the waterport node
-    :param times_to_rwd: list of times of reward delivery
-    :param include_wp_visits_after_last_rwd: Use True to include waterport visits after last reward delivery. Default is False.
-    :return: a list of lists. Each list has the waterport visits in between rewards. The first element has the visits
-    before any reward delivery.
-    """
-    # TODO: this function would probably have been more readable if I had done an external loop of the rwd visits instead of waterport visits.
-    #  Maybe change someday. But seems to be working now as it is. Good luck understanding it! :-|
-    all_waterport_visits = []
-    waterport_visits_in_between_rwds = []
-    rwd_i = 0
-    for wp_idx, waterport_visit_time in enumerate(times_to_waterport_visits):  # create list of all waterport visits in between rewards
-        # print('  wp ', waterport_visit_time)
-        if rwd_i < len(times_to_rwd):  # if there are still reward deliveries after current waterport visit
-            if waterport_visit_time < times_to_rwd[rwd_i]:  # get waterport visits before each rwd delivery
-                waterport_visits_in_between_rwds.append(waterport_visit_time)
-                if wp_idx == len(times_to_waterport_visits) - 1:  # if it is the last item in the list
-                    # print("last wp visit")
-                    # print('wp ', waterport_visits_in_between_rwds)
-                    all_waterport_visits.append(waterport_visits_in_between_rwds)
-            else:  # reached waterport visit that is already after currently considered rwd delivery
-                # print('rwd ', times_to_rwd[rwd_i])
-                # print('wps ', waterport_visits_in_between_rwds)
-                rwd_i += 1
-                all_waterport_visits.append(waterport_visits_in_between_rwds)
-                waterport_visits_in_between_rwds = []
-                waterport_visits_in_between_rwds.append(waterport_visit_time)  # add current waterport visit to the list of visits after next rwd
-                if (include_wp_visits_after_last_rwd or waterport_visit_time < times_to_rwd[-1]) \
-                        and (wp_idx == len(times_to_waterport_visits) - 1):  # if it is the last item in the list
-                    # print("last wp visit")
-                    # print('wps ', waterport_visits_in_between_rwds)
-                    all_waterport_visits.append(waterport_visits_in_between_rwds)
-        elif include_wp_visits_after_last_rwd:  # waterport visits after last reward visit
-            waterport_visits_in_between_rwds.append(waterport_visit_time)  # add to the list of visits after the last rwd
-            if wp_idx == len(times_to_waterport_visits)-1:  # if it is the last item in the list
-                # print("last wp visit")
-                # print('wps ', waterport_visits_in_between_rwds)
-                all_waterport_visits.append(waterport_visits_in_between_rwds)
-
-    return all_waterport_visits
 
 
 def get_SAnodemap():
@@ -305,24 +225,6 @@ def wrap(episode_state_traj):
     episode_state_trajs = list(filter(lambda e: len(e) >= 3, episode_state_trajs))  # remove empty or short episodes
     episode_maze_trajs = episode_state_trajs  # in pure exploration, both are same
     return episode_state_trajs, episode_maze_trajs
-
-
-def get_reward_times(episodes):
-    raise NotImplementedError
-    """
-    Steps taken to reach the reward which is assumed to be the last node of an
-    episode
-
-    TODO: refactor this to accommodate continuous agent OR use original author's
-    implementation
-    """
-    visit_reward_node = []
-    time_reward_node = []
-    for i, traj in enumerate(episodes):
-        if traj.count(WATERPORT_NODE):
-            visit_reward_node.append(i)
-            time_reward_node.append(len(traj))
-    return visit_reward_node, time_reward_node
 
 
 def calculate_visit_frequency(episodes):
@@ -602,66 +504,6 @@ def split_trajectories_k_parts(tf, k):
     cl0 = np.concatenate([list(b[:, 0]) for b in tf.no]).flat
     idx = len(cl0) // k  # index for first k nodes
     return convert_episodes_to_traj_class(wrap(cl0[:idx])[0]), convert_episodes_to_traj_class(wrap(cl0[idx:])[0])
-
-
-class RewardedAnimalData:
-    def __init__(self):
-        self.split_tfs = self.split_into_parts()
-
-    @staticmethod
-    def split_into_parts():
-        split_tfs = {}
-        for sub in p.RewNames:
-            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
-            split_tfs[sub] = split_trajectories_at_first_reward(tf, k=5)
-        return split_tfs
-
-    def get_tf_before_first_reward(self):
-        tfs = [self.split_tfs[sub]['before'] for sub in p.RewNames]
-        return tfs
-
-    def get_tf_all_after_first_reward(self):
-        tfs = [self.split_tfs[sub]['all_after'] for sub in p.RewNames]
-        return tfs
-
-    def get_tf_imm_after_first_reward(self):
-        tfs = [self.split_tfs[sub]['imm_after'] for sub in p.RewNames]
-        return tfs
-
-    def get_tf_long_after_first_reward(self):
-        tfs = [self.split_tfs[sub]['long_after'] for sub in p.RewNames]
-        return tfs
-
-    def get_data_all(self):
-        tfs = []
-        animals = p.RewNames
-        for sub in animals:
-            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
-            tfs.append(tf)
-        return tfs
-
-
-class UnrewardedAnimalData:
-
-    def get_data_all(self):
-        tfs = []
-        animals = p.UnrewNamesSub
-        for sub in animals:
-            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
-            tfs.append(tf)
-        return tfs
-
-    def get_data_split_k(self, k):
-        split_tfs = []
-        animals = p.UnrewNamesSub
-        for sub in animals:
-            tf = LoadTrajFromPath(p.OUTDATA_PATH + sub + '-tf')
-
-            cl0 = np.concatenate([list(b[:, 0]) for b in tf.no]).flat
-            idx = len(cl0) // k  # length of each part
-            sub_tfs = [convert_episodes_to_traj_class(wrap(cl0[x:x+idx])[0]) for x in range(0, len(cl0), idx)]
-            split_tfs.append(sub_tfs)
-        return split_tfs
 
 
 def histo(X, bins=50, range=None, density=None, weights=None):

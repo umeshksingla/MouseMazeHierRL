@@ -1,4 +1,5 @@
 """
+A Base Temporally-Extended Greedy Model class.
 """
 
 import numpy as np

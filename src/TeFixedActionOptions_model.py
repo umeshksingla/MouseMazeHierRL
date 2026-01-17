@@ -1,4 +1,5 @@
 """
+Temporally-Extended Greedy Model class with perservative options.
 """
 
 import random

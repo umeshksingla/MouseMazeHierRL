@@ -1,4 +1,5 @@
 """
+Temporally-Extended Greedy Model class with Levy action-length distribution and Alternative Options. The main model.
 """
 
 import random

@@ -1,4 +1,5 @@
 """
+Temporally-Extended Greedy Model class with random action sequence options.
 """
 
 import random
