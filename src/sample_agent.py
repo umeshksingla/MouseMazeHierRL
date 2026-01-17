@@ -116,8 +116,6 @@ def analyse_episodes(stats, save_file_path, params):
     plt.rcParams.update(parameters)
     traj = convert_episodes_to_traj_class(episodes, stats["episodes_states"])
     tf = [(traj, params['model'])]
-    # plot_reward_runs(tf, title=params, save_file_path=save_file_path)
-    # plot_reward_path_lengths(tf, title=params, save_file_path=save_file_path)
 
     additional_title = str(params)
 
@@ -139,18 +137,6 @@ def analyse_episodes(stats, save_file_path, params):
     plot_outside_inside_ratio(tf, re=rew, title=additional_title, save_file_path=save_file_path)
     # plot_markov_fit_pooling(traj, params['model'], re=rew, title=additional_title, save_file_path=save_file_path, display=False)
     plot_trajs(episodes, title=params, save_file_path=save_file_path)
-
-    # plot_end_node_revisits_level_halves(tf, [6], title=params, save_file_path=save_file_path + 'en_revisits', display=False)
-    # plot_unique_node_revisits_level_halves(tf, [6], title=params, save_file_path=save_file_path + 'un_revisits', display=False)
-    # plot_exploration_efficiency(tf, re=False, le=2, title=params, save_file_path=save_file_path)
-    # plot_trajectory_features(episodes, title=params, save_file_path=save_file_path, display=False)
-    # plot_opposite_node_preference(tf, title=params, save_file_path=save_file_path, display=False)
-    # plot_markov_fit_non_pooling(episodes, re=False, title=params, save_file_path=save_file_path, display=False)
-    # plot_maze_stats(stats["visit_frequency"], interpolate_cell_values=True, colormap_name='Blues',
-    #                 colorbar_label="visit freq",
-    #                 save_file_name=os.path.join(save_file_path, f'visit_frequency_maze.png'),
-    #                 display=False,
-    #                 figtitle=f'state visit freq\n{params}')
 
     return
 
@@ -188,253 +174,19 @@ def run(model, params_all, base_path, VARIATION, analyze=True):
 
 
 if __name__ == '__main__':
-    # np.random.seed(0)
-    # should always start with an int denoting max number of steps in the total trajectory
-    # VARIATION = '20005_moreprobopp'
 
-    # 1. Load prev simulation(s) results saved locally
-    # load(base_path + f'/BayesianQL/MAX_LENGTH={MAX_LENGTH}/')
-    # quit()
+    # ez-greedy model (with alternative options, the main model)
+    from TeAltOptions_model import TeAltOptions
 
-    # OR, 2. Run a new simulation
-    # Import the model class you are interested in
+    param_sets = [{'mu': 2, 'model': f"TeAltOptions2"}]
+    print(param_sets)
+    base_path = '/Users/us3519/mouse-maze/figs/may28/'
+    run_ids = run(TeAltOptions(), param_sets, base_path, '50000', analyze=False)
+    print(run_ids)
 
-    # from Dyna_Qplus import DynaQPlus
-    # model = DynaQPlus()
-    # param_sets = {
-    #     11: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
-    #     12: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
-    #     13: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
-    #     14: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
-    #     15: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "k": 0.001,
-    #          "epsilon": 0.0, "n_plan": 100000, "bonus_in_planning": True},
-    # }
+    # # OR, Biased Walk model
+    # from BiasedWalk4 import BiasedWalk4
+    # param_sets = [{'rew': False}]
+    # runids = run(BiasedWalk4(), param_sets, '/Users/us3519/mouse-maze/figs/may28', '20000', analyze=True)
+    # print(runids)
 
-    # from TDLambdaOptimisticInitialization import TDLambdaOptimisticInitialization
-    # model = TDLambdaOptimisticInitialization()
-    # param_sets = {
-    #     # 1: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.1, "epsilon": 0.0},
-    #     # 2: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.5, "epsilon": 0.0},
-    #     # 3: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.7, "epsilon": 0.0},
-    #     # 4: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.8, "epsilon": 0.0},
-    #     5: {"alpha": 0.1, "gamma": 0.9, "lamda": 0.99, "epsilon": 0.0},
-    # }
-
-    # from EpsilonGreedy_model import EpsilonGreedy
-    # model = EpsilonGreedy()
-    # param_sets = {
-    #     1: {"epsilon": 1.0},
-    # }
-
-    # from BayesianQL import BayesianQL
-    # model = BayesianQL()
-    # param_sets = {
-    #     1: {"gamma": 0.99, "action_selection_method": 'q_sampling',
-    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-    #     2: {"gamma": 0.99, "action_selection_method": 'q_sampling',
-    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-    #     3: {"gamma": 0.99, "action_selection_method": 'q_sampling',
-    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-    #     4: {"gamma": 0.99, "action_selection_method": 'q_sampling',
-    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-    #     5: {"gamma": 0.99, "action_selection_method": 'q_sampling',
-    #          "initial_alpha": 1.5, "initial_lambda": 3, "initial_beta": 0.75},
-    # }
-
-    # from EpsilonDirectionGreedy_model import EpsilonDirectionGreedy
-    # model = EpsilonDirectionGreedy()
-    # param_sets = {
-    #     12: {"epsilon": 0.9, "is_strict": True, "version": 3, "remember_corners": False, "x": 2},
-    # }
-
-    # from CustomDirection_model import CustomDirection
-    # model = CustomDirection()
-    # param_sets = {
-    #     1: {"is_strict": True, "version": 2, "z_type": "zipf"},
-    #     2: {"is_strict": False, "version": 2, "z_type": "zipf"},
-    # }
-
-    # from IDDFS_model import IDDFS
-    # model = IDDFS()
-    # param_sets = {
-    #     1: {},
-    # }
-
-    # from random_backprob_model import RandomLessBackProb
-    # model = RandomLessBackProb()
-    # param_sets = {
-    #     1: {"back_prob": 0.3},
-    # }
-
-    # from EpsilonZGreedy_model import EpsilonZGreedy
-    # model = EpsilonZGreedy()
-    # param_sets = {
-    #     # 4: {"epsilon": 0.4, "enable_alternate_action": True, "enable_LoS": False},
-    #     5: {"epsilon": 0.3, "enable_alternate_action": True, "enable_LoS": False},
-    # }
-
-    # from v1_model import BiasedModelV1
-    # model = BiasedModelV1()
-    # param_sets = {
-    #     2: {'back_prob': 0.2, 'node_preferred_prob': 0.75, 'model': 'V2'},
-    #     # 3: {'back_prob': 0.2, 'node_preferred_prob': 0.55},
-    #     # 4: {'back_prob': 0.2, 'node_preferred_prob': 0.8},
-    #     # 5: {'back_prob': 0.2, 'node_preferred_prob': 0.6},
-    #     # 6: {'back_prob': 0.2, 'node_preferred_prob': 0.75},
-    # }
-    # run(model, param_sets, base_path, VARIATION)
-
-    # base path to save figs or other results in
-    base_path = '/Users/usingla/mouse-maze/figs/'
-    # load([
-    #     # ('BiasedModelV1', 41724),
-    #     ('BiasedModelV1', 77428),    # v2
-    #     # ('BiasedModelV1', '71316'),
-    #     ('EpsilonZGreedy', 22693),
-    #     ('BiasedWalkMM', 43600),
-    #     # ('BiasedModelV1', 84397)  # v1
-    # ], base_path)
-
-    load([
-        # # ez original
-        # ('EpsilonZGreedy', 22693),
-
-        # check
-        # ('EpsilonZGreedy', 85434),
-
-        # strong 1
-        # ('EpsilonZGreedy', 349508),
-        # ('EpsilonZGreedy', 919586),
-
-
-        # ('EpsilonZGreedy', 900664),
-        #
-        # # strong 01
-        # ('EpsilonZGreedy', 572794),
-        # ('EpsilonZGreedy', 622893),
-
-        # # strong 1 d0
-        # ('EpsilonZGreedy', 528134),
-
-        # weak r12 d0
-        # ('EpsilonZGreedy', 593958),
-
-        # # weak 2 d0
-        # ('EpsilonZGreedy', 748594),
-
-        # biased model
-        # ('BiasedModel', 77428),
-
-        # coeff model
-        # ('CoeffModel', 905105),
-
-        # e = 0.1
-        # ('AA', 72432),
-        # ('AA', 64435),
-        # ('AA', 44679),
-        # ('AA', 147363),
-
-        # e = 0.3
-        # ('AA', 43235),
-        # ('AA', 8147),
-        # ('AA', 181887),
-        # ('AA', 348276),
-
-        # # e = 1.0
-        # ('AA', 55403),
-        # ('AA', 831945),
-        # ('AA', 76199),
-        # ('AA', 412521),
-
-        # e = 0.1, 0.3, 1.0 random in central l0-2 or l0-3
-        # ('AA', 44679),
-        # ('AA', 181887),
-        # ('AA', 76199),
-
-        # mu = 2: strong, weak, absent - strong and absent good eff, left bias good in absent, P similar, fraction good in weak (BRING DOWN L6 FRACTION AND UP L4)
-        # ('EpsilonZGreedy', 87716),
-        # ('EpsilonZGreedy', 829236),
-        # ('EpsilonZGreedy', 608501),
-
-        # mu = 1.9: strong, weak, absent - strong and absent good eff, left bias good in most, P similar, fraction good in weak (BRING DOWN L6 FRACTION AND UP L4)
-        # ('EpsilonZGreedy', 914265),
-        # ('EpsilonZGreedy', 853630),
-        # ('EpsilonZGreedy', 252508),
-
-        # mu = 1.8: strong, weak, absent - strong and absent okay eff, left bias good in most, P similar, fraction good in weak (BRING DOWN L6 FRACTION AND UP L4)
-        # ('EpsilonZGreedy', 312597),
-        # ('EpsilonZGreedy', 767061),
-        # ('EpsilonZGreedy', 940515),
-
-        # mu = 1.7: strong, weak, absent - strong and absent okay eff, left bias good in absent/weak, P similar, fraction good in weak (BRING DOWN L6 FRACTION AND UP L4)
-        # ('EpsilonZGreedy', 467819),
-        # ('EpsilonZGreedy', 572280),
-        # ('EpsilonZGreedy', 86888),
-
-        # ('V2', [933613, 577107, 599346, 889774, 359900])    # staySq 0.7, stayQ varies
-
-        # ('V2', [446726, 116325, 948619, 289226, 253401])    # staySq 0.65, stayQ varies
-
-        # ('V2', [263475, 770165, 398401, 962502, 595252, 860300])  # staySQ varies, stayQ 0.85
-
-        # ('V2', [263475, 962502, 846765])  # staySQ varies, stayQ 0.85
-
-        # ('V2', [263475, 962502, 846765])  # staySQ varies, stayQ 0.85
-
-        # ('V2', [962502, 599346]),
-        # ('EpsilonZGreedy', [22693, 829236])
-        # ('V3', [402647, 613683, 290052])  # no diff between opp straight biases at subq and q level
-        # ('V3', [716722, 801808])    # all opp straight bent etc equal
-
-        # ('V3', [164631]),   # 887275
-        # ('BiasedWalk4', [384434]),
-        # ('EpsilonZGreedy', [22693])
-
-        # ('V2', [799411, 570294, 838355, 325609, 228337])    # multiple simulations for V2 with same params
-        # ('V3', [191820, 493692, 360591, 383989, 58814])  # multiple simulations for V3 with same params
-        # ('BiasedWalk4', [190172, 483041, 655539, 529415, 397616])  # multiple simulations for BiasedWalk4 with same params
-
-        # ('EpsilonZGreedy', [655851, 972319, 898791, 464215, 216742])    # multiple simulations for EpsilonZGreedy with same params
-
-        # ('EpsilonZGreedy', [475022, 325380, 57433, 42260, 406924, 459779])    # multiple simulations for EpsilonZGreedy with diff mu but e=0.3
-        # ('EpsilonZGreedy', [601047, 292311, 866783, 716345, 426014, 23484])     # multiple simulations for EpsilonZGreedy with diff mu but e=0.2
-        # ('EpsilonZGreedy', [675911, 981948, 162233, 284774, 640510, 700054])  # multiple simulations for EpsilonZGreedy with diff mu but e=0.4
-        # ('EpsilonZGreedy', [783121, 408644, 745470, 292030, 259926, 336503])     # multiple simulations for EpsilonZGreedy with diff mu but e=0.4 and duration not 0 in random
-        # ('EpsilonZGreedy', [603896, 1901, 530173, 46841, 349521, 308086])     # multiple simulations for EpsilonZGreedy with diff mu but e=0.3 and duration not 0 in random
-        # ('EpsilonZGreedy', [410642, 511540, 701584, 778068, 825601, 712320])    # multiple simulations for EpsilonZGreedy with diff mu but e=0.3 and duration not 0 in random, +1 in zipf
-
-        # ('EpsilonZGreedy', [274045]),
-        # ('V2', [799411]),
-        # ('V3', [360591]),
-        # ('BiasedWalk4', [190172]),
-
-        # ('EpsilonZGreedy', [274045, 351191, 310880, 8908])    # multiple simulations for EpsilonZGreedy e=0.3, with duration 0 in random
-        # ('EpsilonZGreedy', [513435, 60530, 989176, 96801])    # multiple simulations for EpsilonZGreedy e=0.35, with duration 0 in random
-        # ('EpsilonZGreedy', [714363, 19392, 34583, 458679])    # multiple simulations for EpsilonZGreedy e=0.25, with duration 0 in random
-        # ('EpsilonZGreedy', [53487, 859163, 917598, 992250])   # multiple simulations for EpsilonZGreedy e=0.4, with duration 0 in random
-        # ('EpsilonZGreedy', [187077, 697240, 879930, 155774])    # multiple simulations for EpsilonZGreedy e=1, with duration 0 in random
-
-        # ('EpsilonZGreedy', [506691])    # multiple simulations for EpsilonZGreedy e=1, different mu, with duration 0 in random
-        # ('EpsilonZGreedy', [534614, 355055, 516984, 671772, 748921])
-            # multiple simulations for EpsilonZGreedy e=1, different mu, strong memory, with duration 0 in random
-        # ('EpsilonZGreedy', [806473, 848916, 54208, 9402, 667047])
-        # multiple simulations for EpsilonZGreedy e=1, different mu, weak memory, with duration 0 in random
-        # ('EpsilonZGreedy', [919975, 556059, 667704, 86919, 231990])
-        # multiple simulations for EpsilonZGreedy e=1, different mu, weak memory, with duration 0 in random
-
-        # ('Custom', [382029]),
-        # ('Levy', [184722]),
-        # # ('Optimal', [58410]),
-        # ('BiasedWalk4', [50173])
-
-        # ('EZCustom', [684225, 692398, 812279, 866072, 690742]),
-        # ('EZCustom', [778597, 772763, 68980]),
-
-        ('LW', [322469]),
-        ('BiasedWalk4', [927154]),
-
-    ], base_path)
