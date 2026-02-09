@@ -2,8 +2,7 @@
 
 This repository contains the code and models for the study on mouse exploration strategies in a complex labyrinth, as presented in:
 
-* **Singla, U. \& Mattar, M., 2026 (bioRxiv)**: *Temporal Abstraction Explains Mouse Exploration in a Complex Maze*
-* **Singla, U. \& Mattar, M., 2024 (CogSci)**: *Temporal Persistence Explains Mice Exploration in a Labyrinth*
+* **Singla, U. \& Mattar, M., 2024 (CCN 2024, CogSciSociety 2024)**: *Temporal Persistence Explains Mice Exploration in a Labyrinth*
 
 #### Overview
 
